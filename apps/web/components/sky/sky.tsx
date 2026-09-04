@@ -14,6 +14,10 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 
+// The shaders write colours straight to the canvas, so colours must stay in
+// sRGB as written: paper has to land on #EDEFF1 exactly, not its linear value.
+THREE.ColorManagement.enabled = false;
+
 /**
  * The pick from /dev/sky/1, 2, 3: the second sky's density with the third
  * sky's cloud. Contrast is how far the brightest cloud sits from night toward
@@ -151,6 +155,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     uniforms: {
       uMap: { value: nebulaTarget.texture },
       uResolution: { value: physicalSize },
+      uDawn: { value: 0 },
     },
     vertexShader: QUAD_VERT,
     fragmentShader: COPY_FRAG,
@@ -227,6 +232,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     else surface.lerpColors(dusk, paper, (d - 0.35) / 0.65);
     nebulaMaterial.uniforms.uDawn!.value = d;
     starMaterial.uniforms.uDawn!.value = d;
+    copyMaterial.uniforms.uDawn!.value = d;
     if (reduced && ready) render();
   }
 
@@ -439,12 +445,14 @@ void main() {
 const COPY_FRAG = /* glsl */ `
 uniform sampler2D uMap;
 uniform vec2 uResolution;
+uniform float uDawn;
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453123);
 }
 void main() {
   vec3 c = texture2D(uMap, gl_FragCoord.xy / uResolution).rgb;
-  c += (hash(gl_FragCoord.xy) - 0.5) / 255.0;
+  // The dither fades with dawn so flat paper is exactly paper.
+  c += (hash(gl_FragCoord.xy) - 0.5) / 255.0 * (1.0 - uDawn);
   gl_FragColor = vec4(c, 1.0);
 }
 `;
