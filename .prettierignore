@@ -6,3 +6,8 @@ supabase/migrations/
 
 # The spec. Kept byte-for-byte as written.
 CLAUDE.md
+
+# Vendored third-party skills, installed by `npx skills add`.
+.agents/
+.claude/
+skills-lock.json
