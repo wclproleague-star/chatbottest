@@ -154,6 +154,65 @@ Sentence case, plain verbs, short. Buttons say what happens ("Set up your bot", 
 
 Same tokens on paper, no night mode. Quiet, dense enough to be useful, the inbox row as the core component. The bot card from onboarding is reused on Overview.
 
+### Craft addendum
+
+Final. Wins over earlier design lines where they conflict.
+
+#### Hero, final
+- The thread panel is smoked glass, not white: night #070A10 at 72% opacity, backdrop blur 24px, one 1px inner highlight on the top edge only in star white at 14%, no other border, no glow, no noise, no refraction, radius 16px, shadow 0 32px 80px rgba(0,0,0,0.45). Stars stay faintly visible through it; if blur kills them, 64%. Remove the white variant.
+- Panel text: star white messages, sender names star white at 55%, cursor star white. State rules unchanged.
+- Headline breaks in exactly three lines from 1024px up: "The server assistant / that asks before / it answers." Never a single word on a line. Below 1024, two or four lines are acceptable, never five.
+- Body line under the headline, final copy: "It answers from what your server already knows, and asks a moderator when it doesn't."
+- The beacon photo, when it arrives: height matches the panel's, sitting on the same baseline as the panel's bottom edge. Keep its own shadow; add a soft contact shadow so it stands on the same invisible floor as the panel. Light-state crossfade is masked to the slit only; the body never flickers.
+- Until the photo exists the silhouette stays, using the same scale and baseline rules so nothing moves at swap.
+- Sky loads behind a solid night fill. No white flash, no flash of unstyled text: fonts preloaded, font-display optional. Before Three.js is ready the hero shows night fill and headline; stars fade in over 600ms; the thread does not start until the sky is up.
+
+#### Dawn, decided
+- Hero content (headline, beacon, panel) fades out with the sky over the first third of the dawn band. Nothing from the night is ever visible on paper. Paper content starts after the band ends, never overlapping.
+- Scroll-linked with zero latency; no smoothing library, no lerp. Uses the same noise as the nebula, dissolving to flat paper, so the sky thins rather than just changing colour.
+- Nav: transparent with star white text over the sky; at 60% through the band it becomes the ink pill with star white text; 40px tall, radius 20, 12px backdrop blur, top center, max 560px wide. Items: wordmark left, "How it works", "Pricing", and "Set up your bot" as the only filled item, right. Below 768px the pill holds the wordmark and "Set up your bot" only.
+- No scroll indicator, no arrow, no progress bar.
+
+#### Paper sections, decided
+- Section headings: display type 40 to 48px, weight 500, ink, left aligned, max width 20 characters so they break in two lines. Under each, a one-sentence lede in body size, ink soft, max 60 characters per line. No eyebrow, no divider.
+- Inbox panel: white, radius 16px, one shadow, hairline rows in #E3E6EA. Row: question ink 17px; sender and channel ink soft 14px; "what it almost knew" as one collapsed line in ink soft with a disclosure expanding to the three chunks; Approve as a text button in ink. The only filled button on the marketing page is "Set up your bot".
+- Bot card: white, radius 16px, hairline border #E3E6EA, no shadow. Labels ink soft 14px, values ink 17px. Empty fields show a 1px dashed hairline where the value will go.
+- Actions section: four lines of body text each starting with a verb, no icons, no cards. "It doesn't moderate." is its own final line in ink at 20px.
+- Audiences: two columns of plain text, two-word heading in ink, three sentences in ink soft. Stack at 768.
+- Pricing: three rows in one white panel, hairlines between. Row: name ink 20px left, one sentence ink soft centre, price ink 20px right. Free row link "Start", others "Choose", as text links. Euros, no cents. One line under the panel: "Per server, per month. Cancel anytime."
+- Footer: paper, no background change. Left: tagline in ink 20px. Right: four text links in ink soft. Under both, one hairline and a line with the wordmark and the year.
+
+#### Global states and details
+- Text selection: ink at 12% on paper, star white at 20% on night. Browser default blue never appears.
+- Focus: 2px ring, offset 2px, green on paper, star white on night, keyboard only.
+- Links: ink, 1px underline, offset 3px, underline ink at 40%, hover 100%. No coloured links on paper except the green state link in the inbox.
+- Buttons: 44px, radius 10px, weight 500. Primary ink on paper, star white on night. Hover 6% shift. Active scales to 0.98 for 80ms. Disabled 40% opacity.
+- Default cursor, default scrollbar. No custom cursors, no magnetic buttons.
+- Tabular figures. Times "18:00 CET". Dates "Sun 7 Sep".
+- No icons on the marketing site. Dashboard: one 16px stroke set at 1.5px, ink soft, only where an action has no room for a word.
+- Loading: skeleton blocks #E3E6EA, radius 6px, no shimmer; content replaces in place.
+- Toasts: bottom center, ink pill, star white text, 3s, one at a time, stating what happened: "Approved. Added to what Sentry knows."
+- Errors: inline, ink, one sentence saying what happened and what to do. Never red, never an exclamation mark.
+- Empty states: one sentence and one action, no illustration. Example: "Nothing waiting on you. Sentry answered everything this week."
+- 404: paper, headline "Not sure about that one." and a link home.
+- OG image: the held final hero frame at 1200x630 from the same components. Favicon: avatar mark, ink on transparent for light tabs, star white for dark via media query.
+
+#### Dashboard, decided
+- Same tokens, paper only. Left sidebar 240px, ink soft text, current item in ink with a 2px green rule on its left; collapses to a top bar with menu at 1024.
+- Page title display 32px, one-sentence lede in ink soft, then content. No breadcrumbs.
+- Tables: rows in a white panel with hairlines, never gridlines or zebra stripes. Header row ink soft 14px.
+- Forms: labels above, ink soft 14px; fields 44px, radius 8px, hairline border, green focus ring; help text only when needed. Save is a filled ink button bottom right, "Save changes", toast on success. No autosave except onboarding.
+- Onboarding chat is paper, not glass: user messages in a white panel right-aligned, Sentry messages plain text left with the 2px green rule. Quick replies as 36px pills with hairline border. Bot card on the right updates with a 120ms stagger per field.
+- Confidence slider: 8px track #E3E6EA, ink thumb, "Cautious" and "Confident" at the ends, one line under it that changes with the value.
+- Knowledge score: the word "Thin", "Decent" or "Solid" in ink plus its explaining sentence. No bar, no gauge.
+
+#### Mobile, decided
+- Hero at 375: headline, beacon at 60% scale, panel full width with 16px margins, body, buttons. The thread still plays. Height may exceed the viewport; the sky continues behind it.
+- Dawn band 40vh on mobile. All panels 16px side margins, sections 96px apart. Pricing rows stack name, sentence, price. Nothing hidden on mobile except the two nav links.
+
+#### Process rule
+Before showing any screen, check it against this addendum line by line. If a line is impossible in a given case, say which and why, propose one alternative, and continue with it. Never present a screen that violates a line here and wait for me to notice.
+
 ## 7. Build order
 
 One line per session. Do not start the next until the current one runs and I've seen it. Before showing UI: screenshot it, critique it against section 6, fix what you find, list what you cut.
