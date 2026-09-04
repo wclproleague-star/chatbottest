@@ -1,0 +1,143 @@
+/* Sentry design tokens. Section 6 of CLAUDE.md, verbatim wherever it gives a number. */
+
+@theme {
+  /* Drop Tailwind's palette entirely: the site has these nine colours and no third one. */
+  --color-*: initial;
+  --color-night: #070a10;
+  --color-dusk: #1a2030;
+  --color-paper: #edeff1;
+  --color-panel: #ffffff;
+  --color-ink: #111418;
+  --color-ink-soft: #5b636e;
+  --color-star: #f2eee6;
+  --color-green: #23a55a;
+  --color-amber: #d9a21b;
+
+  /* One family for everything, including the thread. */
+  --font-*: initial;
+  --font-sans: var(--font-instrument-sans), 'Instrument Sans', system-ui, sans-serif;
+
+  --text-ui-sm: 14px;
+  --text-ui-sm--line-height: 1.4;
+  --text-ui: 15px;
+  --text-ui--line-height: 1.4;
+  --text-thread: 15px;
+  --text-thread--line-height: 1.45;
+  --text-body: 17px;
+  --text-body--line-height: 1.55;
+
+  --radius-button: 10px;
+  --radius-panel: 12px;
+
+  --shadow-panel-paper: 0 24px 60px rgb(20 40 80 / 0.1);
+  --shadow-panel-night: 0 32px 80px rgb(0 0 0 / 0.45);
+
+  --container-page: 1120px;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+:root {
+  --duration-hover: 120ms;
+  --duration-approve: 180ms;
+  --duration-stagger: 120ms;
+  /* Display type is slightly condensed on the width axis. Options are shown at /dev/ui. */
+  --display-width: 92%;
+  /* Focus rings and Sentry's left rule take the section's state colour. */
+  --state: var(--color-green);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-hover: 0ms;
+    --duration-approve: 0ms;
+    --duration-stagger: 0ms;
+  }
+}
+
+[data-state='answered'] {
+  --state: var(--color-green);
+}
+[data-state='waiting'] {
+  --state: var(--color-amber);
+}
+
+/* The two surfaces. Panels stay white with ink text on both. */
+[data-surface='paper'] {
+  --surface-bg: var(--color-paper);
+  --surface-fg: var(--color-ink);
+  --surface-fg-soft: var(--color-ink-soft);
+  --surface-hairline: rgb(17 20 24 / 0.12);
+  --surface-panel-shadow: var(--shadow-panel-paper);
+  --button-bg: var(--color-ink);
+  --button-fg: var(--color-paper);
+  --button-bg-hover: color-mix(in srgb, var(--color-ink) 94%, white);
+}
+[data-surface='night'] {
+  --surface-bg: var(--color-night);
+  --surface-fg: var(--color-star);
+  --surface-fg-soft: rgb(242 238 230 / 0.62);
+  --surface-hairline: rgb(242 238 230 / 0.16);
+  --surface-panel-shadow: var(--shadow-panel-night);
+  --button-bg: var(--color-star);
+  --button-fg: var(--color-night);
+  --button-bg-hover: color-mix(in srgb, var(--color-star) 94%, var(--color-ink));
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+    color: var(--color-ink);
+    background: var(--color-paper);
+    -webkit-font-smoothing: antialiased;
+  }
+  :where(a, button, [tabindex]):focus-visible {
+    outline: 2px solid var(--state);
+    outline-offset: 2px;
+  }
+}
+
+/* Display: 64 to 80px desktop, 40px mobile, weight 500, tracking -0.025em. */
+.display {
+  font-size: clamp(40px, 6.5vw, 80px);
+  line-height: 1.02;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  font-stretch: var(--display-width);
+  text-wrap: balance;
+}
+
+/* Typing cursor: 1px bar in the text colour, 1s blink, removed when the message completes. */
+.cursor::after {
+  content: '';
+  display: inline-block;
+  width: 1px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  background: currentColor;
+  animation: cursor-blink 1s steps(1, end) infinite;
+}
+@keyframes cursor-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.fade-in {
+  animation: fade-in var(--duration-approve) var(--ease-standard) both;
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor::after,
+  .fade-in {
+    animation: none;
+  }
+}

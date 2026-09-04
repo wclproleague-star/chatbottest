@@ -5,8 +5,12 @@
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
+  "sideEffects": [
+    "*.css"
+  ],
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
     "build": "tsc --noEmit",
