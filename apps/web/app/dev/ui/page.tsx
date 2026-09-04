@@ -1,10 +1,9 @@
 import {
-  AVATAR_VARIANTS,
   AvatarMark,
   BotCard,
   Button,
-  DISPLAY_WIDTHS,
   Display,
+  InboxRow,
   Nav,
   Panel,
   PricingList,
@@ -12,19 +11,13 @@ import {
   Surface,
   TextLink,
   ThreadMessage,
-  WORDMARK_VARIANTS,
-  WordmarkSvg,
   Wordmark,
 } from '@sentrybot/ui';
-import type { AvatarVariant, SurfaceName, WordmarkVariant } from '@sentrybot/ui';
+import type { InboxRowProps, SurfaceName } from '@sentrybot/ui';
 import type { ReactNode } from 'react';
-import { InboxDemo } from './inbox-demo';
 
 // Component preview. Same tokens on paper and on night. ?surface=paper|night
 // renders one surface on its own for screenshots.
-
-const WORDMARKS = Object.keys(WORDMARK_VARIANTS) as WordmarkVariant[];
-const AVATARS = Object.keys(AVATAR_VARIANTS) as AvatarVariant[];
 
 function Section({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -60,43 +53,52 @@ function Thread() {
   );
 }
 
+/** Three real rows. Two green, one amber. Placeholder copy until line 13. */
+const ROWS: InboxRowProps[] = [
+  {
+    question: 'where do I find the map pool?',
+    asker: 'kestrel',
+    channel: 'help',
+    draft: "It's pinned in #match-info.",
+    almostKnew:
+      'Roles and channels: #match-info holds the map pool, reschedule requests and casting requests.',
+    state: 'answered',
+    followUp: 'Added to what I know.',
+  },
+  {
+    question: 'what if the other captain ignores my reschedule request?',
+    asker: 'juno',
+    channel: 'help',
+    draft:
+      'Reschedules need both captains to agree, asked in #match-info 48 hours ahead. If they will not reply, that is one for the mods.',
+    almostKnew:
+      'Tournament format: reschedule requests go to #match-info at least 48 hours before the match and need both captains to agree.',
+    state: 'waiting',
+    followUp: 'Added to what I know.',
+  },
+  {
+    question: 'can I stream my own matches?',
+    asker: 'mara',
+    channel: 'general',
+    draft: 'Yes. Post the link in #self-promo only.',
+    almostKnew: 'Server rules: post your own streams and videos in #self-promo only.',
+    state: 'answered',
+    followUp: 'Added to what I know.',
+  },
+];
+
 function Marks() {
   return (
-    <>
-      <Section label="Wordmark, three options">
-        <div className="grid gap-10 md:grid-cols-3">
-          {WORDMARKS.map((v) => (
-            <div key={v}>
-              <WordmarkSvg variant={v} height={64} className="max-w-full" />
-              <p className="text-ui mt-4">
-                <Wordmark variant={v} className="mr-3" />
-                <span className="text-(--surface-fg-soft)">
-                  {WORDMARK_VARIANTS[v].label}, width {WORDMARK_VARIANTS[v].stretch}, tracking{' '}
-                  {WORDMARK_VARIANTS[v].tracking}
-                </span>
-              </p>
-            </div>
-          ))}
+    <Section label="Wordmark and avatar mark">
+      <div className="flex flex-wrap items-end gap-x-16 gap-y-8">
+        <Wordmark className="text-[64px]" />
+        <Wordmark className="text-ui" />
+        <div className="flex items-end gap-6">
+          <AvatarMark size={96} />
+          <AvatarMark size={32} />
         </div>
-      </Section>
-
-      <Section label="Avatar mark, three options, at 96 and 32">
-        <div className="grid gap-10 md:grid-cols-3">
-          {AVATARS.map((v) => (
-            <div key={v}>
-              <div className="flex items-end gap-6">
-                <AvatarMark variant={v} size={96} />
-                <AvatarMark variant={v} size={32} />
-              </div>
-              <p className="text-ui mt-4">
-                {AVATAR_VARIANTS[v].label}
-                <span className="text-(--surface-fg-soft)"> {AVATAR_VARIANTS[v].idea}</span>
-              </p>
-            </div>
-          ))}
-        </div>
-      </Section>
-    </>
+      </div>
+    </Section>
   );
 }
 
@@ -108,23 +110,11 @@ function Paper() {
           <Nav state="paper" />
         </Section>
 
-        <Section label="Display, three widths on the width axis. The default is Slight.">
-          <div className="space-y-12">
-            {DISPLAY_WIDTHS.map((w) => (
-              <div key={w.width}>
-                <p className="text-ui-sm text-(--surface-fg-soft) mb-3">
-                  {w.label}, {w.width}
-                </p>
-                <Display width={w.width} className="max-w-[18ch]">
-                  The server assistant that asks before it answers.
-                </Display>
-              </div>
-            ))}
-          </div>
-        </Section>
-
-        <Section label="Body, button, text link">
-          <p className="max-w-[68ch]">
+        <Section label="Display, body, button, text link">
+          <Display className="max-w-[18ch]">
+            The server assistant that asks before it answers.
+          </Display>
+          <p className="mt-8 max-w-[68ch]">
             It answers from what your server already knows, and asks a moderator when it
             doesn&apos;t. The approved answer becomes new knowledge.
           </p>
@@ -138,8 +128,12 @@ function Paper() {
           <Thread />
         </Section>
 
-        <Section label="Inbox rows, three transitions. Hover or tap Approve on the amber row.">
-          <InboxDemo />
+        <Section label="Inbox rows. Hover or tap Approve on the amber row.">
+          <Panel className="divide-(color:--surface-hairline) divide-y py-1">
+            {ROWS.map((row) => (
+              <InboxRow key={row.question} {...row} />
+            ))}
+          </Panel>
         </Section>
 
         <Section label="Bot card">

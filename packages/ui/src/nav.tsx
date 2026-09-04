@@ -1,6 +1,5 @@
 import { cx } from './cx';
 import { Wordmark } from './wordmark';
-import type { WordmarkVariant } from './wordmark';
 
 export type NavState = 'sky' | 'paper';
 
@@ -15,15 +14,7 @@ const LINKS: { href: string; label: string; always?: boolean }[] = [
  * 40px ink pill with a 12px backdrop blur. Positioning belongs to line 7.
  * Below md only the wordmark and "Set up your bot" fit; the rest hides.
  */
-export function Nav({
-  state,
-  wordmark = 'standard',
-  className,
-}: {
-  state: NavState;
-  wordmark?: WordmarkVariant;
-  className?: string;
-}) {
+export function Nav({ state, className }: { state: NavState; className?: string }) {
   const links = LINKS.map((l) => (
     <a
       key={l.href}
@@ -40,8 +31,8 @@ export function Nav({
   if (state === 'sky') {
     return (
       <nav className={cx('text-star flex h-16 items-center justify-between', className)}>
-        <a href="/" className="text-ui font-medium">
-          <Wordmark variant={wordmark} />
+        <a href="/" className="text-ui">
+          <Wordmark />
         </a>
         <div className="flex items-center gap-6">{links}</div>
       </nav>
@@ -55,8 +46,8 @@ export function Nav({
         className,
       )}
     >
-      <a href="/" className="text-ui font-medium">
-        <Wordmark variant={wordmark} />
+      <a href="/" className="text-ui">
+        <Wordmark />
       </a>
       {links}
     </nav>

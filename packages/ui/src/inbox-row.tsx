@@ -6,9 +6,6 @@ import { cx } from './cx';
 
 export type InboxState = 'answered' | 'waiting';
 
-/** How the amber row turns green. Three named options; the spec fixes 180ms. */
-export type InboxTransition = 'plain' | 'sequenced' | 'replace';
-
 export type InboxRowProps = {
   question: string;
   asker: string;
@@ -18,15 +15,15 @@ export type InboxRowProps = {
   state: InboxState;
   /** The bot's line that appears beneath the draft once approved. */
   followUp: string;
-  transition?: InboxTransition;
   /** Hovering Approve previews the green state; tapping commits it. */
   previewOnHover?: boolean;
 };
 
 /**
  * The inbox row: question, bot draft, what it almost knew, Approve.
- * Approve on a waiting row: 180ms crossfade to green and the follow-up
- * line appears beneath. Reduced motion renders the end state.
+ * Approve on a waiting row: the rule and button crossfade to green in 180ms,
+ * then the follow-up line fades in beneath, 180ms later. Reduced motion
+ * renders the end state.
  */
 export function InboxRow({
   question,
@@ -36,7 +33,6 @@ export function InboxRow({
   almostKnew,
   state,
   followUp,
-  transition = 'plain',
   previewOnHover = true,
 }: InboxRowProps) {
   const [approved, setApproved] = useState(state === 'answered');
@@ -48,8 +44,6 @@ export function InboxRow({
 
   const green = approved || preview;
   const wasWaiting = state === 'waiting';
-  const showFollowUp = green && wasWaiting;
-  const delay = transition === 'sequenced' ? 'var(--duration-approve)' : '0ms';
 
   return (
     <div
@@ -66,11 +60,10 @@ export function InboxRow({
       <div>
         <p className="text-ui-sm text-ink-soft">Draft</p>
         <p className="text-ui mt-1">{draft}</p>
-        {showFollowUp && (
+        {green && wasWaiting && (
           <p
-            key={`${transition}-${approved}`}
             className="fade-in text-ui text-(--state) mt-2"
-            style={{ animationDelay: delay }}
+            style={{ animationDelay: 'var(--duration-approve)' }}
           >
             {followUp}
           </p>
@@ -91,11 +84,6 @@ export function InboxRow({
           >
             Approve
           </Button>
-        )}
-        {wasWaiting && approved && transition === 'replace' && (
-          <span className="fade-in text-ui text-(--state) inline-flex h-11 items-center">
-            Approved
-          </span>
         )}
       </div>
     </div>
