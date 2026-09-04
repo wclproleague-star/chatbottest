@@ -16,6 +16,8 @@ for (const file of ['.env.local', '.env']) {
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   transpilePackages: ['@sentrybot/core', '@sentrybot/ui'],
+  // core's Node-only dependencies stay external to the server bundle.
+  serverExternalPackages: ['ws', 'unpdf', '@google/genai'],
   // Without this Next walks up past the repo and picks a stray lockfile as the root.
   outputFileTracingRoot: fileURLToPath(new URL('../../', import.meta.url)),
   eslint: {

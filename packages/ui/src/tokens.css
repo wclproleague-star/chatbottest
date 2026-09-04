@@ -12,6 +12,8 @@
   --color-star: #f2eee6;
   --color-green: #23a55a;
   --color-amber: #d9a21b;
+  /* Hairlines and skeletons on paper, from the craft addendum. */
+  --color-hairline: #e3e6ea;
 
   /* One family for everything, including the thread. */
   --font-*: initial;
@@ -27,7 +29,8 @@
   --text-body--line-height: 1.55;
 
   --radius-button: 10px;
-  --radius-panel: 12px;
+  /* Panels and the bot card: 16px, from the craft addendum. */
+  --radius-panel: 16px;
 
   --shadow-panel-paper: 0 24px 60px rgb(20 40 80 / 0.1);
   --shadow-panel-night: 0 32px 80px rgb(0 0 0 / 0.45);
