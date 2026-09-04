@@ -8,6 +8,8 @@
 // It loads behind a solid night fill: the canvas fades in over 600ms after
 // its first frame and calls onReady. `dawn` (0 to 1) dissolves the sky to
 // paper with the nebula's own noise, so it thins rather than recolours.
+// `boost` names a viewport rect (the thread panel) behind which the cloud is
+// a little denser, so there is something to see through the glass.
 
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
@@ -18,6 +20,11 @@ import * as THREE from 'three';
  * star white; scale is how fine the cloud's structure is.
  */
 const SKY = { stars: 15000, contrast: 0.09, scale: 2.0 } as const;
+
+/** How much denser the cloud is behind the boost rect, in units of n (0 to 1). */
+const BOOST_DENSITY = 0.5;
+/** Padding around the boost rect, CSS px, so the edge is never seen. */
+const BOOST_PAD = 48;
 
 const NIGHT = '#070a10';
 const DUSK = '#1a2030';
@@ -34,21 +41,38 @@ const FAR = 1000;
 /** Radians per second. One turn in about 26 minutes. */
 const DRIFT = 0.004;
 
-type Handle = { setDawn: (p: number) => void; dispose: () => void };
+export type SkyRect = { x: number; y: number; width: number; height: number };
 
-export function Sky({ dawn = 0, onReady }: { dawn?: number; onReady?: () => void }) {
+type Handle = {
+  setDawn: (p: number) => void;
+  setBoost: (rect: SkyRect | null) => void;
+  dispose: () => void;
+};
+
+export function Sky({
+  dawn = 0,
+  boost = null,
+  onReady,
+}: {
+  dawn?: number;
+  boost?: SkyRect | null;
+  onReady?: () => void;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
   const handle = useRef<Handle | null>(null);
   const readyRef = useRef(onReady);
   readyRef.current = onReady;
   const dawnRef = useRef(dawn);
   dawnRef.current = dawn;
+  const boostRef = useRef(boost);
+  boostRef.current = boost;
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
     const h = mount(canvas, () => readyRef.current?.());
     h.setDawn(dawnRef.current);
+    h.setBoost(boostRef.current);
     handle.current = h;
     return () => {
       h.dispose();
@@ -59,6 +83,10 @@ export function Sky({ dawn = 0, onReady }: { dawn?: number; onReady?: () => void
   useEffect(() => {
     handle.current?.setDawn(dawn);
   }, [dawn]);
+
+  useEffect(() => {
+    handle.current?.setBoost(boost);
+  }, [boost]);
 
   return (
     <canvas
@@ -92,6 +120,8 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
   const dusk = new THREE.Color(DUSK);
   const paper = new THREE.Color(PAPER);
   const surface = new THREE.Color(NIGHT);
+  const boost = new THREE.Vector4(0.5, 0.5, 0.001, 0.001);
+  let boostRect: SkyRect | null = null;
 
   // Nebula at half resolution, then copied up with a dither so the low
   // contrast does not band. Dawn dissolves it here, with its own noise.
@@ -109,6 +139,8 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
       uLight: { value: new THREE.Color(STAR) },
       uDawn: { value: 0 },
       uSurface: { value: surface },
+      uBoost: { value: boost },
+      uBoostK: { value: 0 },
     },
     vertexShader: QUAD_VERT,
     fragmentShader: NEBULA_FRAG,
@@ -116,7 +148,10 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     depthWrite: false,
   });
   const copyMaterial = new THREE.ShaderMaterial({
-    uniforms: { uMap: { value: nebulaTarget.texture }, uResolution: { value: physicalSize } },
+    uniforms: {
+      uMap: { value: nebulaTarget.texture },
+      uResolution: { value: physicalSize },
+    },
     vertexShader: QUAD_VERT,
     fragmentShader: COPY_FRAG,
     depthTest: false,
@@ -147,6 +182,23 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
   points.frustumCulled = false;
   const starScene = new THREE.Scene().add(points);
 
+  function applyBoost() {
+    const w = cssSize.x || 1;
+    const h = cssSize.y || 1;
+    if (!boostRect) {
+      nebulaMaterial.uniforms.uBoostK!.value = 0;
+      return;
+    }
+    const r = boostRect;
+    boost.set(
+      (r.x + r.width / 2) / w,
+      1 - (r.y + r.height / 2) / h,
+      (r.width / 2 + BOOST_PAD) / w,
+      (r.height / 2 + BOOST_PAD) / h,
+    );
+    nebulaMaterial.uniforms.uBoostK!.value = BOOST_DENSITY;
+  }
+
   function resize() {
     const w = canvas.clientWidth || 1;
     const h = canvas.clientHeight || 1;
@@ -157,6 +209,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     nebulaSize.set(nebulaTarget.width, nebulaTarget.height);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
+    applyBoost();
   }
 
   function render() {
@@ -174,6 +227,12 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     else surface.lerpColors(dusk, paper, (d - 0.35) / 0.65);
     nebulaMaterial.uniforms.uDawn!.value = d;
     starMaterial.uniforms.uDawn!.value = d;
+    if (reduced && ready) render();
+  }
+
+  function setBoost(rect: SkyRect | null) {
+    boostRect = rect;
+    applyBoost();
     if (reduced && ready) render();
   }
 
@@ -244,6 +303,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
 
   return {
     setDawn,
+    setBoost,
     dispose() {
       stop();
       window.removeEventListener('resize', resize);
@@ -351,6 +411,8 @@ uniform vec3 uNight;
 uniform vec3 uLight;
 uniform float uDawn;
 uniform vec3 uSurface;
+uniform vec4 uBoost;
+uniform float uBoostK;
 ${NOISE}
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution;
@@ -359,6 +421,12 @@ void main() {
   vec2 q = vec2(fbm(p + vec2(0.0, t)), fbm(p + vec2(5.2, 1.3) - t));
   float density = fbm(p + 1.6 * q);
   float n = smoothstep(0.32, 0.78, density);
+  // A little more cloud behind the panel: density, not light.
+  if (uBoostK > 0.0) {
+    vec2 dd = (uv - uBoost.xy) / uBoost.zw;
+    float k = 1.0 - smoothstep(0.7, 1.5, length(dd));
+    n = min(1.0, n + uBoostK * k);
+  }
   float breath = 0.85 + 0.15 * noise(p * 0.5 + t);
   vec3 sky = mix(uNight, uLight, n * uContrast * breath);
   // Dawn: the cloud's own density is the mask. Thin sky gives way first, the

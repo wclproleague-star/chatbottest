@@ -7,7 +7,8 @@
 // thread at its final state.
 
 import { ButtonLink, Display, Surface, TextLink } from '@sentrybot/ui';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { SkyRect } from '@/components/sky/sky';
 import { BeaconPlaceholder } from './beacon-placeholder';
 import { HeroThread } from './hero-thread';
 import { HOLD_AT, lightAt } from './script';
@@ -19,6 +20,7 @@ export function Hero({
   skyReady = true,
   transparent = false,
   fade = 1,
+  onPanelRect,
 }: {
   /** True once the sky has drawn its first frame. */
   skyReady?: boolean;
@@ -26,8 +28,30 @@ export function Hero({
   transparent?: boolean;
   /** Content opacity, driven by dawn. */
   fade?: number;
+  /** Where the thread panel sits in the viewport, so the sky can thicken behind it. */
+  onPanelRect?: (rect: SkyRect) => void;
 }) {
   const [t, setT] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const rectRef = useRef(onPanelRect);
+  rectRef.current = onPanelRect;
+
+  useEffect(() => {
+    const el = panelRef.current;
+    if (!el) return;
+    const report = () => {
+      const r = el.getBoundingClientRect();
+      rectRef.current?.({ x: r.x, y: r.y, width: r.width, height: r.height });
+    };
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    window.addEventListener('resize', report);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', report);
+    };
+  }, []);
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -76,7 +100,9 @@ export function Hero({
         </div>
 
         <div className="order-3 flex justify-center lg:col-start-3 lg:row-span-2 lg:row-start-1 lg:justify-end lg:self-end">
-          <HeroThread t={t} />
+          <div ref={panelRef} className="w-full max-w-[460px]">
+            <HeroThread t={t} />
+          </div>
         </div>
 
         <div className="order-4 lg:col-start-1 lg:row-start-2 lg:self-start">

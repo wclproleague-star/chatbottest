@@ -11,6 +11,7 @@ import { Nav, Surface } from '@sentrybot/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Hero } from '@/components/hero/hero';
 import { Sky } from '@/components/sky/sky';
+import type { SkyRect } from '@/components/sky/sky';
 
 const HERO_FADE_END = 1 / 3;
 const PILL_AT = 0.6;
@@ -23,6 +24,7 @@ function bandPx() {
 export default function Page() {
   const [ready, setReady] = useState(false);
   const [dawn, setDawn] = useState(0);
+  const [panel, setPanel] = useState<SkyRect | null>(null);
   const reduced = useRef(false);
   const tween = useRef(0);
 
@@ -76,7 +78,7 @@ export default function Page() {
   return (
     <main className="bg-night relative">
       <div className="fixed inset-0">
-        <Sky dawn={dawn} onReady={() => setReady(true)} />
+        <Sky dawn={dawn} boost={panel} onReady={() => setReady(true)} />
       </div>
 
       <div className="fixed left-1/2 top-4 z-30 w-[calc(100%-32px)] max-w-[560px] -translate-x-1/2">
@@ -84,7 +86,7 @@ export default function Page() {
       </div>
 
       <div className="relative z-10">
-        <Hero skyReady={ready} transparent fade={fade} />
+        <Hero skyReady={ready} transparent fade={fade} onPanelRect={setPanel} />
         {/* The dawn band. Paper content starts after it, never inside it. */}
         <div aria-hidden className="h-[40vh] md:h-[60vh]" />
         <Surface surface="paper" className="min-h-screen" />
