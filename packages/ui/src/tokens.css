@@ -135,9 +135,31 @@
   }
 }
 
+/* The mod reply's landing: a spring on the movement, a short fade on top.
+   The hero sets --spring-ease and --spring-duration from the picked curve. */
+.land {
+  animation:
+    land-move var(--spring-duration, 400ms) var(--spring-ease, ease-out) both,
+    land-fade 120ms ease-out both;
+}
+@keyframes land-move {
+  from {
+    transform: translateY(12px);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes land-fade {
+  from {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .cursor::after,
-  .fade-in {
+  .fade-in,
+  .land {
     animation: none;
   }
 }
