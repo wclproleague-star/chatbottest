@@ -15,7 +15,7 @@ Everything in this file is decided. Where something is unspecified, choose the s
 * Supabase: Postgres with pgvector, Auth (Discord OAuth), Storage.
 * Gemini via `@google/genai`. Chat model from `GEMINI_MODEL`, embeddings from `GEMINI_EMBED_MODEL` at 768 dimensions (pgvector HNSW caps at 2000 dims, so the default 3072 would not index).
 
-Env: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (web only), `SUPABASE_SERVICE_ROLE_KEY` (bot and server-side only, never in the browser), `GEMINI_API_KEY`, `GEMINI_MODEL=gemini-2.5-flash-lite`, `GEMINI_EMBED_MODEL=gemini-embedding-001`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN`, `DISCORD_BOT_INVITE_URL`, `NEXT_PUBLIC_APP_URL`.
+Env: `SUPABASE_URL`, `SUPABASE_ANON_KEY` (web only), `SUPABASE_SERVICE_ROLE_KEY` (bot and server-side only, never in the browser), `GEMINI_API_KEY`, `GEMINI_MODEL=gemini-3.5-flash-lite`, `GEMINI_EMBED_MODEL=gemini-embedding-001`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_BOT_TOKEN`, `DISCORD_BOT_INVITE_URL`, `NEXT_PUBLIC_APP_URL`.
 
 ```
 sentry/
