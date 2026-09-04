@@ -1,5 +1,17 @@
+import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import type { NextConfig } from 'next';
+
+// Next only looks for env files inside apps/web, but the repo keeps one set at
+// the root. Load those here, before compilation, so NEXT_PUBLIC_* still inlines.
+// Neither file overrides a variable that is already set, so Vercel wins in production.
+for (const file of ['.env.local', '.env']) {
+  try {
+    process.loadEnvFile(fileURLToPath(new URL(`../../${file}`, import.meta.url)));
+  } catch {
+    // Not present. Fall through to whatever the platform provides.
+  }
+}
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

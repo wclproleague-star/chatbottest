@@ -1,11 +1,15 @@
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-// Local dev reads the repo-root .env; Railway supplies the environment itself.
-try {
-  process.loadEnvFile(fileURLToPath(new URL('../../../.env', import.meta.url)));
-} catch {
-  // No .env file. Fall through to whatever the platform provides.
+// Local dev reads the repo-root .env.local, then .env. Neither overrides a
+// variable that is already set, so .env.local wins locally and Railway's own
+// environment wins in production.
+for (const file of ['.env.local', '.env']) {
+  try {
+    process.loadEnvFile(fileURLToPath(new URL(`../../../${file}`, import.meta.url)));
+  } catch {
+    // Not present. Fall through to whatever the platform provides.
+  }
 }
 
 const token = process.env.DISCORD_BOT_TOKEN;
