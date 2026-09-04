@@ -15,6 +15,12 @@ export default tseslint.config(
     },
   },
   {
+    files: ['scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { console: 'readonly', process: 'readonly', URL: 'readonly' },
+    },
+  },
+  {
     files: ['apps/web/**/*.{ts,tsx}'],
     plugins: { '@next/next': next },
     rules: {
