@@ -33,6 +33,8 @@
   --shadow-panel-night: 0 32px 80px rgb(0 0 0 / 0.45);
 
   --container-page: 1120px;
+  /* `page:` variant: the container's full width and above. Named so it orders after md. */
+  --breakpoint-page: 1120px;
 
   --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
@@ -101,12 +103,14 @@
 
 /* Display: 64 to 80px desktop, 40px mobile, weight 500, tracking -0.025em. */
 .display {
-  font-size: clamp(40px, 6.5vw, 80px);
+  /* A component may pin the size within the range with --display-size. */
+  font-size: var(--display-size, clamp(40px, 6.5vw, 80px));
   line-height: 1.02;
   font-weight: 500;
   letter-spacing: -0.025em;
   font-stretch: var(--display-width);
-  text-wrap: balance;
+  /* The longhand: the shorthand would reset text-wrap-mode and defeat a nowrap. */
+  text-wrap-style: balance;
 }
 
 /* Typing cursor: 1px bar in the text colour, 1s blink, removed when the message completes. */

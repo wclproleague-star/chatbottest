@@ -4,12 +4,14 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 // One family for everything. The width axis is loaded so display type can sit
-// slightly condensed; next/font self-hosts it, so nothing is fetched at runtime.
+// slightly condensed; next/font self-hosts and preloads it. `optional` means no
+// flash of unstyled text: if the font is not there for first paint, the
+// fallback stays for that visit.
 const instrumentSans = Instrument_Sans({
   subsets: ['latin'],
   axes: ['wdth'],
   variable: '--font-instrument-sans',
-  display: 'swap',
+  display: 'optional',
 });
 
 export const metadata: Metadata = {

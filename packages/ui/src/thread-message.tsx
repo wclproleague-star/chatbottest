@@ -31,7 +31,8 @@ export function ThreadMessage({
         sentry ? 'border-(color:--state)' : 'border-transparent',
       )}
     >
-      <div className="text-ui-sm text-ink-soft">{name}</div>
+      {/* Ink soft on a white panel; a glass panel sets --thread-name to star white at 55%. */}
+      <div className="text-ui-sm text-[var(--thread-name,var(--color-ink-soft))]">{name}</div>
       <p className={cx('text-thread', typing && 'cursor')}>{children}</p>
     </div>
   );

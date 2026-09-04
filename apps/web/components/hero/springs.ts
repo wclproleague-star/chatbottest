@@ -1,16 +1,8 @@
-// Three named springs for the mod reply's landing. Each crosses its target at
-// 240ms; they differ in how much they overshoot and how long they take to rest.
-// Expressed as CSS linear() easings sampled from a damped spring.
+// The spring for the mod reply's landing: Settle. Crosses its target at 240ms,
+// overshoots by about a pixel, settles once, rests by 400ms. Expressed as a CSS
+// linear() easing sampled from a damped spring.
 
-export type SpringName = 'glide' | 'settle' | 'snap';
-
-export type Spring = {
-  name: SpringName;
-  label: string;
-  note: string;
-  durationMs: number;
-  ease: string;
-};
+export type Spring = { durationMs: number; ease: string };
 
 const CROSS_MS = 240;
 
@@ -34,28 +26,4 @@ function springEase(zeta: number, durationMs: number, samples = 28): string {
   return `linear(${stops.join(', ')})`;
 }
 
-export const SPRINGS: Record<SpringName, Spring> = {
-  glide: {
-    name: 'glide',
-    label: 'Glide',
-    note: 'Arrives in 240ms and barely overshoots. You feel the landing more than you see it.',
-    durationMs: 320,
-    ease: springEase(0.78, 320),
-  },
-  settle: {
-    name: 'settle',
-    label: 'Settle',
-    note: 'Arrives in 240ms, overshoots by about a pixel, and settles once.',
-    durationMs: 400,
-    ease: springEase(0.62, 400),
-  },
-  snap: {
-    name: 'snap',
-    label: 'Snap',
-    note: 'Arrives in 240ms with a visible two-pixel bounce before it rests.',
-    durationMs: 480,
-    ease: springEase(0.5, 480),
-  },
-};
-
-export const SPRING_NAMES = Object.keys(SPRINGS) as SpringName[];
+export const SPRING: Spring = { durationMs: 400, ease: springEase(0.62, 400) };

@@ -4,6 +4,10 @@
 // Near-monochrome: night and star white, with exactly two tinted stars.
 // Cursor parallax on desktop, gyroscope on phones, 12px at most. Reduced
 // motion renders one still frame. devicePixelRatio is capped at 1.5.
+//
+// It loads behind a solid night fill: the canvas fades in over 600ms after
+// its first frame and calls onReady. `dawn` (0 to 1) dissolves the sky to
+// paper with the nebula's own noise, so it thins rather than recolours.
 
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
@@ -16,6 +20,8 @@ import * as THREE from 'three';
 const SKY = { stars: 15000, contrast: 0.09, scale: 2.0 } as const;
 
 const NIGHT = '#070a10';
+const DUSK = '#1a2030';
+const PAPER = '#edeff1';
 const STAR = '#f2eee6';
 const GREEN = '#23a55a';
 const AMBER = '#d9a21b';
@@ -28,19 +34,42 @@ const FAR = 1000;
 /** Radians per second. One turn in about 26 minutes. */
 const DRIFT = 0.004;
 
-export function Sky() {
+type Handle = { setDawn: (p: number) => void; dispose: () => void };
+
+export function Sky({ dawn = 0, onReady }: { dawn?: number; onReady?: () => void }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const handle = useRef<Handle | null>(null);
+  const readyRef = useRef(onReady);
+  readyRef.current = onReady;
+  const dawnRef = useRef(dawn);
+  dawnRef.current = dawn;
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    return mount(canvas);
+    const h = mount(canvas, () => readyRef.current?.());
+    h.setDawn(dawnRef.current);
+    handle.current = h;
+    return () => {
+      h.dispose();
+      handle.current = null;
+    };
   }, []);
 
-  return <canvas ref={ref} aria-hidden className="block h-full w-full" />;
+  useEffect(() => {
+    handle.current?.setDawn(dawn);
+  }, [dawn]);
+
+  return (
+    <canvas
+      ref={ref}
+      aria-hidden
+      className="block h-full w-full opacity-0 transition-opacity duration-[600ms] ease-out"
+    />
+  );
 }
 
-function mount(canvas: HTMLCanvasElement): () => void {
+function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 
@@ -59,9 +88,13 @@ function mount(canvas: HTMLCanvasElement): () => void {
   const nebulaSize = new THREE.Vector2();
   const parallax = new THREE.Vector2();
   const parallaxTarget = new THREE.Vector2();
+  const night = new THREE.Color(NIGHT);
+  const dusk = new THREE.Color(DUSK);
+  const paper = new THREE.Color(PAPER);
+  const surface = new THREE.Color(NIGHT);
 
   // Nebula at half resolution, then copied up with a dither so the low
-  // contrast does not band.
+  // contrast does not band. Dawn dissolves it here, with its own noise.
   const nebulaTarget = new THREE.WebGLRenderTarget(1, 1, {
     depthBuffer: false,
     stencilBuffer: false,
@@ -72,8 +105,10 @@ function mount(canvas: HTMLCanvasElement): () => void {
       uTime: { value: 0 },
       uContrast: { value: SKY.contrast },
       uScale: { value: SKY.scale },
-      uNight: { value: new THREE.Color(NIGHT) },
+      uNight: { value: night },
       uLight: { value: new THREE.Color(STAR) },
+      uDawn: { value: 0 },
+      uSurface: { value: surface },
     },
     vertexShader: QUAD_VERT,
     fragmentShader: NEBULA_FRAG,
@@ -100,6 +135,7 @@ function mount(canvas: HTMLCanvasElement): () => void {
       uParallax: { value: parallax },
       uResolution: { value: cssSize },
       uPixelRatio: { value: dpr },
+      uDawn: { value: 0 },
     },
     vertexShader: STAR_VERT,
     fragmentShader: STAR_FRAG,
@@ -131,8 +167,26 @@ function mount(canvas: HTMLCanvasElement): () => void {
     renderer.render(starScene, camera);
   }
 
+  /** Night to a short dusk band, then paper. */
+  function setDawn(p: number) {
+    const d = THREE.MathUtils.clamp(p, 0, 1);
+    if (d < 0.35) surface.lerpColors(night, dusk, d / 0.35);
+    else surface.lerpColors(dusk, paper, (d - 0.35) / 0.65);
+    nebulaMaterial.uniforms.uDawn!.value = d;
+    starMaterial.uniforms.uDawn!.value = d;
+    if (reduced && ready) render();
+  }
+
   const clock = new THREE.Clock();
   let raf = 0;
+  let ready = false;
+
+  function firstFrame() {
+    if (ready) return;
+    ready = true;
+    canvas.style.opacity = '1';
+    onReady();
+  }
 
   function frame() {
     raf = requestAnimationFrame(frame);
@@ -141,11 +195,13 @@ function mount(canvas: HTMLCanvasElement): () => void {
     points.rotation.z += DRIFT * dt;
     parallax.lerp(parallaxTarget, 1 - Math.exp(-dt * 6));
     render();
+    firstFrame();
   }
 
   function start() {
     if (reduced) {
       render();
+      firstFrame();
       return;
     }
     if (!raf) {
@@ -186,19 +242,22 @@ function mount(canvas: HTMLCanvasElement): () => void {
     if (coarse) window.addEventListener('deviceorientation', onOrientation, { passive: true });
   }
 
-  return () => {
-    stop();
-    window.removeEventListener('resize', resize);
-    document.removeEventListener('visibilitychange', onVisibility);
-    window.removeEventListener('pointermove', onPointer);
-    window.removeEventListener('deviceorientation', onOrientation);
-    stars.dispose();
-    starMaterial.dispose();
-    nebulaMaterial.dispose();
-    copyMaterial.dispose();
-    quad.dispose();
-    nebulaTarget.dispose();
-    renderer.dispose();
+  return {
+    setDawn,
+    dispose() {
+      stop();
+      window.removeEventListener('resize', resize);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('pointermove', onPointer);
+      window.removeEventListener('deviceorientation', onOrientation);
+      stars.dispose();
+      starMaterial.dispose();
+      nebulaMaterial.dispose();
+      copyMaterial.dispose();
+      quad.dispose();
+      nebulaTarget.dispose();
+      renderer.dispose();
+    },
   };
 }
 
@@ -290,16 +349,22 @@ uniform float uContrast;
 uniform float uScale;
 uniform vec3 uNight;
 uniform vec3 uLight;
+uniform float uDawn;
+uniform vec3 uSurface;
 ${NOISE}
 void main() {
   vec2 uv = gl_FragCoord.xy / uResolution;
   vec2 p = (uv - 0.5) * vec2(uResolution.x / uResolution.y, 1.0) * uScale;
   float t = uTime * 0.008;
   vec2 q = vec2(fbm(p + vec2(0.0, t)), fbm(p + vec2(5.2, 1.3) - t));
-  float n = fbm(p + 1.6 * q);
-  n = smoothstep(0.32, 0.78, n);
+  float density = fbm(p + 1.6 * q);
+  float n = smoothstep(0.32, 0.78, density);
   float breath = 0.85 + 0.15 * noise(p * 0.5 + t);
-  gl_FragColor = vec4(mix(uNight, uLight, n * uContrast * breath), 1.0);
+  vec3 sky = mix(uNight, uLight, n * uContrast * breath);
+  // Dawn: the cloud's own density is the mask. Thin sky gives way first, the
+  // densest cloud last, so the sky thins rather than recolours.
+  float d = smoothstep(density - 0.12, density + 0.12, uDawn * 1.25 - 0.05);
+  gl_FragColor = vec4(mix(sky, uSurface, d), 1.0);
 }
 `;
 
@@ -323,6 +388,7 @@ attribute vec3 aColor;
 uniform vec2 uParallax;
 uniform vec2 uResolution;
 uniform float uPixelRatio;
+uniform float uDawn;
 varying float vBright;
 varying vec3 vColor;
 void main() {
@@ -333,8 +399,10 @@ void main() {
   // Screen-space shift: near stars get the full 12px, far ones a little.
   clip.xy += (uParallax / (0.5 * uResolution)) * clip.w * (0.15 + 0.85 * layer);
   gl_Position = clip;
-  gl_PointSize = aSize * uPixelRatio * (1.0 + 1.8 * layer);
-  vBright = aBright * (0.4 + 0.6 * layer);
+  // Dawn thins the field: the faintest stars go first.
+  float size = aSize * uPixelRatio * (1.0 + 1.8 * layer);
+  gl_PointSize = aBright < uDawn * 1.15 ? 0.0 : size;
+  vBright = aBright * (0.4 + 0.6 * layer) * (1.0 - smoothstep(0.15, 0.8, uDawn));
   vColor = aColor;
 }
 `;
