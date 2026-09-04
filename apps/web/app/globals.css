@@ -1,0 +1,13 @@
+@import 'tailwindcss';
+
+/* The full token set (palette, type scale) lands in build order line 4.
+   Only what the scaffold needs to render legibly is here: the page is paper,
+   never the viewer's OS theme. */
+html {
+  color-scheme: light;
+}
+
+body {
+  background-color: #edeff1;
+  color: #111418;
+}

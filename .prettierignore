@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.next/
+pnpm-lock.yaml
+supabase/migrations/
+
+# The spec. Kept byte-for-byte as written.
+CLAUDE.md
