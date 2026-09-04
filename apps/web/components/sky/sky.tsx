@@ -7,7 +7,13 @@
 
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import type { SkyVariant } from './variants';
+
+/**
+ * The pick from /dev/sky/1, 2, 3: the second sky's density with the third
+ * sky's cloud. Contrast is how far the brightest cloud sits from night toward
+ * star white; scale is how fine the cloud's structure is.
+ */
+const SKY = { stars: 15000, contrast: 0.09, scale: 2.0 } as const;
 
 const NIGHT = '#070a10';
 const STAR = '#f2eee6';
@@ -22,19 +28,19 @@ const FAR = 1000;
 /** Radians per second. One turn in about 26 minutes. */
 const DRIFT = 0.004;
 
-export function Sky({ variant }: { variant: SkyVariant }) {
+export function Sky() {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    return mount(canvas, variant);
-  }, [variant]);
+    return mount(canvas);
+  }, []);
 
   return <canvas ref={ref} aria-hidden className="block h-full w-full" />;
 }
 
-function mount(canvas: HTMLCanvasElement, variant: SkyVariant): () => void {
+function mount(canvas: HTMLCanvasElement): () => void {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 
@@ -64,8 +70,8 @@ function mount(canvas: HTMLCanvasElement, variant: SkyVariant): () => void {
     uniforms: {
       uResolution: { value: nebulaSize },
       uTime: { value: 0 },
-      uContrast: { value: variant.contrast },
-      uScale: { value: variant.scale },
+      uContrast: { value: SKY.contrast },
+      uScale: { value: SKY.scale },
       uNight: { value: new THREE.Color(NIGHT) },
       uLight: { value: new THREE.Color(STAR) },
     },
@@ -88,7 +94,7 @@ function mount(canvas: HTMLCanvasElement, variant: SkyVariant): () => void {
 
   // Stars.
   const camera = new THREE.PerspectiveCamera(FOV, 1, 1, FAR + 100);
-  const stars = buildStars(variant.stars);
+  const stars = buildStars(SKY.stars);
   const starMaterial = new THREE.ShaderMaterial({
     uniforms: {
       uParallax: { value: parallax },
