@@ -19,7 +19,6 @@ export type { BotCardValues } from './bot-card';
 
 export { PricingRow, PricingList } from './pricing-row';
 export { Nav } from './nav';
-export type { NavState } from './nav';
 
 export { Wordmark, WORDMARK_STYLE } from './wordmark';
 export { AvatarMark } from './avatar-mark';

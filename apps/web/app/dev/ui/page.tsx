@@ -107,7 +107,7 @@ function Paper() {
     <Surface surface="paper" className="min-h-screen">
       <div className="max-w-page mx-auto px-6 py-16 md:py-24">
         <Section label="Nav on paper">
-          <Nav state="paper" />
+          <Nav pill />
         </Section>
 
         <Section label="Display, body, button, text link">
@@ -182,7 +182,7 @@ function Night() {
     <Surface surface="night" className="min-h-screen">
       <div className="max-w-page mx-auto px-6 py-16 md:py-24">
         <Section label="Nav over the sky">
-          <Nav state="sky" />
+          <Nav pill={false} />
         </Section>
 
         <Section label="Display, body, button, text link">
