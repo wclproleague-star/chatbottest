@@ -109,6 +109,8 @@ A sentry is the one awake while everyone else sleeps. The site tells that in one
    * Sentry: "Got it. Next time I'll know." (amber turns green)
 
    Below it, left aligned: **The server assistant that asks before it answers.** One line of body. One primary button, "Set up your bot". One text link, "See how it learns". Nothing else in the hero.
+
+   A photographed hero object (the beacon, files arriving in `assets/beacon/`) sits centre over the sky with a real drop shadow; headline left, thread right on desktop, stacked on mobile. Its light follows the thread: amber during "Asking @Mods", green on "Got it", via a masked crossfade of three light-state images, 240ms. A short rotation video plays once on load, then holds on the still. Until the files exist, use a placeholder silhouette.
 3. **Dawn.** As the hero leaves the viewport the sky fades, not cuts: stars thin, ink lightens through a short dusk band into paper over about 60vh, scroll-linked. The nav follows: transparent over the sky, then a small ink pill on paper. The most important transition on the site. One full session.
 4. **The inbox row.** Three real rows: question, bot draft, "what it almost knew", Approve. Two green, one amber. Hover or tap Approve on the amber row: 180ms crossfade to green and the bot's follow-up line appears beneath. The feature, demonstrated, with no icons and no explanatory copy.
 5. **The bot card.** Empty fields: name, tone, language, what it knows, what it won't touch, who it wakes. A "Try it" button. On click, fields fill one by one with a 120ms stagger. User-triggered only.
@@ -159,7 +161,7 @@ One line per session. Do not start the next until the current one runs and I've 
 1. Scaffold the monorepo, this file, tooling. Both apps boot. Commit.
 2. Migrations, `match_chunks`, RLS. Seed one guild with three pasted documents.
 3. `packages/core`: `ingest` and `answer`, plus a CLI script to run both against the seed.
-4. `packages/ui`: tokens and base components (button, text link, panel, thread message, inbox row, bot card, pricing row, nav in both states). Preview at `/dev/ui` on paper and on night.
+4. `packages/ui`: tokens and base components (button, text link, panel, thread message, inbox row, bot card, pricing row, nav in both states). Preview at `/dev/ui` on paper and on night. Also produce three wordmark options and three avatar marks as SVG in `/dev/ui`, built from the tokens. Flat, one colour, no mascot. I pick one of each.
 5. The sky. Three nebula variants at different densities and contrast as full-viewport pages. I pick one.
 6. The thread over the chosen sky. Three named spring curves for the mod reply. I pick one.
 7. Dawn: the scroll-linked transition and the nav change. Nothing else.
