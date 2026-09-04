@@ -183,5 +183,6 @@ One line per session. Do not start the next until the current one runs and I've 
 * When I paste a screenshot with a note, fix that specific thing. Don't redesign around it.
 * Never put the service role key in client code. Never log tokens.
 * Where I want your taste: spring curves, star density, display type width, how the dawn noise dissolves, the inbox row transition. Offer three named variants. Where I don't: structure, palette, copy, whether anything needs a card.
+* Self-check before reporting. After each line: run typecheck, lint, format, build, and every test or verification that applies to what you built (queries, RLS, CLI runs, screenshots at 1120 and 375). Diagnose and fix any failure yourself, up to three attempts, before involving me. Only stop and ask when a decision is genuinely mine: destructive operations, spending money, credentials, or a choice the spec leaves open that changes the product. Otherwise pick the simplest option, note it in one line, and continue. Never wait for a yes on things that aren't destructive.
 
 Repo: https://github.com/wclproleague-star/chatbottest
