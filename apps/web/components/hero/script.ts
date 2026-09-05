@@ -21,6 +21,8 @@ export type Line = {
 /** Milliseconds per typed character. Reading speed, not typing speed. */
 export const TYPE_MS = 35;
 
+/** When Sentry's first answer begins: the light turns green. */
+export const ANSWER_AT = 1000;
 /** When "Not sure about that one" begins: the light turns amber. */
 export const ASK_AT = 4400;
 /** When the mod reply lands. */
@@ -33,7 +35,7 @@ export const HOLD_AT = 8600;
 export const LINES: Line[] = [
   { at: 400, role: 'member', name: 'kestrel', text: "when's the finals bracket posted?" },
   {
-    at: 1000,
+    at: ANSWER_AT,
     role: 'sentry',
     name: 'Sentry',
     text: 'Sunday 18:00 CET, in #announcements. Check-in closes an hour before.',
@@ -66,9 +68,13 @@ export const LINES: Line[] = [
   },
 ];
 
-export type Light = 'green' | 'amber';
+export type Light = 'green' | 'amber' | 'off';
 
-/** The beacon's light follows the thread: amber while asking, green otherwise. */
+/**
+ * The beacon's light follows the thread: amber at rest and while asking, green
+ * while Sentry is answering. The off state exists as an asset and is not used on the page.
+ */
 export function lightAt(t: number): Light {
+  if (t < ANSWER_AT) return 'amber';
   return t >= ASK_AT && t < RESOLVE_AT ? 'amber' : 'green';
 }

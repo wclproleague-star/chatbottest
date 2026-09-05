@@ -49,6 +49,7 @@ export type SkyRect = { x: number; y: number; width: number; height: number };
 
 type Handle = {
   setDawn: (p: number) => void;
+  setContrast: (c: number) => void;
   setBoost: (rect: SkyRect | null) => void;
   dispose: () => void;
 };
@@ -56,10 +57,13 @@ type Handle = {
 export function Sky({
   dawn = 0,
   boost = null,
+  contrast = SKY.contrast,
   onReady,
 }: {
   dawn?: number;
   boost?: SkyRect | null;
+  /** The cloud's contrast; 0.09 alone, 0.12 when it sits against a horizon. */
+  contrast?: number;
   onReady?: () => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -70,6 +74,8 @@ export function Sky({
   dawnRef.current = dawn;
   const boostRef = useRef(boost);
   boostRef.current = boost;
+  const contrastRef = useRef(contrast);
+  contrastRef.current = contrast;
 
   useEffect(() => {
     const canvas = ref.current;
@@ -77,6 +83,7 @@ export function Sky({
     const h = mount(canvas, () => readyRef.current?.());
     h.setDawn(dawnRef.current);
     h.setBoost(boostRef.current);
+    h.setContrast(contrastRef.current);
     handle.current = h;
     return () => {
       h.dispose();
@@ -91,6 +98,10 @@ export function Sky({
   useEffect(() => {
     handle.current?.setBoost(boost);
   }, [boost]);
+
+  useEffect(() => {
+    handle.current?.setContrast(contrast);
+  }, [contrast]);
 
   return (
     <canvas
@@ -242,6 +253,11 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     if (reduced && ready) render();
   }
 
+  function setContrast(c: number) {
+    nebulaMaterial.uniforms.uContrast!.value = c;
+    if (reduced && ready) render();
+  }
+
   const clock = new THREE.Clock();
   let raf = 0;
   let ready = false;
@@ -310,6 +326,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
   return {
     setDawn,
     setBoost,
+    setContrast,
     dispose() {
       stop();
       window.removeEventListener('resize', resize);
