@@ -9,8 +9,9 @@
 // the scene's own colours (cold sky above, near-black ground), a cold key from
 // upper left, a faint blue fill from the sea side, and the slit itself as a
 // rect area light in the state colour, warming the recess and the face around
-// it. On the ground, a soft contact shadow and a warm spill on the grass
-// beside it, both in the state colour.
+// it. On the ground, a tight ambient-occlusion shadow at the contact, a soft
+// shadow around it, and a warm spill on the grass shaped by the ground's own
+// luminance, in the state colour.
 //
 // Post: the scene renders to a linear HDR target, the emissive alone blooms
 // through a tight threshold, then one composite pass applies ACES tone
@@ -24,6 +25,7 @@
 
 import * as THREE from 'three';
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
+import ground from '../../../../assets/beacon/ground.png';
 
 export type Light = 'amber' | 'green' | 'off';
 
@@ -70,10 +72,10 @@ const BEACON_PARALLAX_PX = 4;
 /** The slit's colour change, ms. */
 const LIGHT_MS = 240;
 
-/** How bright the strip is in linear light; the bloom threshold sits well under it. */
-const STRIP_INTENSITY = 4;
-const BLOOM_THRESHOLD = 1;
-const BLOOM_STRENGTH = 0.9;
+/** How bright the strip is in linear light; the bloom threshold sits just under it. */
+const STRIP_INTENSITY = 2;
+const BLOOM_THRESHOLD = 1.2;
+const BLOOM_STRENGTH = 0.6;
 /** Grain amplitude in sRGB, matched by eye to the still's grain. */
 const GRAIN = 0.05;
 
@@ -180,22 +182,45 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   spillLight.position.set(slitX, slitY, front + width * 0.15);
   group.add(spillLight);
 
-  // Ground: contact shadow, and the warm spill beside the base on the slit's side.
-  const falloff = radialTexture();
+  // Ground, in draw order: the soft shadow, the tight occlusion at the
+  // contact, then the warm spill beside the base on the slit's side, shaped
+  // by the ground's luminance.
+  const falloff = radialTexture(0.35, 0.55);
   const shadowMaterial = new THREE.MeshBasicMaterial({
     map: falloff,
     color: 0x000000,
     transparent: true,
-    opacity: 0.75,
+    opacity: 0.4,
     depthWrite: false,
     toneMapped: false,
   });
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(width * 3.4, side * 2.6), shadowMaterial);
   shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.0008;
+  shadow.position.y = 0.0006;
+  shadow.renderOrder = 1;
   group.add(shadow);
+  const occlusionMaterial = new THREE.MeshBasicMaterial({
+    map: radialTexture(0.15, 0.25),
+    color: 0x000000,
+    transparent: true,
+    opacity: 0.6,
+    depthWrite: false,
+    toneMapped: false,
+  });
+  // Radius about 30% of the width past the footprint's edge, fading fast.
+  const occlusion = new THREE.Mesh(
+    new THREE.PlaneGeometry(width * 1.6, side * 1.6),
+    occlusionMaterial,
+  );
+  occlusion.rotation.x = -Math.PI / 2;
+  occlusion.position.y = 0.0009;
+  occlusion.renderOrder = 2;
+  group.add(occlusion);
+  const terrain = new THREE.TextureLoader().load(ground.src);
+  terrain.colorSpace = THREE.NoColorSpace;
   const spillMaterial = new THREE.MeshBasicMaterial({
     map: falloff,
+    alphaMap: terrain,
     color: 0x000000,
     transparent: true,
     opacity: 1,
@@ -203,9 +228,10 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     blending: THREE.AdditiveBlending,
     toneMapped: false,
   });
-  const spill = new THREE.Mesh(new THREE.PlaneGeometry(width * 2.4, width * 1.6), spillMaterial);
+  const spill = new THREE.Mesh(new THREE.PlaneGeometry(width * 3.6, width * 2.4), spillMaterial);
   spill.rotation.x = -Math.PI / 2;
-  spill.position.set(slitX - width * 0.2, 0.0012, front + width * 0.55);
+  spill.position.set(slitX - width * 0.2, 0.0012, front + width * 0.7);
+  spill.renderOrder = 3;
   group.add(spill);
 
   // A cold key from upper left, and a faint blue fill from the sea, which is to the left.
@@ -247,10 +273,10 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     if (k >= 1) changedAt = -1;
     stripMaterial.color.copy(current).multiplyScalar(STRIP_INTENSITY * currentAmount);
     slitLight.color.copy(current);
-    slitLight.intensity = 6 * currentAmount;
+    slitLight.intensity = 40 * currentAmount;
     spillLight.color.copy(current);
     spillLight.intensity = 0.12 * currentAmount;
-    spillMaterial.color.copy(current).multiplyScalar(0.22 * currentAmount);
+    spillMaterial.color.copy(current).multiplyScalar(0.11 * currentAmount);
   }
 
   /** Lay the camera's frustum over the photograph's rect and stand the beacon at x. */
@@ -367,10 +393,10 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
 
     renderer.setRenderTarget(bright);
     renderer.render(brightScene, quadCamera);
+    // One pass each way at half resolution: the glow stays within about
+    // half the slit's width on either side.
     blur(bright, blurA, 1, 0);
     blur(blurA, blurB, 0, 1);
-    blur(blurB, blurA, 2, 0);
-    blur(blurA, blurB, 0, 2);
 
     compositeMaterial.uniforms.uFade!.value = fade;
     renderer.setRenderTarget(null);
@@ -392,6 +418,10 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
       roughnessMap.dispose();
       stripMaterial.dispose();
       shadowMaterial.dispose();
+      occlusionMaterial.dispose();
+      occlusion.geometry.dispose();
+      occlusionMaterial.map?.dispose();
+      terrain.dispose();
       spillMaterial.dispose();
       falloff.dispose();
       envTarget.dispose();
@@ -488,8 +518,8 @@ function brushedTexture(): THREE.Texture {
   }
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
-      const streak = columns[x]! + (Math.random() - 0.5) * 0.15;
-      const g = Math.round(Math.min(255, Math.max(0, 244 + streak * 22)));
+      const streak = columns[x]! + (Math.random() - 0.5) * 0.075;
+      const g = Math.round(Math.min(255, Math.max(0, 249 + streak * 11)));
       const i = (y * size + x) * 4;
       image.data[i] = g;
       image.data[i + 1] = g;
@@ -505,8 +535,8 @@ function brushedTexture(): THREE.Texture {
   return texture;
 }
 
-/** A radial falloff, white to transparent, for the shadow and the spill. */
-function radialTexture(): THREE.Texture {
+/** A radial falloff, white to transparent: full to `hold`, at `mid` half, gone at the edge. */
+function radialTexture(hold: number, mid: number): THREE.Texture {
   const size = 128;
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -514,7 +544,8 @@ function radialTexture(): THREE.Texture {
   const ctx = canvas.getContext('2d')!;
   const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
   g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.35, 'rgba(255,255,255,0.55)');
+  g.addColorStop(hold, 'rgba(255,255,255,1)');
+  g.addColorStop(mid, 'rgba(255,255,255,0.5)');
   g.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, size, size);

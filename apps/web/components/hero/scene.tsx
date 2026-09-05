@@ -5,7 +5,9 @@
 // to near night and the beacon removed; whatever the page puts behind the
 // beacon (the wordmark); one canvas that adds the coded sky as light over the
 // sky region and draws the lit beacon opaque, so it stands in front of the
-// type; the 20% darkening for the thread screen; then the page's own content.
+// type; the foreground grass at the footing, cut out, so blades stand in
+// front of the base; the 20% darkening for the thread screen; then the
+// page's own content.
 //
 // The frame covers the container like object-fit: cover anchored to the
 // bottom, keeping the same point of the headland at the same fraction of the
@@ -13,6 +15,7 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import grass from '../../../../assets/beacon/grass.png';
 import meta from '../../../../assets/beacon/meta.json';
 import scene from '../../../../assets/beacon/scene.jpg';
 import { Sky } from '@/components/sky/sky';
@@ -104,6 +107,24 @@ export function Scene({
           onReady={onReady}
         />
       </div>
+
+      {rect && (
+        // eslint-disable-next-line @next/next/no-img-element -- laid out on a computed rect
+        <img
+          src={grass.src}
+          alt=""
+          aria-hidden
+          draggable={false}
+          className="absolute max-w-none select-none"
+          style={{
+            left: rect.left + meta.grass.x * rect.width,
+            top: rect.top + meta.grass.y * rect.height,
+            width: meta.grass.w * rect.width,
+            height: meta.grass.h * rect.height,
+            opacity: fade,
+          }}
+        />
+      )}
 
       <div className="absolute inset-0" style={{ opacity: fade }}>
         <div aria-hidden className="bg-night absolute inset-0" style={{ opacity: dark }} />
