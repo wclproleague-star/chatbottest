@@ -1,7 +1,7 @@
 // Builds the hero's background from the generated sources in assets/beacon/src:
 // scene-empty.jpg is the chosen still (Cinema Studio Image 2.5) with the
-// beacon removed by a Nano Banana edit; the beacon itself is the 3D model
-// assets/beacon/beacon.glb (Meshy image-to-3D from the cut-out), rendered live.
+// beacon removed by a Nano Banana edit; the beacon itself is built and lit
+// procedurally in apps/web/components/sky/beacon.ts.
 // Also in src, for the record: the three light-state frames and the mask that
 // cut the beacon out. Writes, into assets/beacon:
 //   scene.jpg   2560x1440, 6px-at-1440 defocus, sky cleaned to near night

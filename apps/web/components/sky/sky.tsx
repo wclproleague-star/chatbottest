@@ -13,17 +13,16 @@
 // nebula's own noise. `boost` names a viewport rect (the thread panel) behind
 // which the cloud is a little denser.
 //
-// `beacon` puts the 3D beacon in the same canvas: the Meshy prism from
-// assets/beacon/beacon.glb (a plain box until it loads), matte black, with an
-// emissive slit, lit by a cold key from upper left and a faint fill, standing
-// on a soft contact shadow, with 4px of cursor parallax and no rotation. Its
-// camera is matched to the photograph the scene uses: horizon at the
-// principal point, the beacon's height and footing taken from the frame.
-// Being opaque in a canvas that sits over the type, it stands in front of it.
+// `beacon` puts the 3D beacon in the same canvas, drawn last over the sky
+// with its own post pass; see beacon.ts. Being opaque in a canvas that sits
+// over the type, it stands in front of it.
 
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { createBeacon } from './beacon';
+import type { BeaconPlacement } from './beacon';
+
+export type { BeaconPlacement, Light } from './beacon';
 
 // The shaders write colours straight to the canvas, so colours must stay in
 // sRGB as written: paper has to land on #EDEFF1 exactly, not its linear value.
@@ -44,10 +43,6 @@ const BOOST_PAD = 48;
 const HORIZON_FEATHER = 96;
 /** Dawn: the edge reaches the bottom of the canvas by this much of the band. */
 const HERO_FADE_END = 1 / 3;
-/** The slit's colour change, ms. */
-const LIGHT_MS = 240;
-/** The beacon model, served from apps/web/public; the source is assets/beacon/beacon.glb. */
-const BEACON_MODEL = '/beacon.glb';
 
 const NIGHT = '#070a10';
 const DUSK = '#1a2030';
@@ -57,7 +52,6 @@ const GREEN = '#23a55a';
 const AMBER = '#d9a21b';
 
 const MAX_PARALLAX_PX = 12;
-const BEACON_PARALLAX_PX = 4;
 const MAX_DPR = 1.5;
 const FOV = 60;
 const NEAR = 50;
@@ -65,37 +59,7 @@ const FAR = 1000;
 /** Radians per second. One turn in about 26 minutes. */
 const DRIFT = 0.004;
 
-/**
- * The photograph's geometry, as fractions of its frame, measured on the
- * still: where the sea meets the sky, and where the beacon stood.
- */
-const PHOTO = {
-  horizon: 0.633,
-  beaconTop: 0.199,
-  beaconBase: 0.81,
-  /** The slit, within the beacon: across its front face, and down its height. */
-  slitAcross: 0.35,
-  slitTop: 0.2,
-  slitBottom: 0.617,
-  /** The slit's width as a fraction of the frame's width. */
-  slitWidth: 0.0094,
-  /** A wide-normal lens: about 60 degrees across the frame. */
-  hfovDeg: 60,
-} as const;
-
 export type SkyRect = { x: number; y: number; width: number; height: number };
-export type Light = 'amber' | 'green' | 'off';
-
-/** Where the beacon stands: the photograph's rect over the canvas, and the beacon's centre across it. */
-export type BeaconPlacement = {
-  /** The frame's rect in canvas CSS px, as the scene lays the photograph out. */
-  frame: { left: number; top: number; width: number; height: number };
-  /** The beacon's centre as a fraction of the frame's width. */
-  x: number;
-  light: Light;
-  /** Opacity, driven by dawn. */
-  fade: number;
-};
 
 type Handle = {
   setDawn: (p: number) => void;
@@ -224,6 +188,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     fragmentShader: NEBULA_FRAG,
     depthTest: false,
     depthWrite: false,
+    toneMapped: false,
   });
   const edge = { value: 1e6 };
   const feather = { value: HORIZON_FEATHER * dpr };
@@ -241,6 +206,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     depthWrite: false,
     transparent: true,
     blending: THREE.NoBlending,
+    toneMapped: false,
   });
   const quad = new THREE.PlaneGeometry(2, 2);
   const quadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -265,28 +231,15 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     transparent: true,
     depthTest: false,
     depthWrite: false,
+    toneMapped: false,
   });
   const points = new THREE.Points(stars, starMaterial);
   points.frustumCulled = false;
   const starScene = new THREE.Scene().add(points);
 
   // The beacon.
-  const beacon = buildBeacon();
+  const beacon = createBeacon(renderer);
   let placement: BeaconPlacement | null = null;
-  let disposed = false;
-  new GLTFLoader().load(
-    BEACON_MODEL,
-    (gltf) => {
-      if (disposed) return;
-      beacon.setModel(gltf.scene);
-      if (placement) applyBeacon();
-      if (reduced && ready) render();
-    },
-    undefined,
-    () => {
-      // The box stands in.
-    },
-  );
 
   function applyBoost() {
     const w = cssSize.x || 1;
@@ -343,10 +296,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     renderer.clear(true, true, false);
     renderer.render(copyScene, quadCamera);
     renderer.render(starScene, camera);
-    if (beacon.group.visible) {
-      renderer.clearDepth();
-      renderer.render(beacon.scene, beacon.camera);
-    }
+    if (placement) beacon.render(physicalSize.x, physicalSize.y);
   }
 
   /** Night to a short dusk band, then paper. */
@@ -462,7 +412,6 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
     setHorizon,
     setBeacon,
     dispose() {
-      disposed = true;
       stop();
       window.removeEventListener('resize', resize);
       document.removeEventListener('visibilitychange', onVisibility);
@@ -478,222 +427,6 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
       renderer.dispose();
     },
   };
-}
-
-/**
- * The beacon and its camera. World units: the photograph's frame is one unit
- * tall at the beacon's depth, the ground is y = 0, and the camera looks level
- * along -z with the horizon at its principal point, which the view offset
- * puts at the frame's horizon line. From the photograph, the beacon is 0.61
- * tall and its foot stands 0.177 below the camera's eye.
- */
-function buildBeacon() {
-  const frameAspect = 16 / 9;
-  // The camera's virtual frame is the photograph extended downward so its
-  // centre sits on the horizon; the fov is the photograph's, rescaled to it.
-  const fullHeight = 2 * PHOTO.horizon;
-  const tanHalfV = Math.tan(THREE.MathUtils.degToRad(PHOTO.hfovDeg / 2)) / frameAspect;
-  const fovFull = 2 * THREE.MathUtils.radToDeg(Math.atan(tanHalfV * fullHeight));
-  const depth = PHOTO.horizon / (tanHalfV * fullHeight);
-  const eye = PHOTO.beaconBase - PHOTO.horizon;
-  const height = PHOTO.beaconBase - PHOTO.beaconTop;
-  // A near-square footprint, turned a little so the right side shows.
-  const yaw = THREE.MathUtils.degToRad(14);
-  const width = 0.165;
-  const side = 0.19;
-
-  const camera = new THREE.PerspectiveCamera(fovFull, frameAspect / fullHeight, 0.1, 20);
-  camera.position.set(0, eye, 0);
-  camera.lookAt(0, eye, -1);
-
-  const scene = new THREE.Scene();
-  const group = new THREE.Group();
-  scene.add(group);
-
-  const body = new THREE.MeshStandardMaterial({
-    color: 0x0c0f14,
-    roughness: 0.5,
-    metalness: 0.15,
-    transparent: true,
-  });
-  // The prism: a box until the model arrives.
-  let prism: THREE.Object3D = new THREE.Mesh(new THREE.BoxGeometry(width, height, side), body);
-  prism.position.y = height / 2;
-  group.add(prism);
-
-  // The slit: a thin emissive strip on the front face, a little in from the
-  // left, with a soft glow onto the face around it.
-  const slitH = (PHOTO.slitBottom - PHOTO.slitTop) * height;
-  const slitW = PHOTO.slitWidth * frameAspect;
-  const slitY = height - ((PHOTO.slitTop + PHOTO.slitBottom) / 2) * height;
-  const slitX = (PHOTO.slitAcross - 0.5) * width;
-  const light = new THREE.MeshBasicMaterial({ color: AMBER, transparent: true });
-  const slit = new THREE.Mesh(new THREE.BoxGeometry(slitW, slitH, 0.004), light);
-  slit.position.set(slitX, slitY, side / 2 + 0.001);
-  group.add(slit);
-  const glowMaterial = new THREE.MeshBasicMaterial({
-    map: gradientTexture(),
-    color: AMBER,
-    transparent: true,
-    opacity: 0.32,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
-  const glow = new THREE.Mesh(new THREE.PlaneGeometry(slitW * 7, slitH * 1.25), glowMaterial);
-  glow.position.set(slitX, slitY, side / 2 + 0.002);
-  group.add(glow);
-
-  // A soft contact shadow on the ground.
-  const shadowMaterial = new THREE.MeshBasicMaterial({
-    map: gradientTexture(),
-    color: 0x000000,
-    transparent: true,
-    opacity: 0.7,
-    depthWrite: false,
-  });
-  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(width * 3.2, side * 2.4), shadowMaterial);
-  shadow.rotation.x = -Math.PI / 2;
-  shadow.position.y = 0.001;
-  group.add(shadow);
-
-  group.rotation.y = yaw;
-
-  // A cold key from upper left, and a faint fill so the shadow side is not void.
-  const key = new THREE.DirectionalLight(0x9fb4d8, 1.4);
-  key.position.set(-3, 4, 2.5);
-  scene.add(key);
-  const fill = new THREE.HemisphereLight(0x2a3650, 0x05070a, 0.5);
-  scene.add(fill);
-
-  const colors: Record<Light, THREE.Color> = {
-    amber: new THREE.Color(AMBER),
-    green: new THREE.Color(GREEN),
-    off: new THREE.Color(0x0c0f14),
-  };
-  // The slit's colour eases to its target over LIGHT_MS.
-  let lightNow: Light = 'amber';
-  const from = new THREE.Color(AMBER);
-  const current = new THREE.Color(AMBER);
-  let changedAt = -1;
-
-  function setLight(next: Light, now: number) {
-    if (next === lightNow) return;
-    lightNow = next;
-    from.copy(current);
-    changedAt = now;
-  }
-
-  /** Advance the colour change; returns whether it is still moving. */
-  function tick(now: number): boolean {
-    const target = colors[lightNow]!;
-    if (changedAt < 0) {
-      current.copy(target);
-      light.color.copy(current);
-      glowMaterial.color.copy(current);
-      return false;
-    }
-    const k = Math.min(1, (now - changedAt) / LIGHT_MS);
-    current.lerpColors(from, target, k);
-    light.color.copy(current);
-    glowMaterial.color.copy(current);
-    if (k >= 1) changedAt = -1;
-    return k < 1;
-  }
-
-  /** Swap the box for the loaded model: long axis up, the same height, its foot on the ground. */
-  function setModel(model: THREE.Object3D) {
-    group.remove(prism);
-    const holder = new THREE.Group();
-    holder.add(model);
-    // Stand it up: whichever axis is longest becomes y.
-    model.updateMatrixWorld(true);
-    const first = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
-    if (first.z > first.y && first.z > first.x) model.rotation.x = -Math.PI / 2;
-    else if (first.x > first.y) model.rotation.z = Math.PI / 2;
-    model.updateMatrixWorld(true);
-    const size = new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3());
-    const s = height / size.y;
-    model.scale.setScalar(s);
-    model.updateMatrixWorld(true);
-    const scaled = new THREE.Box3().setFromObject(model);
-    const centre = scaled.getCenter(new THREE.Vector3());
-    model.position.set(-centre.x, -scaled.min.y, -centre.z);
-    model.traverse((o) => {
-      if (o instanceof THREE.Mesh) o.material = body;
-    });
-    // Measure in the group's own space, before the holder joins it.
-    holder.updateMatrixWorld(true);
-    const fitted = new THREE.Box3().setFromObject(holder);
-    prism = holder;
-    group.add(prism);
-    // The slit and glow sit on the model's front face.
-    slit.position.z = fitted.max.z + 0.001;
-    glow.position.z = fitted.max.z + 0.002;
-    const w = fitted.max.x - fitted.min.x;
-    slit.position.x = (PHOTO.slitAcross - 0.5) * w;
-    glow.position.x = slit.position.x;
-  }
-
-  /** Lay the camera's frustum over the photograph's rect and stand the beacon at x. */
-  function place(p: BeaconPlacement, css: THREE.Vector2, parallax: THREE.Vector2) {
-    const f = p.frame;
-    camera.setViewOffset(f.width, f.height * fullHeight, -f.left, -f.top, css.x, css.y);
-    camera.updateProjectionMatrix();
-    // One frame height is one unit at the beacon's depth; parallax is 4px at most.
-    const unit = 1 / f.height;
-    const k = BEACON_PARALLAX_PX / MAX_PARALLAX_PX;
-    group.position.set(
-      (p.x - 0.5) * frameAspect + parallax.x * k * unit,
-      parallax.y * k * unit,
-      -depth,
-    );
-    setLight(p.light, performance.now());
-    glowMaterial.opacity = p.light === 'off' ? 0 : 0.32 * p.fade;
-    body.opacity = p.fade;
-    light.opacity = p.fade;
-    shadowMaterial.opacity = 0.7 * p.fade;
-  }
-
-  return {
-    scene,
-    camera,
-    group,
-    place,
-    setModel,
-    tick,
-    dispose() {
-      prism.traverse((o) => {
-        if (o instanceof THREE.Mesh) o.geometry.dispose();
-      });
-      slit.geometry.dispose();
-      glow.geometry.dispose();
-      shadow.geometry.dispose();
-      body.dispose();
-      light.dispose();
-      glowMaterial.map?.dispose();
-      glowMaterial.dispose();
-      shadowMaterial.map?.dispose();
-      shadowMaterial.dispose();
-    },
-  };
-}
-
-/** A radial falloff, white to transparent, for glows and shadows. */
-function gradientTexture(): THREE.Texture {
-  const size = 128;
-  const c = document.createElement('canvas');
-  c.width = size;
-  c.height = size;
-  const ctx = c.getContext('2d')!;
-  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-  g.addColorStop(0, 'rgba(255,255,255,1)');
-  g.addColorStop(0.35, 'rgba(255,255,255,0.55)');
-  g.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
-  const texture = new THREE.CanvasTexture(c);
-  texture.colorSpace = THREE.NoColorSpace;
-  return texture;
 }
 
 /** Random stars through the depth range, most of them faint, plus two tinted ones far apart. */

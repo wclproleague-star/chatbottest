@@ -9,8 +9,7 @@
 //
 // The frame covers the container like object-fit: cover anchored to the
 // bottom, keeping the same point of the headland at the same fraction of the
-// width at every size. The beacon stands where the page asks: a third of the
-// way across the wordmark's R, by default where it stood in the photograph.
+// width at every size. The beacon stands where the photograph's stood.
 
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
@@ -24,11 +23,6 @@ import type { Light } from './script';
 const CONTRAST = 0.12;
 /** Dawn: the hero fades out over the first third of the band. */
 const HERO_FADE_END = 1 / 3;
-/** The beacon's projected width as a fraction of the frame's width, from the photograph. */
-const BEACON_WIDTH = 0.116;
-/** The beacon may stand anywhere on the headland; the cliff edge is at the left. */
-const BEACON_X_MIN = 0.3;
-const BEACON_X_MAX = 0.92;
 
 type Rect = { left: number; top: number; width: number; height: number };
 
@@ -45,7 +39,6 @@ export function Scene({
   dark = 0,
   dawn = 0,
   boost = null,
-  anchor = null,
   onReady,
   behind,
   children,
@@ -56,8 +49,6 @@ export function Scene({
   /** Dawn progress, 0 to 1. */
   dawn?: number;
   boost?: SkyRect | null;
-  /** The right edge of the wordmark's R in container px; the beacon overlaps the R by a third of its width. */
-  anchor?: number | null;
   onReady?: () => void;
   /** Rendered between the sky and the beacon: the wordmark. */
   behind?: ReactNode;
@@ -79,17 +70,7 @@ export function Scene({
 
   const fade = 1 - Math.min(1, dawn / HERO_FADE_END);
 
-  let horizon: number | null = null;
-  let beaconX = meta.focusX;
-  if (rect) {
-    horizon = rect.top + meta.horizon * rect.height;
-    if (anchor !== null) {
-      // The beacon's left edge a third of its width before the R's right edge.
-      const centre = anchor + (BEACON_WIDTH * rect.width) / 6;
-      beaconX = (centre - rect.left) / rect.width;
-    }
-    beaconX = Math.min(BEACON_X_MAX, Math.max(BEACON_X_MIN, beaconX));
-  }
+  const horizon = rect ? rect.top + meta.horizon * rect.height : null;
 
   return (
     <div ref={ref} className="bg-night absolute inset-0 overflow-hidden">
@@ -119,7 +100,7 @@ export function Scene({
           boost={boost}
           contrast={CONTRAST}
           horizon={horizon}
-          beacon={rect ? { frame: rect, x: beaconX, light, fade } : null}
+          beacon={rect ? { frame: rect, x: meta.focusX, light, fade } : null}
           onReady={onReady}
         />
       </div>
