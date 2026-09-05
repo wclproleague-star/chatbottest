@@ -4,6 +4,7 @@ import type { Schema } from './gemini';
 import { resolutionBrief, resolveTarget } from './resolve';
 import type { Resolution, ResolutionContext } from './resolve';
 import { serviceClient } from './supabase';
+import './fetchers/weather';
 import { parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
 import { ANSWER_THIS_MESSAGE, CANNOT_DO, REGISTER, lookupRule } from './voice';
@@ -624,7 +625,10 @@ function systemPrompt(
     '',
     ANSWER_THIS_MESSAGE,
     '',
-    lookupRule(s.dataSources),
+    // This path has no tools: fetching happens in the loop, which calls the
+    // source and comes back before a reply is ever graded. Telling this prompt
+    // what the guild can fetch would invite it to claim data it never got.
+    lookupRule([]),
     '',
     CANNOT_DO,
     '',

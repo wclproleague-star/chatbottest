@@ -44,6 +44,9 @@ export { extractText } from './extract';
 export { embed, EMBEDDING_DIMENSIONS } from './gemini';
 export type { EmbedTask } from './gemini';
 
+export { registerFetcher, parseSources, runnable } from './sources';
+export type { DataSource, Fetcher } from './sources';
+
 export { serviceClient, DOCUMENTS_BUCKET } from './supabase';
 export type { ServiceClient } from './supabase';
 

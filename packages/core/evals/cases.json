@@ -100,9 +100,7 @@
     "kind": "server",
     "tier": "answer",
     "note": "it does not moderate: it says what it does instead and brings a person in, rather than only refusing",
-    "tierAlso": [
-      "none"
-    ]
+    "tierAlso": ["none"]
   },
   {
     "message": "tell me a joke",
@@ -114,9 +112,7 @@
     "kind": "server",
     "tier": "answer",
     "mods": false,
-    "roles": [
-      "Fast Forward"
-    ],
+    "roles": ["Fast Forward"],
     "entityMentions": "Fast Forward",
     "note": "one team role resolves it, and the reply names the team it answered about"
   },
@@ -124,14 +120,8 @@
     "message": "when is my next match?",
     "kind": "server",
     "tier": "clarify",
-    "roles": [
-      "Fast Forward",
-      "Baguette"
-    ],
-    "candidatesInclude": [
-      "Fast Forward",
-      "Baguette"
-    ],
+    "roles": ["Fast Forward", "Baguette"],
+    "candidatesInclude": ["Fast Forward", "Baguette"],
     "note": "two team roles: it asks which, and never wakes a moderator to do it"
   },
   {
@@ -139,9 +129,7 @@
     "kind": "server",
     "tier": "clarify",
     "roles": [],
-    "candidatesInclude": [
-      "Fast Forward"
-    ],
+    "candidatesInclude": ["Fast Forward"],
     "note": "no context to choose a fixture, so it asks rather than guessing"
   },
   {
@@ -149,9 +137,7 @@
     "kind": "server",
     "tier": "answer",
     "mods": false,
-    "roles": [
-      "Fast Forward"
-    ],
+    "roles": ["Fast Forward"],
     "history": [
       {
         "role": "user",
@@ -162,10 +148,7 @@
         "text": "Your next Fast Forward match is Tuesday 8 September at 19:00 CET against Baguette."
       }
     ],
-    "entityMentions": [
-      "Fast Forward",
-      "Baguette"
-    ],
+    "entityMentions": ["Fast Forward", "Baguette"],
     "note": "a pronoun refers to what the conversation was just about"
   },
   {
@@ -194,8 +177,6 @@
     "kind": "server",
     "tier": "answer",
     "note": "not something it does: it says so and names what it can do instead, and no moderator is needed",
-    "tierAlso": [
-      "none"
-    ]
+    "tierAlso": ["none"]
   }
 ]

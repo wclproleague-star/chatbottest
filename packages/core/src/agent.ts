@@ -18,6 +18,9 @@ import type { AnswerResult, FlagCategory, HistoryTurn } from './answer';
 import { generateJson, generateWithTools } from './gemini';
 import type { FunctionDeclaration, ToolTurn } from './gemini';
 import { Type } from './gemini';
+// Importing the fetchers is what registers them; a kind nothing registers
+// cannot be called, so this import is the whole enabling of a source.
+import './fetchers/weather';
 import { fetchFrom, parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
 import { serviceClient } from './supabase';
