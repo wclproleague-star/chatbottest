@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
+import { withRetry } from './resilience';
 import type { Content, FunctionDeclaration, Schema } from '@google/genai';
 import { env } from './env';
 
@@ -25,11 +26,13 @@ export async function embed(texts: string[], taskType: EmbedTask): Promise<numbe
   const out: number[][] = [];
   for (let start = 0; start < texts.length; start += EMBED_BATCH) {
     const batch = texts.slice(start, start + EMBED_BATCH);
-    const response = await ai().models.embedContent({
-      model: env().geminiEmbedModel,
-      contents: batch,
-      config: { taskType, outputDimensionality: EMBEDDING_DIMENSIONS },
-    });
+    const response = await withRetry(() =>
+      ai().models.embedContent({
+        model: env().geminiEmbedModel,
+        contents: batch,
+        config: { taskType, outputDimensionality: EMBEDDING_DIMENSIONS },
+      }),
+    );
     const embeddings = response.embeddings ?? [];
     if (embeddings.length !== batch.length) {
       throw new Error(
@@ -64,16 +67,18 @@ export async function generateJson<T>(input: {
   schema: Schema;
   temperature?: number;
 }): Promise<T> {
-  const response = await ai().models.generateContent({
-    model: env().geminiModel,
-    contents: input.messages.map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
-    config: {
-      systemInstruction: input.system,
-      responseMimeType: 'application/json',
-      responseSchema: input.schema,
-      temperature: input.temperature ?? 0.2,
-    },
-  });
+  const response = await withRetry(() =>
+    ai().models.generateContent({
+      model: env().geminiModel,
+      contents: input.messages.map((m) => ({ role: m.role, parts: [{ text: m.text }] })),
+      config: {
+        systemInstruction: input.system,
+        responseMimeType: 'application/json',
+        responseSchema: input.schema,
+        temperature: input.temperature ?? 0.2,
+      },
+    }),
+  );
   const text = response.text;
   if (!text) throw new Error('Gemini returned an empty response.');
   return JSON.parse(text) as T;
@@ -104,15 +109,17 @@ export async function generateWithTools(input: {
   tools: FunctionDeclaration[];
   temperature?: number;
 }): Promise<ToolStep> {
-  const response = await ai().models.generateContent({
-    model: env().geminiModel,
-    contents: input.turns.map(toContent),
-    config: {
-      systemInstruction: input.system,
-      tools: [{ functionDeclarations: input.tools }],
-      temperature: input.temperature ?? 0.6,
-    },
-  });
+  const response = await withRetry(() =>
+    ai().models.generateContent({
+      model: env().geminiModel,
+      contents: input.turns.map(toContent),
+      config: {
+        systemInstruction: input.system,
+        tools: [{ functionDeclarations: input.tools }],
+        temperature: input.temperature ?? 0.6,
+      },
+    }),
+  );
   const content = response.candidates?.[0]?.content ?? { role: 'model', parts: [] };
   return {
     content,

@@ -24,7 +24,9 @@ export type BotEventType =
   | 'install'
   | 'uninstall'
   | 'flagged'
-  | 'capability_requested';
+  | 'capability_requested'
+  | 'tool_failed'
+  | 'settings_issue';
 export type OnboardingMode = 'chat' | 'form';
 
 type GuildRow = {
@@ -32,6 +34,8 @@ type GuildRow = {
   owner_user_id: string | null;
   name: string | null;
   bot_installed: boolean;
+  /** When the bot was removed, if it was. Data is kept for thirty days after. */
+  uninstalled_at?: string | null;
   installed_at: string | null;
   setup_completed: boolean;
   created_at: string;
@@ -237,6 +241,32 @@ export type Database = {
           | 'answered_at'
         >;
         Update: Partial<QuestionRow>;
+        Relationships: [];
+      };
+      conversations: {
+        Row: {
+          guild_id: string;
+          key: string;
+          turns: Json;
+          language: string | null;
+          expires_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          guild_id: string;
+          key: string;
+          turns?: Json;
+          language?: string | null;
+          expires_at: string;
+          updated_at?: string;
+        };
+        Update: { turns?: Json; language?: string | null; expires_at?: string };
+        Relationships: [];
+      };
+      processed_events: {
+        Row: { id: string; guild_id: string | null; kind: string; created_at: string };
+        Insert: { id: string; guild_id?: string | null; kind: string; created_at?: string };
+        Update: { kind?: string };
         Relationships: [];
       };
       knowledge_conflicts: {

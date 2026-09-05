@@ -14,6 +14,7 @@
 // an ungrounded fact is still hedged or handed over rather than asserted.
 
 import { answer, FLAG_CATEGORIES } from './answer';
+import type { Json } from './database.types';
 import type { AnswerResult, FlagCategory, HistoryTurn } from './answer';
 import { generateJson, generateWithTools } from './gemini';
 import type { FunctionDeclaration, ToolTurn } from './gemini';
@@ -33,6 +34,11 @@ export const MAX_TOOL_CALLS = 5;
 /** How long a conversation stays open, waiting for the member to answer. */
 export const CONVERSATION_TTL_MS = 30 * 60 * 1000;
 
+/** Why an assignment did not happen, when it did not. */
+export type AssignOutcome =
+  | { ok: true }
+  | { ok: false; reason: 'missing_permission' | 'role_too_high' | 'unknown'; detail?: string };
+
 export type RoleProof =
   | { kind: 'roster_document'; documentId: string }
   | { kind: 'channel_access'; channelId: string }
@@ -46,8 +52,12 @@ export type Effects = {
   memberInChannel(userId: string, channelId: string): Promise<boolean>;
   /** Whether the member holds that role; for `has_role` proofs. */
   memberHasRole(userId: string, roleId: string): Promise<boolean>;
-  /** Give the member the role. Only ever called after a proof passed. */
-  assignRole(userId: string, roleId: string): Promise<void>;
+  /**
+   * Give the member the role. Only ever called after a proof passed. It says
+   * whether it worked: a bot whose permissions were narrowed, or that sits
+   * below the role in the hierarchy, must say so rather than fall silent.
+   */
+  assignRole(userId: string, roleId: string): Promise<AssignOutcome>;
   /** A channel's name, for pointing at it by name. */
   channelName(channelId: string): Promise<string | null>;
 };
@@ -83,47 +93,71 @@ export type ConversationResult = {
   | { outcome: 'flagged'; category: FlagCategory; note: string }
 );
 
-// The conversation each member has open, if any. In memory: one bot process
-// serves every guild, and a dropped conversation only costs the member a
-// repeated sentence.
-type Conversation = { turns: ToolTurn[]; updatedAt: number; language?: string };
-const conversations = new Map<string, Conversation>();
+// An open conversation lives in the database, not in this process. A worker
+// restart in the middle of one used to lose what a member had just been asked,
+// so their next message arrived as a new request with no memory of the
+// question. Rows expire on their own and are swept as they are read.
+type Conversation = { turns: ToolTurn[]; language?: string };
 
-function loadConversation(id: string): ToolTurn[] {
-  const found = conversations.get(id);
-  if (!found) return [];
-  if (Date.now() - found.updatedAt > CONVERSATION_TTL_MS) {
-    conversations.delete(id);
-    return [];
+async function loadConversation(guildId: string, key: string): Promise<Conversation> {
+  const { data } = await serviceClient()
+    .from('conversations')
+    .select('turns, language, expires_at')
+    .eq('guild_id', guildId)
+    .eq('key', key)
+    .maybeSingle();
+  if (!data) return { turns: [] };
+  if (new Date(data.expires_at).getTime() < Date.now()) {
+    await closeConversation(guildId, key);
+    return { turns: [] };
   }
-  return found.turns;
+  return { turns: (data.turns ?? []) as ToolTurn[], language: data.language ?? undefined };
 }
 
-function saveConversation(id: string, turns: ToolTurn[], language?: string): void {
-  conversations.set(id, { turns, updatedAt: Date.now(), language });
-  // Drop whatever else has gone cold, so the map cannot grow without bound.
-  for (const [key, value] of conversations) {
-    if (Date.now() - value.updatedAt > CONVERSATION_TTL_MS) conversations.delete(key);
-  }
+async function saveConversation(
+  guildId: string,
+  key: string,
+  turns: ToolTurn[],
+  language?: string,
+): Promise<void> {
+  const expires = new Date(Date.now() + CONVERSATION_TTL_MS).toISOString();
+  const { error } = await serviceClient()
+    .from('conversations')
+    .upsert({
+      guild_id: guildId,
+      key,
+      turns: turns as unknown as Json,
+      language: language ?? null,
+      expires_at: expires,
+      updated_at: new Date().toISOString(),
+    });
+  if (error) console.error(`sentry: could not save the conversation: ${error.message}`);
 }
 
 /** Ends the conversation: the member got what they asked for, or a moderator has it. */
-function closeConversation(id: string): void {
-  conversations.delete(id);
+async function closeConversation(guildId: string, key: string): Promise<void> {
+  await serviceClient().from('conversations').delete().eq('guild_id', guildId).eq('key', key);
 }
 
 /**
  * Whether Sentry is waiting on this member here. It only waits after asking
  * them something, so their next message is the answer to it, mention or not.
  */
-export function hasOpenConversation(id: string): boolean {
-  return loadConversation(id).length > 0;
+export async function hasOpenConversation(guildId: string, key: string): Promise<boolean> {
+  const { turns } = await loadConversation(guildId, key);
+  return turns.length > 0;
+}
+
+/** Drops every conversation that has expired. Called on start and after sweeps. */
+export async function sweepConversations(): Promise<void> {
+  await serviceClient().from('conversations').delete().lt('expires_at', new Date().toISOString());
 }
 
 export async function converse(input: ConversationInput): Promise<ConversationResult> {
   const { guildId, conversationId, userId, effects } = input;
   const settings = await loadAgentSettings(guildId);
-  const earlier = loadConversation(conversationId);
+  const stored = await loadConversation(guildId, conversationId);
+  const earlier = stored.turns;
   const turns: ToolTurn[] = [
     ...earlier,
     {
@@ -137,16 +171,13 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   // the channel.
   const flag = await screen(input.message);
   if (flag) {
-    closeConversation(conversationId);
+    await closeConversation(guildId, conversationId);
     return { outcome: 'flagged', category: flag.category, note: flag.note, steps: [], calls: [] };
   }
 
   // The language is the member's, for the whole conversation, unless the
   // owner has forced one. Held rather than re-judged, so it cannot drift.
-  const language =
-    settings.language ??
-    conversations.get(conversationId)?.language ??
-    (await detectLanguage(input.message));
+  const language = settings.language ?? stored.language ?? (await detectLanguage(input.message));
 
   const steps: string[] = [];
   const called: string[] = [];
@@ -185,7 +216,11 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         reason: `check_membership has not passed for "${roleName}" in this conversation. Call it now; this is not a failure and not for the moderators.`,
       };
     }
-    await effects.assignRole(userId, roleId);
+    const done = await effects.assignRole(userId, roleId);
+    if (!done.ok) {
+      steps.push(`could not give them the role: ${done.reason}`);
+      return { ok: false, reason: whyNot(done.reason, roleName) };
+    }
     steps.push('gave them the role');
     assigned = roleId;
     return { ok: true, role: roleName, note: 'Tell them it is done, in one short line.' };
@@ -211,19 +246,33 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     steps.push(`checked whether they may have that role: ${check.reason}`);
     if (check.ok) {
       called.push('assign_role');
-      await effects.assignRole(userId, wanted.id);
-      steps.push('gave them the role');
-      closeConversation(conversationId);
+      const done = await effects.assignRole(userId, wanted.id);
+      if (done.ok) {
+        steps.push('gave them the role');
+        await closeConversation(guildId, conversationId);
+        return {
+          outcome: 'assigned',
+          roleId: wanted.id,
+          text: await inLanguage(`Done, you have the ${wanted.name} role.`, language),
+          steps,
+          calls: called,
+        };
+      }
+      // Sentry is allowed to give this role and cannot. That is not the
+      // member's problem to solve and not something to retry: they are told
+      // plainly, and the owner hears about the permission once, elsewhere.
+      steps.push(`could not give them the role: ${done.reason}`);
+      await closeConversation(guildId, conversationId);
       return {
-        outcome: 'assigned',
-        roleId: wanted.id,
-        text: await inLanguage(`Done, you have the ${wanted.name} role.`, language),
+        outcome: 'escalate',
+        text: await inLanguage(`${whyNot(done.reason, wanted.name)} ${MODS}`, language),
+        summary: `${input.askerName ?? 'A member'} qualified for ${wanted.name}, but Sentry could not give it: ${done.reason}.`,
         steps,
         calls: called,
       };
     }
     // A failed check is never forced and never argued with: it goes to a mod.
-    closeConversation(conversationId);
+    await closeConversation(guildId, conversationId);
     const summary = `${input.askerName ?? 'A member'} asked for the ${wanted.name} role. The check for it did not pass: ${check.reason}.`;
     return {
       outcome: 'escalate',
@@ -246,7 +295,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       // Something was given out: that is what the turn was, whatever the
       // confirmation happens to end with.
       if (assigned) {
-        closeConversation(conversationId);
+        await closeConversation(guildId, conversationId);
         return {
           outcome: 'assigned',
           text: await inLanguage(step.text || 'Done.', language),
@@ -261,7 +310,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       const offersChoice = (await effects.listRoles()).filter((r) => mentions(step.text, r.name));
       if (step.text.trim().endsWith('?') || offersChoice.length > 1) {
         turns.push({ model: step.content });
-        saveConversation(conversationId, turns, language);
+        await saveConversation(guildId, conversationId, turns, language);
         return {
           outcome: 'ask',
           text: await inLanguage(step.text, language),
@@ -286,7 +335,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         });
         continue;
       }
-      closeConversation(conversationId);
+      await closeConversation(guildId, conversationId);
       // A plain informational reply to a fresh question goes through the
       // grading contract rather than being posted as the model wrote it. Mid
       // conversation it does not: the context is here, not in one message.
@@ -320,7 +369,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     // The role is already given: whatever it wants to do next, the member is
     // told what happened rather than asked something else.
     if (assigned && call.name === 'ask_user') {
-      closeConversation(conversationId);
+      await closeConversation(guildId, conversationId);
       const said = String(call.args.question ?? step.text ?? '').trim();
       return {
         outcome: 'assigned',
@@ -358,7 +407,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           name: call.name,
           result: `asked: "${question}"; waiting for the member`,
         });
-        saveConversation(conversationId, turns, language);
+        await saveConversation(guildId, conversationId, turns, language);
         return {
           outcome: 'ask',
           text: await inLanguage(question || step.text, language),
@@ -369,7 +418,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
 
       case 'escalate_to_mod': {
         const summary = String(call.args.summary ?? '').trim();
-        closeConversation(conversationId);
+        await closeConversation(guildId, conversationId);
         const text = String(call.args.message ?? '').trim() || `I can't do that one. ${MODS}`;
         const withMods = text.includes(MODS) ? text : `${text} ${MODS}`;
         return {
@@ -476,7 +525,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   }
 
   // Out of calls: hand it over rather than keep trying.
-  closeConversation(conversationId);
+  await closeConversation(guildId, conversationId);
   return {
     outcome: 'escalate',
     text: await inLanguage(`I couldn't finish that one on my own. ${MODS}`, language),
@@ -557,6 +606,18 @@ async function logCapabilityRequest(
     .from('bot_events')
     .insert({ guild_id: guildId, type: 'capability_requested', payload });
   if (error) console.error(`sentry: could not record the request: ${error.message}`);
+}
+
+/** What a member is told when Sentry may give a role and cannot. */
+function whyNot(reason: 'missing_permission' | 'role_too_high' | 'unknown', role: string): string {
+  switch (reason) {
+    case 'missing_permission':
+      return `I can't hand out ${role}: I don't have permission to manage roles here.`;
+    case 'role_too_high':
+      return `I can't hand out ${role}: it sits above me in the role list, so Discord won't let me.`;
+    default:
+      return `I couldn't hand you ${role}, and I don't know why.`;
+  }
 }
 
 function askedForItself(turns: ToolTurn[], roleName: string): boolean {

@@ -8,6 +8,8 @@
 
 import process from 'node:process';
 import { DEFAULT_LIMITS, allowMessage, forModel, forgetMember, parseLimits } from './limits';
+import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
+import { clockIn, inZone, pastRetention } from './times';
 
 let failed = 0;
 
@@ -64,6 +66,49 @@ console.log('\nlimits are settings, not constants');
     'nonsense falls back rather than breaking',
     parseLimits({ memberBurst: -3, maxMessageChars: 'lots' }).memberBurst ===
       DEFAULT_LIMITS.memberBurst,
+  );
+}
+
+console.log('\nwhen a dependency fails');
+{
+  const cases: [unknown, string][] = [
+    [Object.assign(new Error('rate limit exceeded'), { status: 429 }), 'rate_limited'],
+    [new Error('The operation was aborted due to timeout'), 'timeout'],
+    [Object.assign(new Error('Service Unavailable'), { status: 503 }), 'unavailable'],
+    [new Error('fetch failed'), 'unavailable'],
+    [Object.assign(new Error('Missing Permissions'), { status: 403 }), 'permission'],
+    [Object.assign(new Error('Unknown Channel'), { status: 404 }), 'not_found'],
+    [new Error('something odd'), 'unknown'],
+  ];
+  for (const [error, expected] of cases) {
+    check(`${expected} is recognised`, classify(error) === expected, classify(error));
+  }
+  check('an outage is retried', worthRetrying('unavailable'));
+  check('a missing permission is not retried', !worthRetrying('permission'));
+  check('backoff grows', backoffMs(3, 400, () => 0.5) > backoffMs(1, 400, () => 0.5));
+  check('backoff is jittered', backoffMs(2, 400, () => 0) !== backoffMs(2, 400, () => 1));
+  const said = outageReply('unavailable');
+  check('the member is told plainly', said.length > 0 && said.length < 120);
+  check('no moderator is woken for an outage', !said.includes('{mods}'));
+}
+
+console.log('\ntimes');
+{
+  const instant = '2026-09-07T16:00:00.000Z';
+  const paris = inZone(instant, 'Europe/Paris');
+  const utc = inZone(instant, null);
+  check('the same instant reads differently in two zones', paris !== utc, `${paris} vs ${utc}`);
+  check('the guild timezone is used', paris.includes('18:00'), paris);
+  check('a nonsense timezone still shows a time', clockIn(instant, 'Mars/Olympus').length > 0);
+  check('nothing is shown for a broken date', inZone('not a date', null) === '');
+  check('a guild still installed is never purged', !pastRetention(null));
+  check(
+    'thirty days after removal it is',
+    pastRetention(new Date(Date.now() - 31 * 864e5).toISOString()),
+  );
+  check(
+    'the day after removal it is not',
+    !pastRetention(new Date(Date.now() - 864e5).toISOString()),
   );
 }
 

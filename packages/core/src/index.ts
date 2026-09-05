@@ -32,6 +32,7 @@ export {
   MAX_TOOL_CALLS,
   CONVERSATION_TTL_MS,
 } from './agent';
+export { sweepConversations } from './agent';
 export type { ConversationInput, ConversationResult, Effects, RoleProof } from './agent';
 
 export { ingest } from './ingest';
@@ -43,6 +44,18 @@ export type { Chunk, ChunkOptions } from './chunk';
 export { extractText } from './extract';
 export { embed, EMBEDDING_DIMENSIONS } from './gemini';
 export type { EmbedTask } from './gemini';
+
+export { inZone, clockIn, pastRetention, RETENTION_DAYS } from './times';
+
+export {
+  classify,
+  worthRetrying,
+  backoffMs,
+  withRetry,
+  outageReply,
+  DEFAULT_RETRY,
+} from './resilience';
+export type { ErrorClass, RetryOptions } from './resilience';
 
 export { allowMessage, forgetMember, forModel, parseLimits, DEFAULT_LIMITS } from './limits';
 export type { Limits } from './limits';

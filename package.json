@@ -14,7 +14,8 @@
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "purge": "pnpm --filter @sentrybot/core purge"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

@@ -103,6 +103,20 @@ Actions the model may propose, each with typed params: `point_to_channel { chann
 * Rate limit mod pings to 5 per guild per hour; beyond that, queue silently and mark `quiet_queue` in the event payload.
 * No kicks, bans, timeouts, or deletes. Ever.
 
+### When something is down
+
+The rule everywhere: never hang, never guess, never wake a moderator over an outage. A moderator cannot fix Gemini.
+
+* Every call to the model and to the database goes through `withRetry`: three attempts, exponential backoff with jitter, a deadline on each attempt. A failure that waiting cannot fix, a missing permission or a deleted channel, is not retried at all.
+* A member waiting on a failed call gets one honest line ("Something on my side is not answering right now") and no mention. The failure is written as a `tool_failed` event with its class (`timeout`, `rate_limited`, `unavailable`, `permission`, `not_found`, `unknown`), so an owner can tell an outage from a gap in the knowledge.
+* Discord rate limits are queued by the library, never dropped; a burst is logged so it is visible afterwards rather than looking like a hang.
+* A tool that fails because Sentry lacks a permission, or because the role sits above it in the hierarchy, tells the member exactly that and reports the missing permission to the mod channel once a day, not once a message.
+* A channel or role named in the settings and since deleted is found when the bot syncs, and written as a `settings_issue` event for the dashboard.
+* Open conversations live in `conversations`, not in the worker's memory, so a restart in the middle of one does not lose what a member was just asked. Rows carry their own expiry and are swept on start.
+* Discord redelivers events on reconnect. Every event that leads to a write is claimed by id in `processed_events` first, so one message gets one answer.
+* Times are stored in UTC, always, and shown in the guild's timezone.
+* Removal is not deletion: `guilds.uninstalled_at` is set, conversations stop, and the data is kept 30 days (`pnpm purge` lists what is past that, `--run` deletes it).
+
 ## 5. Web app
 
 Marketing: `/`, `/pricing`, `/how-it-works`. App: `/servers`, `/g/[guildId]/onboarding`, `/g/[guildId]/overview`, `/g/[guildId]/knowledge`, `/g/[guildId]/personality`, `/g/[guildId]/inbox`, `/g/[guildId]/settings`, `/g/[guildId]/test`. Auth via Supabase Discord provider with scopes `identify email guilds`.

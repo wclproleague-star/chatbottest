@@ -52,6 +52,8 @@ type Turn = {
 };
 type Script = {
   name: string;
+  /** When set, Discord refuses the assignment for this reason. */
+  cannotAssign?: 'missing_permission' | 'role_too_high' | 'unknown';
   roles: { id: string; name: string }[];
   selfServe: string[];
   membership: Record<string, boolean>;
@@ -78,7 +80,10 @@ function fakeEffects(script: Script, trace: Trace): Effects {
     },
     async assignRole(_userId, roleId) {
       trace.calls.push('assign_role');
+      // A script can make Discord refuse, to check what the member is told.
+      if (script.cannotAssign) return { ok: false, reason: script.cannotAssign };
       trace.assigned.push(roleId);
+      return { ok: true };
     },
     async channelName() {
       return null;

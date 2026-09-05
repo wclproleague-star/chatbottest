@@ -76,6 +76,42 @@ export async function syncMeta(guild: Guild): Promise<void> {
       { onConflict: 'guild_id' },
     );
   if (error) console.error(`sentry: could not sync meta for ${guild.id}: ${error.message}`);
+  await checkSettingsStillPoint(guild, channels, roles);
+}
+
+/**
+ * A channel or a role named in the settings can be deleted in Discord, and the
+ * setting keeps pointing at nothing. Sentry notices when it syncs and records
+ * what is dangling, so the dashboard can tell the owner instead of the bot
+ * failing quietly at the moment a member needs it.
+ */
+async function checkSettingsStillPoint(
+  guild: Guild,
+  channels: { id: string; name: string }[],
+  roles: { id: string; name: string }[],
+): Promise<void> {
+  const settings = await loadSettings(guild.id);
+  const channelIds = new Set(channels.map((c) => c.id));
+  const roleIds = new Set(roles.map((r) => r.id));
+  const missing: { setting: string; id: string }[] = [];
+  const channelSettings: [string, string | null][] = [
+    ['mod_channel_id', settings.modChannelId],
+    ['intro_channel_id', settings.introChannelId],
+  ];
+  for (const [setting, id] of channelSettings) {
+    if (id && !channelIds.has(id)) missing.push({ setting, id });
+  }
+  for (const id of settings.allowedChannelIds) {
+    if (!channelIds.has(id)) missing.push({ setting: 'allowed_channel_ids', id });
+  }
+  if (settings.modRoleId && !roleIds.has(settings.modRoleId)) {
+    missing.push({ setting: 'mod_role_id', id: settings.modRoleId });
+  }
+  for (const id of settings.selfServeRoleIds) {
+    if (!roleIds.has(id)) missing.push({ setting: 'self_serve_role_ids', id });
+  }
+  if (missing.length === 0) return;
+  await logEvent(guild.id, 'settings_issue', { missing, checkedAt: new Date().toISOString() });
 }
 
 export async function markInstalled(guildId: string, name: string): Promise<void> {
@@ -86,7 +122,13 @@ export async function markInstalled(guildId: string, name: string): Promise<void
 }
 
 export async function markUninstalled(guildId: string): Promise<void> {
-  await serviceClient().from('guilds').update({ bot_installed: false }).eq('guild_id', guildId);
+  // The removal is dated, so data can be kept for thirty days and then purged.
+  await serviceClient()
+    .from('guilds')
+    .update({ bot_installed: false, uninstalled_at: new Date().toISOString() })
+    .eq('guild_id', guildId);
+  // Nothing keeps running for a server Sentry is no longer in.
+  await serviceClient().from('conversations').delete().eq('guild_id', guildId);
 }
 
 export async function logEvent(

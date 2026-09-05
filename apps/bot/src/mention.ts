@@ -5,7 +5,7 @@
 // moderator's reply can become knowledge. Tier 4 says nothing in public and
 // reports quietly to the mod channel.
 
-import { HISTORY_LIMIT, converse, forModel } from '@sentrybot/core';
+import { HISTORY_LIMIT, classify, converse, forModel, outageReply } from '@sentrybot/core';
 import type { Action, AnswerResult, Effects, HistoryTurn } from '@sentrybot/core';
 import { MODS } from '@sentrybot/core/tokens';
 import { serviceClient } from '@sentrybot/core/supabase';
@@ -45,29 +45,42 @@ export async function handleMention(message: Message, settings: GuildSettings): 
 
   const history = await recentHistory(message);
   const channel = message.channel;
-  const result = await converse({
-    guildId: guild.id,
-    // One conversation per member per channel, so a follow-up continues it.
-    conversationId: `${message.channelId}:${message.author.id}`,
-    userId: message.author.id,
-    askerName: message.author.displayName,
-    message: question,
-    channelId: message.channelId,
-    history,
-    asker: {
-      nickname: message.member?.nickname ?? undefined,
-      roles: message.member?.roles.cache.map((r) => r.name).filter((n) => n !== '@everyone') ?? [],
-      isStaff: settings.modRoleId
-        ? (message.member?.roles.cache.has(settings.modRoleId) ?? false)
-        : false,
-    },
-    channel: {
-      name: 'name' in channel && typeof channel.name === 'string' ? channel.name : undefined,
-      category: 'parent' in channel && channel.parent ? channel.parent.name : undefined,
-      topic: 'topic' in channel && typeof channel.topic === 'string' ? channel.topic : undefined,
-    },
-    effects: discordEffects(message, settings),
-  });
+  let result;
+  try {
+    result = await converse({
+      guildId: guild.id,
+      // One conversation per member per channel, so a follow-up continues it.
+      conversationId: `${message.channelId}:${message.author.id}`,
+      userId: message.author.id,
+      askerName: message.author.displayName,
+      message: question,
+      channelId: message.channelId,
+      history,
+      asker: {
+        nickname: message.member?.nickname ?? undefined,
+        roles:
+          message.member?.roles.cache.map((r) => r.name).filter((n) => n !== '@everyone') ?? [],
+        isStaff: settings.modRoleId
+          ? (message.member?.roles.cache.has(settings.modRoleId) ?? false)
+          : false,
+      },
+      channel: {
+        name: 'name' in channel && typeof channel.name === 'string' ? channel.name : undefined,
+        category: 'parent' in channel && channel.parent ? channel.parent.name : undefined,
+        topic: 'topic' in channel && typeof channel.topic === 'string' ? channel.topic : undefined,
+      },
+      effects: discordEffects(message, settings),
+    });
+  } catch (err) {
+    // The model or the database, not the member. They are told in one line,
+    // no moderator is woken for an outage, and the class is recorded so an
+    // owner can tell an outage from a gap in the knowledge.
+    const kind = classify(err);
+    await logEvent(guild.id, 'tool_failed', { tool: 'answer', class: kind, question });
+    console.error(`sentry: answering failed (${kind}): ${String(err)}`);
+    await message.reply(outageReply(kind)).catch(() => undefined);
+    return;
+  }
 
   switch (result.outcome) {
     // Nothing in the channel, one quiet line to the moderators.
@@ -117,16 +130,64 @@ function discordEffects(message: Message, settings: GuildSettings): Effects {
       const member = await guild.members.fetch(userId).catch(() => null);
       const role = guild.roles.cache.get(roleId);
       const me = guild.members.me;
-      if (!member || !role || !me?.permissions.has(PermissionFlagsBits.ManageRoles)) return;
-      if (role.position >= me.roles.highest.position) return;
-      await member.roles.add(role);
+      if (!member || !role) return { ok: false, reason: 'unknown' };
+      if (!me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
+        await reportPermissionOnce(guild, 'Manage Roles', settings);
+        return { ok: false, reason: 'missing_permission' };
+      }
+      if (role.position >= me.roles.highest.position) {
+        await reportPermissionOnce(guild, `a place above the ${role.name} role`, settings);
+        return { ok: false, reason: 'role_too_high' };
+      }
+      try {
+        await member.roles.add(role);
+      } catch (err) {
+        const kind = classify(err);
+        await logEvent(guild.id, 'tool_failed', { tool: 'assign_role', roleId, class: kind });
+        if (kind === 'permission') await reportPermissionOnce(guild, 'Manage Roles', settings);
+        return { ok: false, reason: kind === 'permission' ? 'missing_permission' : 'unknown' };
+      }
       await logEvent(guild.id, 'action', { action: { type: 'assign_role', roleId }, userId });
+      return { ok: true };
     },
     async channelName(channelId) {
       const channel = guild.channels.cache.get(channelId);
       return channel && 'name' in channel ? channel.name : null;
     },
   };
+}
+
+/**
+ * A permission Sentry is missing is the owner's to fix, and telling them once
+ * is help; telling them on every message is noise. The last report is found in
+ * the events themselves, so this survives a restart.
+ */
+async function reportPermissionOnce(
+  guild: Message['guild'],
+  missing: string,
+  settings: GuildSettings,
+): Promise<void> {
+  if (!guild) return;
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data } = await serviceClient()
+    .from('bot_events')
+    .select('id, payload')
+    .eq('guild_id', guild.id)
+    .eq('type', 'tool_failed')
+    .gte('created_at', since)
+    .limit(50);
+  const told = (data ?? []).some(
+    (row) => (row.payload as { missing?: string } | null)?.missing === missing,
+  );
+  await logEvent(guild.id, 'tool_failed', { tool: 'permissions', missing, reported: !told });
+  if (told || !settings.modChannelId) return;
+  const channel = guild.channels.cache.get(settings.modChannelId);
+  if (!channel || channel.type !== ChannelType.GuildText) return;
+  await (channel as TextChannel)
+    .send(
+      `I could not do something a member asked for because I am missing ${missing}. Nothing else is affected, and I will not repeat this today.`,
+    )
+    .catch(() => undefined);
 }
 
 /** The loop gave up: post it with the mention and leave the moderators the summary. */

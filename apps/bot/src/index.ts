@@ -7,11 +7,12 @@
 
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import type { Message } from 'discord.js';
-import { allowMessage, hasOpenConversation } from '@sentrybot/core';
+import { allowMessage, hasOpenConversation, sweepConversations } from '@sentrybot/core';
 import { onModReply, onTick, watchDashboardApprovals } from './approve';
 import { botEnv } from './env';
 import { isClaimed, loadSettings, markInstalled, markUninstalled, syncMeta } from './guild';
 import { handleMention } from './mention';
+import { claim, sweepClaims } from './once';
 
 const client = new Client({
   intents: [
@@ -42,6 +43,10 @@ client.once(Events.ClientReady, async (ready) => {
     }
   }
   watchDashboardApprovals(client);
+  // Whatever expired while the worker was down, and whatever it has already
+  // seen, are cleared on the way in rather than accumulating for ever.
+  await sweepConversations().catch(() => undefined);
+  await sweepClaims().catch(() => undefined);
 });
 
 client.on(Events.GuildCreate, async (guild) => {
@@ -92,11 +97,17 @@ client.on(Events.MessageCreate, async (message: Message) => {
       ? (await message.channel.messages.fetch(repliedTo).catch(() => null))?.author.id ===
         client.user.id
       : false;
-    const waiting = hasOpenConversation(`${message.channelId}:${message.author.id}`);
+    const waiting = await hasOpenConversation(
+      message.guild.id,
+      `${message.channelId}:${message.author.id}`,
+    );
     if (!named && !answeringSentry && !waiting) return;
 
     // Twenty messages in thirty seconds is not a conversation. Past the burst
     // the member is told once, then it goes quiet for them and for nobody else.
+    // Discord redelivers on reconnect. One message, one answer.
+    if (!(await claim(message.id, 'message', message.guild.id))) return;
+
     const allowance = allowMessage(`${message.guild.id}:${message.author.id}`, settings.limits);
     if (!allowance.allowed) {
       if (allowance.sayWhy) {
@@ -117,6 +128,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   try {
     const guildId = reaction.message.guildId;
     if (!guildId || !(await isClaimed(guildId))) return;
+    if (!(await claim(`${reaction.message.id}:${user.id}`, 'reaction', guildId))) return;
     await onTick(reaction, user, await loadSettings(guildId));
   } catch (err) {
     console.error(`sentry: reaction handler failed: ${String(err)}`);
@@ -124,5 +136,13 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
 });
 
 client.on(Events.Error, (err) => console.error(`sentry: gateway error: ${err.message}`));
+
+// discord.js queues rather than dropping when Discord asks it to slow down.
+// This is only so a burst is visible afterwards rather than looking like a hang.
+client.rest.on('rateLimited', (info) => {
+  console.warn(
+    `sentry: rate limited for ${info.timeToReset}ms on ${info.method} ${info.route}; queued, not dropped`,
+  );
+});
 
 await client.login(botEnv().token);
