@@ -34,7 +34,7 @@ values (
   'ping_role',
   900,
   0.55,
-  array['point_to_channel', 'open_thread', 'escalate']
+  array['point_to_channel', 'escalate']
 )
 on conflict (guild_id) do nothing;
 
