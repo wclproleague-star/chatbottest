@@ -44,6 +44,17 @@ export type Resolution = {
    * world outside it has nothing here to resolve against.
    */
   aboutServer: boolean;
+  /**
+   * What the message is, as opposed to what it refers to. These are decided
+   * here because they are judgements about one short message, steady at
+   * temperature zero, where the model that also has to write a reply and grade
+   * it wobbles between them from one run to the next.
+   */
+  asksNothing: boolean;
+  asksIfExists: boolean;
+  asksForAnAction: boolean;
+  needsAPerson: boolean;
+  addressedToSomeoneElse: boolean;
 };
 
 /** Everything around the member that could say what they mean. */
@@ -82,6 +93,11 @@ Read their message, the conversation before it, and the context around them, and
   - unresolved: they are asking about a specific thing, and nothing in the message or the context says which.
 - question: only when ambiguous, one short question naming the candidates, in their language. Null otherwise.
 - aboutServer: true when the thing they mean belongs to this server: its matches, roles, rules, channels, people, and how it runs itself, which includes its entry fees, prizes, sign-ups, deadlines and staff. False only for the world outside it: a game's patch notes, a capital city, the weather. When you are unsure, say true. Mistaking the world for this server costs one question to a moderator; mistaking this server for the world invents facts about it.
+- asksNothing: true when the message asks for nothing at all: an acknowledgement ("ok", "d'accord", "👍"), thanks, or a remark with no request in it.
+- asksIfExists: true when they are asking whether something exists or is happening at all ("is there a match on Saturday", "do we play this weekend", "is there a rule about subs"), rather than for the details of something they already know exists.
+- asksForAnAction: true only when they are asking you to carry something out: give a role, create a channel, ban someone. Asking you to tell, confirm, check, explain or look up a fact is never this, however it is phrased: "confirme", "vérifie", "tu peux me dire" are all questions.
+- needsAPerson: true when what they want can only be decided by a human: a ban, a kick, a mute, a dispute between members, an appeal.
+- addressedToSomeoneElse: true when the message is aimed at another member and only mentions you in passing, so nothing is being asked of you.
 - aboutHoldings: true when they are asking what you yourself know or have ("what do you know about X", "is that the only match you know about", "do you have anything on Y"), rather than about one instance of a thing.
 
 Use every signal you are given, in this order of weight: what they wrote, then the conversation just before it, then who they are and what they hold, then where they wrote it, then what Sentry has just done for them.
@@ -94,6 +110,7 @@ Rules:
 - Ambiguity is about instances, never about topics. Which match, which team, which role: those can be ambiguous. A procedure, a rule, a general "how do I", or a question about what you yourself know needs no instance at all, so its outcome is unique with entity null, however many things the knowledge holds.
 - Only say ambiguous when they are asking about one instance and the context genuinely offers more than one. Asking about something in general is unique.
 - A question about whether something exists, or about a set taken as a whole ("is there a match on Saturday", "do we play this weekend", "how many games are left"), needs no instance: it is answered from all of them at once. Unique, entity null. A time window is itself a way of choosing, so it never leaves anything to ask.
+- Ambiguity is never about which document or which version of the knowledge says a thing. A member cannot know that, and asking them to choose between two of your sources is not a question they can answer. Two documents describing the same rule are one target, and the disagreement is dealt with in the reply, not here.
 - Being unable to decide is not failure. Say ambiguous, and let one question settle it.
 
 Two that look alike and are not:
@@ -112,6 +129,11 @@ const SCHEMA: Schema = {
     question: { type: Type.STRING, nullable: true },
     aboutServer: { type: Type.BOOLEAN },
     aboutHoldings: { type: Type.BOOLEAN },
+    asksNothing: { type: Type.BOOLEAN },
+    asksIfExists: { type: Type.BOOLEAN },
+    asksForAnAction: { type: Type.BOOLEAN },
+    needsAPerson: { type: Type.BOOLEAN },
+    addressedToSomeoneElse: { type: Type.BOOLEAN },
   },
   required: [
     'subject',
@@ -123,6 +145,11 @@ const SCHEMA: Schema = {
     'question',
     'aboutServer',
     'aboutHoldings',
+    'asksNothing',
+    'asksIfExists',
+    'asksForAnAction',
+    'needsAPerson',
+    'addressedToSomeoneElse',
   ],
   propertyOrdering: [
     'subject',
@@ -134,6 +161,11 @@ const SCHEMA: Schema = {
     'question',
     'aboutServer',
     'aboutHoldings',
+    'asksNothing',
+    'asksIfExists',
+    'asksForAnAction',
+    'needsAPerson',
+    'addressedToSomeoneElse',
   ],
 };
 
@@ -181,6 +213,7 @@ export async function resolveTarget(input: {
 
   // Asking what Sentry holds is about the whole of it, so there is nothing to
   // choose between and nothing to ask.
+  if (raw.asksNothing) outcome = 'unique';
   if (raw.aboutHoldings) outcome = 'unique';
 
   // Nothing of this server's is being referred to, so there is nothing here to
@@ -204,6 +237,11 @@ export async function resolveTarget(input: {
   return {
     aboutServer: raw.aboutServer !== false,
     aboutHoldings: Boolean(raw.aboutHoldings),
+    asksNothing: Boolean(raw.asksNothing),
+    asksIfExists: Boolean(raw.asksIfExists),
+    asksForAnAction: Boolean(raw.asksForAnAction),
+    needsAPerson: Boolean(raw.needsAPerson),
+    addressedToSomeoneElse: Boolean(raw.addressedToSomeoneElse),
     subject: String(raw.subject ?? '').trim() || 'unknown',
     entity: raw.entity?.trim() || null,
     timeWindow: raw.timeWindow?.trim() || null,

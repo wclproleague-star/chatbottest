@@ -2,7 +2,9 @@
 // small writes that go with answering. Everything here runs as the service
 // role, which is why the bot never takes a user's word for a guild id.
 
+import { parseLimits } from '@sentrybot/core';
 import { serviceClient } from '@sentrybot/core/supabase';
+import type { Limits } from '@sentrybot/core';
 import type { Database, Json } from '@sentrybot/core';
 import { ChannelType } from 'discord.js';
 import type { Guild } from 'discord.js';
@@ -15,6 +17,7 @@ export type GuildSettings = {
   modRoleId: string | null;
   modChannelId: string | null;
   allowedChannelIds: string[];
+  limits: Limits;
   selfServeRoleIds: string[];
   introChannelId: string | null;
   introMessage: string | null;
@@ -34,6 +37,7 @@ export async function loadSettings(guildId: string): Promise<GuildSettings> {
     modRoleId: row.mod_role_id ?? null,
     modChannelId: row.mod_channel_id ?? null,
     allowedChannelIds: row.allowed_channel_ids ?? [],
+    limits: parseLimits(row.limits),
     selfServeRoleIds: row.self_serve_role_ids ?? [],
     introChannelId: row.intro_channel_id ?? null,
     introMessage: row.intro_message ?? null,

@@ -7,7 +7,7 @@
 
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import type { Message } from 'discord.js';
-import { hasOpenConversation } from '@sentrybot/core';
+import { allowMessage, hasOpenConversation } from '@sentrybot/core';
 import { onModReply, onTick, watchDashboardApprovals } from './approve';
 import { botEnv } from './env';
 import { isClaimed, loadSettings, markInstalled, markUninstalled, syncMeta } from './guild';
@@ -94,6 +94,19 @@ client.on(Events.MessageCreate, async (message: Message) => {
       : false;
     const waiting = hasOpenConversation(`${message.channelId}:${message.author.id}`);
     if (!named && !answeringSentry && !waiting) return;
+
+    // Twenty messages in thirty seconds is not a conversation. Past the burst
+    // the member is told once, then it goes quiet for them and for nobody else.
+    const allowance = allowMessage(`${message.guild.id}:${message.author.id}`, settings.limits);
+    if (!allowance.allowed) {
+      if (allowance.sayWhy) {
+        await message
+          .reply('That is a lot at once. Give me a minute and ask me again.')
+          .catch(() => undefined);
+      }
+      return;
+    }
+
     await handleMention(message, settings);
   } catch (err) {
     console.error(`sentry: message handler failed: ${String(err)}`);

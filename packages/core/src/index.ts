@@ -44,6 +44,9 @@ export { extractText } from './extract';
 export { embed, EMBEDDING_DIMENSIONS } from './gemini';
 export type { EmbedTask } from './gemini';
 
+export { allowMessage, forgetMember, forModel, parseLimits, DEFAULT_LIMITS } from './limits';
+export type { Limits } from './limits';
+
 export { registerFetcher, parseSources, runnable } from './sources';
 export type { DataSource, Fetcher } from './sources';
 

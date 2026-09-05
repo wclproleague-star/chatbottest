@@ -1,4 +1,5 @@
 import { chunkText } from './chunk';
+import { recordConflicts } from './conflicts';
 import type { Database } from './database.types';
 import { extractText } from './extract';
 import { embed } from './gemini';
@@ -7,7 +8,12 @@ import { DOCUMENTS_BUCKET, serviceClient } from './supabase';
 type DocumentRow = Database['public']['Tables']['documents']['Row'];
 
 export type IngestInput = { guildId: string; documentId: string };
-export type IngestResult = { documentId: string; chunkCount: number };
+export type IngestResult = {
+  documentId: string;
+  chunkCount: number;
+  /** How many contradictions this document has with what was already known. */
+  conflicts?: number;
+};
 
 const INSERT_BATCH = 100;
 
@@ -68,7 +74,10 @@ export async function ingest({ guildId, documentId }: IngestInput): Promise<Inge
       .eq('id', documentId);
     if (done.error) throw new Error(`Could not mark the document ready: ${done.error.message}`);
 
-    return { documentId, chunkCount: rows.length };
+    // Whether this document disagrees with what the guild already knows is
+    // worked out here, once, rather than on every question that touches it.
+    const conflicts = await recordConflicts(guildId, documentId);
+    return { documentId, chunkCount: rows.length, conflicts };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await db

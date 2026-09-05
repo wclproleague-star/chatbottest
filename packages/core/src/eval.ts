@@ -43,6 +43,11 @@ type Case = {
   candidatesInclude?: string[];
   /** A pattern the reply has to match, for a caveat that must be there. */
   replyMatches?: string;
+  /**
+   * The guild to ask. Defaults to the seed; the hardening guild holds the
+   * knowledge the seed must not have, such as two documents that disagree.
+   */
+  guild?: string;
   /** The messages before this one, oldest first, as the channel would show them. */
   history?: { role: 'user' | 'model'; text: string }[];
 };
@@ -61,6 +66,10 @@ function replyOf(result: AnswerResult): string {
       return result.reply;
     case 'flagged':
       return `[${result.category}] ${result.note}`;
+    case 'sensitive':
+      return result.reply;
+    case 'ignore':
+      return '';
   }
 }
 
@@ -94,6 +103,9 @@ function pad(text: string, width: number): string {
 }
 
 async function main(): Promise<void> {
+  // One case at a time, when a single expectation is being worked on.
+  const onlyIndex = process.argv.indexOf('--only');
+  const only = onlyIndex >= 0 ? (process.argv[onlyIndex + 1] ?? '').toLowerCase() : null;
   const guildIndex = process.argv.indexOf('--guild');
   const guildId = guildIndex >= 0 ? (process.argv[guildIndex + 1] ?? SEED_GUILD_ID) : SEED_GUILD_ID;
   const cases = JSON.parse(
@@ -103,9 +115,10 @@ async function main(): Promise<void> {
   let failed = 0;
   console.log(`${pad('message', 44)} ${pad('expected', 24)} ${pad('actual', 24)} result`);
   for (const c of cases) {
+    if (only && !c.message.toLowerCase().includes(only)) continue;
     try {
       const result = await answer({
-        guildId,
+        guildId: c.guild ?? guildId,
         question: c.message,
         askerName: 'kestrel',
         history: c.history,

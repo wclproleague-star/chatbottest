@@ -5,7 +5,7 @@
 // moderator's reply can become knowledge. Tier 4 says nothing in public and
 // reports quietly to the mod channel.
 
-import { HISTORY_LIMIT, converse } from '@sentrybot/core';
+import { HISTORY_LIMIT, converse, forModel } from '@sentrybot/core';
 import type { Action, AnswerResult, Effects, HistoryTurn } from '@sentrybot/core';
 import { MODS } from '@sentrybot/core/tokens';
 import { serviceClient } from '@sentrybot/core/supabase';
@@ -22,9 +22,16 @@ export async function handleMention(message: Message, settings: GuildSettings): 
   const guild = message.guild;
   if (!guild || !message.channel.isTextBased()) return;
 
-  const question = cleanMention(message);
+  const question = forModel(cleanMention(message), settings.limits);
   if (!question) {
-    await message.reply('Ask me something about the server and I will answer if I know.');
+    // A picture, a GIF, a sticker: Sentry cannot read it, so it asks rather
+    // than inventing what the member might have meant by it.
+    const hasFile = message.attachments.size > 0 || message.stickers.size > 0;
+    await message.reply(
+      hasFile
+        ? "I can't read images. Tell me in a line what you need and I'll help if I can."
+        : 'Ask me something about the server and I will answer if I know.',
+    );
     return;
   }
 
@@ -175,6 +182,13 @@ async function postGraded(
       return;
     case 'flagged':
       await reportQuietly(message, result.category, result.note, settings);
+      return;
+    case 'ignore':
+      // It was not addressed to Sentry. Saying nothing is the whole behaviour.
+      return;
+    case 'sensitive':
+      await message.reply(result.reply.slice(0, MAX_MESSAGE));
+      await reportQuietly(message, 'sensitive', result.note, settings);
       return;
   }
 }

@@ -73,6 +73,8 @@ type GuildSettingsRow = {
   role_proofs: Json;
   /** The sources this guild can look things up in. See sources.ts. */
   data_sources: Json;
+  /** Burst, window, cooldown and the longest message shown to the model. */
+  limits: Json;
   scope: 'open' | 'server_only';
   timezone: string | null;
   updated_at: string;
@@ -235,6 +237,34 @@ export type Database = {
           | 'answered_at'
         >;
         Update: Partial<QuestionRow>;
+        Relationships: [];
+      };
+      knowledge_conflicts: {
+        Row: {
+          id: string;
+          guild_id: string;
+          chunk_a: string;
+          chunk_b: string;
+          first: string;
+          second: string;
+          resolved: boolean;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          guild_id: string;
+          chunk_a: string;
+          chunk_b: string;
+          first: string;
+          second: string;
+          resolved?: boolean;
+          created_at?: string;
+        };
+        Update: {
+          resolved?: boolean;
+          first?: string;
+          second?: string;
+        };
         Relationships: [];
       };
       bot_events: {

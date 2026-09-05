@@ -37,7 +37,8 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
       if (t.role === 'user') return [{ role: 'user' as const, text: t.text }];
       if (t.result.tier === 'answer') return [{ role: 'model' as const, text: t.result.answer }];
       if (t.result.tier === 'clarify') return [{ role: 'model' as const, text: t.result.question }];
-      if (t.result.tier === 'flagged') return [];
+      if (t.result.tier === 'flagged' || t.result.tier === 'ignore') return [];
+      if (t.result.tier === 'sensitive') return [{ role: 'model' as const, text: t.result.reply }];
       return [{ role: 'model' as const, text: mods(t.result.reply) }];
     });
     setTurns((all) => [...all, { id: Date.now(), role: 'user', text: q }]);
@@ -181,6 +182,27 @@ function Reply({ result, botName }: { result: AnswerResult; botName: string }) {
             A quiet report goes to the mod channel: {result.note} ({result.category})
           </p>
         </Panel>
+      </div>
+    );
+  }
+  // Nothing was asked of Sentry, so nothing is shown.
+  if (result.tier === 'ignore') {
+    return (
+      <p className="text-ui-sm text-ink-soft">
+        In Discord, Sentry would say nothing: that message was for someone else.
+      </p>
+    );
+  }
+  // Distress, or an accusation. A short reply here, a quiet word to the mods.
+  if (result.tier === 'sensitive') {
+    return (
+      <div className="max-w-[80%]">
+        <ThreadMessage role="sentry" name={botName} state="waiting">
+          {result.reply}
+        </ThreadMessage>
+        <p className="text-ui-sm text-ink-soft mt-2">
+          In Discord, the moderators get this quietly: {result.note}
+        </p>
       </div>
     );
   }

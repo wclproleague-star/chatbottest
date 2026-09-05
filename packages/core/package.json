@@ -15,7 +15,9 @@
     "typecheck": "tsc --noEmit",
     "cli": "tsx src/cli.ts",
     "eval": "tsx src/eval.ts",
-    "eval:chat": "tsx src/eval-chat.ts"
+    "eval:chat": "tsx src/eval-chat.ts",
+    "seed:hardening": "tsx src/seed-hardening.ts",
+    "eval:units": "tsx src/eval-units.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
