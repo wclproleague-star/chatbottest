@@ -10,7 +10,15 @@ import type { Message } from 'discord.js';
 import { allowMessage, hasOpenConversation, sweepConversations } from '@sentrybot/core';
 import { onModReply, onTick, watchDashboardApprovals } from './approve';
 import { botEnv } from './env';
-import { isClaimed, loadSettings, markInstalled, markUninstalled, syncMeta } from './guild';
+import {
+  isClaimed,
+  isOwner,
+  loadSettings,
+  markInstalled,
+  markOrphaned,
+  markUninstalled,
+  syncMeta,
+} from './guild';
 import { handleMention } from './mention';
 import { claim, sweepClaims } from './once';
 
@@ -132,6 +140,17 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     await onTick(reaction, user, await loadSettings(guildId));
   } catch (err) {
     console.error(`sentry: reaction handler failed: ${String(err)}`);
+  }
+});
+
+client.on(Events.GuildMemberRemove, async (member) => {
+  try {
+    if (!(await isClaimed(member.guild.id))) return;
+    if (!(await isOwner(member.guild.id, member.id))) return;
+    console.log(`sentry: the owner left ${member.guild.name}; marking it orphaned`);
+    await markOrphaned(member.guild.id);
+  } catch (err) {
+    console.error(`sentry: member-remove handler failed: ${String(err)}`);
   }
 });
 

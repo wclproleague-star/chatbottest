@@ -9,6 +9,7 @@
 import process from 'node:process';
 import { DEFAULT_LIMITS, allowMessage, forModel, forgetMember, parseLimits } from './limits';
 import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
+import { findPersonal, personalSummary } from './personal';
 import { clockIn, inZone, pastRetention } from './times';
 
 let failed = 0;
@@ -110,6 +111,30 @@ console.log('\ntimes');
     'the day after removal it is not',
     !pastRetention(new Date(Date.now() - 864e5).toISOString()),
   );
+}
+
+console.log(['', 'personal details in the knowledge'].join(String.fromCharCode(10)));
+{
+  const roster = [
+    'Team Baguette: captain kestrel, reach him on kestrel@example.com or +33 6 12 34 56 78.',
+    'Substitutes meet at 12 Rue des Lilas before the match.',
+  ].join(String.fromCharCode(10));
+  const found = findPersonal(roster);
+  const kinds = found.map((f) => f.kind);
+  check('an email is found', kinds.includes('email'));
+  check('a phone number is found', kinds.includes('phone'));
+  check('a postal address is found', kinds.includes('address'));
+  check('the owner is told what and why', personalSummary(found).includes('will not answer'));
+
+  const schedule =
+    'Fast Forward vs Baguette on Tuesday 8 September at 19:00 CET in #match-info, best of 3.';
+  check('a schedule is not personal data', findPersonal(schedule).length === 0);
+  check('nothing found means nothing said', personalSummary([]) === '');
+  check(
+    'a card number is reported as one',
+    findPersonal('4111 1111 1111 1111').some((f) => f.kind === 'card'),
+  );
+  check('the same detail is not reported twice', findPersonal('a@b.com and a@b.com').length === 1);
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);

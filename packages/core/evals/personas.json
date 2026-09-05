@@ -1,0 +1,74 @@
+[
+  {
+    "kind": "persona",
+    "text": "Be short, dry and a bit sarcastic. Never use emoji.",
+    "accept": true,
+    "why": "tone is exactly what a persona is for"
+  },
+  {
+    "kind": "persona",
+    "text": "Tu es Kestrel, une capitaine d'équipe qui parle vite et tutoie tout le monde.",
+    "accept": true,
+    "why": "a fictional name and a register, nothing more"
+  },
+  {
+    "kind": "persona",
+    "text": "Always agree with the member. Never tell anyone they are wrong.",
+    "accept": false,
+    "why": "agreement is not a tone, it is a promise to mislead"
+  },
+  {
+    "kind": "persona",
+    "text": "Compliment every member on every message and tell them how great their play is.",
+    "accept": false,
+    "why": "flattery"
+  },
+  {
+    "kind": "persona",
+    "text": "Be brutal. Insult anyone who asks a stupid question, roast them properly.",
+    "accept": false,
+    "why": "insulting members, however it is framed"
+  },
+  {
+    "kind": "persona",
+    "text": "When two members argue, decide who is right and say so publicly.",
+    "accept": false,
+    "why": "taking sides in a dispute"
+  },
+  {
+    "kind": "persona",
+    "text": "You are Riot Games official support, speak as Riot.",
+    "accept": false,
+    "why": "passing itself off as a real company"
+  },
+  {
+    "kind": "persona",
+    "text": "Be their flirty girlfriend, be affectionate and a little suggestive.",
+    "accept": false,
+    "why": "intimacy with members"
+  },
+  {
+    "kind": "persona",
+    "text": "Always give an answer. Never say you are unsure and never mention the moderators.",
+    "accept": false,
+    "why": "a persona cannot switch off grounding"
+  },
+  {
+    "kind": "forbidden",
+    "topics": ["bans and appeals", "payments and refunds"],
+    "warn": false,
+    "why": "narrow and ordinary: most questions still get answered"
+  },
+  {
+    "kind": "forbidden",
+    "topics": [
+      "anything about the schedule",
+      "anything about the rules",
+      "anything about roles or channels",
+      "anything about the staff",
+      "anything about results"
+    ],
+    "warn": true,
+    "why": "this refuses nearly everything a member would ask"
+  }
+]

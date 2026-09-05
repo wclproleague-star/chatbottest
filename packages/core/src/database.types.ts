@@ -36,6 +36,8 @@ type GuildRow = {
   bot_installed: boolean;
   /** When the bot was removed, if it was. Data is kept for thirty days after. */
   uninstalled_at?: string | null;
+  owner_discord_id?: string | null;
+  orphaned_at?: string | null;
   installed_at: string | null;
   setup_completed: boolean;
   created_at: string;
@@ -101,6 +103,8 @@ type DocumentRow = {
   status: DocumentStatus;
   error_message: string | null;
   chunk_count: number;
+  /** Whether the owner still has to decide about personal details found in it. */
+  review_status: 'ok' | 'needs_review' | 'approved';
   created_by: string | null;
   created_at: string;
 };
@@ -113,6 +117,9 @@ type ChunkRow = {
   /** pgvector literal, e.g. "[0.1,0.2,...]". 768 dimensions. */
   embedding: string | null;
   token_count: number | null;
+  /** Held back because it carries personal details. Never retrieved. */
+  blocked: boolean;
+  blocked_reason: string | null;
   created_at: string;
 };
 
@@ -209,6 +216,7 @@ export type Database = {
           | 'status'
           | 'error_message'
           | 'chunk_count'
+          | 'review_status'
           | 'created_by'
           | 'created_at'
         >;
@@ -217,7 +225,10 @@ export type Database = {
       };
       chunks: {
         Row: ChunkRow;
-        Insert: Insert<ChunkRow, 'id' | 'embedding' | 'token_count' | 'created_at'>;
+        Insert: Insert<
+          ChunkRow,
+          'id' | 'embedding' | 'token_count' | 'created_at' | 'blocked' | 'blocked_reason'
+        >;
         Update: Partial<ChunkRow>;
         Relationships: [];
       };

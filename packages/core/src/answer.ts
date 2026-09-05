@@ -419,10 +419,10 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
   // neither be ungrounded nor drag the reply down a tier.
   if (resolution.asksForAnAction && !raw.asksAboutKnowledge) claims.length = 0;
   // "There is no match on Saturday" is not nothing: it is read off a schedule
-  // that lists other days. An absence inferred from knowledge that covers the
-  // subject is a reading, so it is hedged and confirmed, never asserted flatly
-  // and never handed over as though the subject were unknown.
-  if (resolution.asksIfExists && matches.length > 0) {
+  // that lists other days, so it is hedged and confirmed rather than asserted.
+  // The time window is what makes it a reading. Without one, "nothing on
+  // substitutes" is exactly what it says, and belongs with the moderators.
+  if (resolution.asksIfExists && resolution.timeWindow && matches.length > 0) {
     for (const claim of claims) {
       if (claim.grounding === 'none') {
         claim.grounding = 'partial';

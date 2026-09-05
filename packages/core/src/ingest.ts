@@ -1,5 +1,6 @@
 import { chunkText } from './chunk';
 import { recordConflicts } from './conflicts';
+import { findPersonal, personalSummary } from './personal';
 import type { Database } from './database.types';
 import { extractText } from './extract';
 import { embed } from './gemini';
@@ -13,6 +14,8 @@ export type IngestResult = {
   chunkCount: number;
   /** How many contradictions this document has with what was already known. */
   conflicts?: number;
+  /** How many chunks are held back because they carry personal details. */
+  blocked?: number;
 };
 
 const INSERT_BATCH = 100;
@@ -52,12 +55,17 @@ export async function ingest({ guildId, documentId }: IngestInput): Promise<Inge
     if (vectors.length !== chunks.length) {
       throw new Error(`Embedded ${vectors.length} of ${chunks.length} chunks.`);
     }
+    // A chunk carrying somebody's phone number or address is stored but never
+    // retrieved: the owner decides in the dashboard whether it may be used.
+    const personal = chunks.map((chunk) => findPersonal(chunk.content));
     const rows = chunks.map((chunk, i) => ({
       guild_id: guildId,
       document_id: documentId,
       content: chunk.content,
       token_count: chunk.tokenCount,
       embedding: JSON.stringify(vectors[i]),
+      blocked: (personal[i] ?? []).length > 0,
+      blocked_reason: personalSummary(personal[i] ?? []) || null,
     }));
 
     const cleared = await db.from('chunks').delete().eq('document_id', documentId);
@@ -70,14 +78,22 @@ export async function ingest({ guildId, documentId }: IngestInput): Promise<Inge
 
     const done = await db
       .from('documents')
-      .update({ status: 'ready', chunk_count: rows.length, error_message: null })
+      .update({
+        status: 'ready',
+        chunk_count: rows.length,
+        error_message: null,
+        // Something personal was found, so the owner is asked before any of it
+        // is used. A document with nothing in it needs no decision.
+        review_status: rows.some((r) => r.blocked) ? 'needs_review' : 'ok',
+      })
       .eq('id', documentId);
     if (done.error) throw new Error(`Could not mark the document ready: ${done.error.message}`);
 
     // Whether this document disagrees with what the guild already knows is
     // worked out here, once, rather than on every question that touches it.
     const conflicts = await recordConflicts(guildId, documentId);
-    return { documentId, chunkCount: rows.length, conflicts };
+    const blocked = rows.filter((r) => r.blocked).length;
+    return { documentId, chunkCount: rows.length, conflicts, blocked };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await db

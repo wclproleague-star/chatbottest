@@ -45,6 +45,15 @@ export { extractText } from './extract';
 export { embed, EMBEDDING_DIMENSIONS } from './gemini';
 export type { EmbedTask } from './gemini';
 
+export { saveSettings, approveDocument, needsOwner } from './settings';
+export type { SaveOutcome, SettingsPatch } from './settings';
+
+export { checkPersona, checkForbidden } from './persona';
+export type { PersonaVerdict } from './persona';
+
+export { findPersonal, personalSummary } from './personal';
+export type { Finding, PersonalKind } from './personal';
+
 export { inZone, clockIn, pastRetention, RETENTION_DAYS } from './times';
 
 export {

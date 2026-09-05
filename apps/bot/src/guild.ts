@@ -64,6 +64,11 @@ export async function syncMeta(guild: Guild): Promise<void> {
   const roles = guild.roles.cache
     .filter((r) => r.name !== '@everyone')
     .map((r) => ({ id: r.id, name: r.name }));
+  // Who owns the server in Discord, so Sentry notices if they leave it.
+  await serviceClient()
+    .from('guilds')
+    .update({ owner_discord_id: guild.ownerId })
+    .eq('guild_id', guild.id);
   const { error } = await serviceClient()
     .from('guild_discord_meta')
     .upsert(
@@ -129,6 +134,29 @@ export async function markUninstalled(guildId: string): Promise<void> {
     .eq('guild_id', guildId);
   // Nothing keeps running for a server Sentry is no longer in.
   await serviceClient().from('conversations').delete().eq('guild_id', guildId);
+}
+
+/**
+ * The owner has left the server. Sentry keeps working, but the guild has
+ * nobody accountable for it, so it is marked and the editors are asked to
+ * claim it in the dashboard.
+ */
+export async function markOrphaned(guildId: string): Promise<void> {
+  await serviceClient()
+    .from('guilds')
+    .update({ orphaned_at: new Date().toISOString() })
+    .eq('guild_id', guildId);
+  await logEvent(guildId, 'settings_issue', { orphaned: true });
+}
+
+/** Whether this Discord user is the one recorded as owning the guild. */
+export async function isOwner(guildId: string, discordUserId: string): Promise<boolean> {
+  const { data } = await serviceClient()
+    .from('guilds')
+    .select('owner_discord_id')
+    .eq('guild_id', guildId)
+    .maybeSingle();
+  return data?.owner_discord_id === discordUserId;
 }
 
 export async function logEvent(

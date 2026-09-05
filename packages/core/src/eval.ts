@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { MODS, answer } from './answer';
+import { checkForbidden, checkPersona } from './persona';
 import type { AnswerResult, Kind } from './answer';
 
 for (const file of ['.env.local', '.env']) {
@@ -53,6 +54,9 @@ type Case = {
 };
 
 /** The draft or found sentence must say what was found, never a canned hedge. */
+/** How many persona and forbidden-topic checks run after the messages. */
+const PERSONA_COUNT = 11;
+
 const CANNED = /not sure about (that|this)/i;
 
 function replyOf(result: AnswerResult): string {
@@ -100,6 +104,41 @@ function normalise(text: string): string {
 
 function pad(text: string, width: number): string {
   return text.length > width ? `${text.slice(0, width - 1)}…` : text.padEnd(width);
+}
+
+type PersonaCase =
+  | { kind: 'persona'; text: string; accept: boolean; why: string }
+  | { kind: 'forbidden'; topics: string[]; warn: boolean; why: string };
+
+/**
+ * What an owner may tell Sentry to be. These run here rather than in the unit
+ * checks because they are judgements, and they belong next to the answer cases
+ * for the same reason: a persona that gets through changes every answer.
+ */
+async function personaChecks(only: string | null): Promise<number> {
+  const cases = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../evals/personas.json', import.meta.url)), 'utf8'),
+  ) as PersonaCase[];
+  let failed = 0;
+  console.log(['', 'personas and forbidden topics'].join(String.fromCharCode(10)));
+  for (const c of cases) {
+    const subject = c.kind === 'persona' ? c.text : c.topics.join('; ');
+    if (only && !subject.toLowerCase().includes(only)) continue;
+    if (c.kind === 'persona') {
+      const verdict = await checkPersona(c.text);
+      const ok = verdict.ok === c.accept;
+      if (!ok) failed++;
+      console.log(`  ${ok ? 'pass' : 'FAIL'}  ${c.accept ? 'accepted' : 'refused'}: ${subject}`);
+      if (!ok || verdict.reason) console.log(`        ${verdict.reason || 'accepted'}`);
+    } else {
+      const warning = await checkForbidden(c.topics);
+      const ok = Boolean(warning) === c.warn;
+      if (!ok) failed++;
+      console.log(`  ${ok ? 'pass' : 'FAIL'}  ${c.warn ? 'warned' : 'quiet'}: ${subject}`);
+      if (warning) console.log(`        ${warning}`);
+    }
+  }
+  return failed;
 }
 
 async function main(): Promise<void> {
@@ -177,7 +216,10 @@ async function main(): Promise<void> {
       );
     }
   }
-  console.log(`\n${cases.length - failed} of ${cases.length} passed.`);
+  failed += await personaChecks(only);
+  const total = cases.length + PERSONA_COUNT;
+  console.log(`
+${total - failed} of ${total} passed.`);
   if (failed > 0) process.exitCode = 1;
 }
 
