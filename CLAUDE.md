@@ -39,7 +39,7 @@ All tables scoped by `guild_id`. RLS: authenticated users read and write only ro
 * `guild_discord_meta`: guild_id pk, channels jsonb, roles jsonb, synced_at. Written by the bot.
 * `documents`: id, guild_id, title, source_type (`upload` | `paste` | `qa` | `mod_answer` | `channel`), storage_path, raw_text, status (`processing` | `ready` | `error`), error_message, chunk_count, created_by, created_at
 * `chunks`: id, guild_id, document_id, content, embedding vector(768), token_count, created_at. HNSW cosine index on embedding, btree on guild_id.
-* `questions`: id, guild_id, asker_discord_id, asker_name, channel_id, message_id, thread_id, question, bot_draft, top_chunk_ids uuid[], status (`pending` | `answered` | `dismissed`), answer, answered_by, answered_via (`discord` | `dashboard`), created_at, answered_at
+* `questions`: id, guild_id, asker_discord_id, asker_name, channel_id, message_id, bot_message_id, thread_id (unused; Sentry answers in the channel), question, bot_draft, top_chunk_ids uuid[], status (`pending` | `answered` | `dismissed`), answer, answered_by, answered_via (`discord` | `dashboard`), created_at, answered_at
 * `bot_events`: id, guild_id, type (`answered` | `low_confidence` | `mod_pinged` | `approved` | `action` | `install` | `uninstall` | `flagged`), payload jsonb, created_at
 * `onboarding_sessions`: id, guild_id, user_id, mode (`chat` | `form`), messages jsonb, draft_config jsonb, step int, completed bool, created_at, updated_at
 
@@ -69,7 +69,7 @@ RPC `match_chunks(guild_id, query_embedding vector(768), match_count int, min_si
 7. In code, not trusted to the model: a `grounded` or `partial` claim whose chunk ids are not among the retrieved ones becomes `none`; a `self` claim stands only when `asksAboutKnowledge` is set, so "I don't have that" answering a question about the server is `none`, not `self`; a grounded reply under the guild's threshold becomes `partial`; tiers 2 and 3 always carry `{mods}`, a tier 1 reply carries it only when `asksCompleteness` is set, and conversation never does; `action` is validated against `allowed_actions` and proposed only when every claim is grounded or self.
 8. Always write a `bot_events` row: `answered` for tier 1, `low_confidence` for tiers 2 and 3 with the reason, `flagged` for tier 4.
 
-Actions the model may propose, each with typed params: `point_to_channel { channelId }`, `assign_role { roleId }` (only from `self_serve_role_ids`), `open_thread { channelId, title }`, `escalate {}`. The model proposes; it never executes.
+Actions the model may propose, each with typed params: `point_to_channel { channelId }`, `assign_role { roleId }` (only from `self_serve_role_ids`), `escalate {}`. The model proposes; it never executes.
 
 `onboard({ sessionId })`: loads the session, asks one short question at a time for the empty config fields, offers concrete options when useful (three tone samples generated from the server purpose, the default forbidden topics: bans and appeals, payments and refunds, personal disputes, staff-only info), runs a gap analysis when the user pastes knowledge ("your rules cover X and Y but nothing on Z, want to add that?"), never asks about a filled field. Returns `{ message, updatedConfig, quickReplies, done }`.
 
@@ -80,12 +80,12 @@ Actions the model may propose, each with typed params: `point_to_channel { chann
 * On `guildCreate`: set `guilds.bot_installed = true`, write `guild_discord_meta`, post `intro_message` in `intro_channel_id` if set, set the bot's nickname to `bot_name`.
 * On mention in an allowed channel: call `answer` and act by tier.
   * Tier 1: reply. If an `action` came back, validate it against `allowed_actions` and `self_serve_role_ids`, execute it, log a `bot_events` row of type `action` with the reason.
-  * Tier 2: open a thread on the message and post the reply with `{mods}` replaced by the `mod_role_id` mention (when `fallback_mode = ping_role`; otherwise without the mention). Insert a `questions` row, pending, with the thread id and the reply as `bot_draft`. A mod ✅ on the bot's message confirms it: store it as the answer, create a `mod_answer` document, `ingest`. A mod reply in the thread corrects it: the mod's text becomes the answer and the `mod_answer` document instead, and the bot tells the asker.
-  * Tier 3: open a thread on the message and post the reply with the mention, same rules. Insert the `questions` row without a draft.
+  * Tier 2: reply in the channel with `{mods}` replaced by the `mod_role_id` mention (when `fallback_mode = ping_role`; otherwise without the mention). No threads: a Discord conversation stays where it started. Insert a `questions` row, pending, with the bot's message id and the reply as `bot_draft`. A mod ✅ on the bot's message confirms it: store it as the answer, create a `mod_answer` document, `ingest`. A mod who replies to that message corrects it: the bot offers ✅ and ❓ on their reply, and on ✅ their text becomes the answer and the `mod_answer` document instead.
+  * Tier 3: reply in the channel with the mention, same rules, and the `found` sentence as the draft.
   * Tier 4: no public reply and no reaction. Post a quiet report to `mod_channel_id`: a link to the message, the category and the note. If `mod_channel_id` is not set, write the event only.
-* In a bot-created thread, a message from a member holding `mod_role_id`: react ✅ and ❓. On ✅ from a mod: store the answer, create a `mod_answer` document, call `ingest`, reply to the original asker in the thread, archive the thread.
-* Watch `bot_events` of type `approved` with `answered_via = 'dashboard'` (poll every 15s or Supabase realtime) and post the answer into the original thread.
-* Dedup: if a pending question in the same guild has cosine similarity above 0.92, reply with a link to that thread instead of pinging again.
+* A reply from a member holding `mod_role_id` to one of those messages: react ✅ and ❓. On ✅ from a mod: store the answer, create a `mod_answer` document, call `ingest`, and post it in the channel addressed to the member who asked, ending "Got it. Next time I'll know."
+* Watch `bot_events` of type `approved` with `answered_via = 'dashboard'` (poll every 15s or Supabase realtime) and post the answer in the channel the question was asked in.
+* Dedup: if a pending question in the same guild has cosine similarity above 0.92, reply with a link to that message instead of pinging again.
 * Rate limit mod pings to 5 per guild per hour; beyond that, queue silently and mark `quiet_queue` in the event payload.
 * No kicks, bans, timeouts, or deletes. Ever.
 

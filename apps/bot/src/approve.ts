@@ -1,8 +1,8 @@
-// The approval loop. In a thread the bot opened, a moderator either ticks the
-// draft the bot posted, or writes the answer themselves and ticks that. Either
-// way the answer is stored, filed as knowledge, given to the member who asked,
-// and the thread is archived. Answers approved on the dashboard arrive here
-// too, by polling the events table.
+// The approval loop, in the channel. When Sentry is not sure it says so where
+// the question was asked and mentions the moderators. A moderator replies to
+// that message with the real answer; Sentry offers them a tick, and on the
+// tick the answer is stored, filed as knowledge and given to the member who
+// asked. Answers approved on the dashboard arrive here too, by polling.
 
 import { serviceClient } from '@sentrybot/core/supabase';
 import type {
@@ -13,7 +13,6 @@ import type {
   PartialUser,
   User,
 } from 'discord.js';
-import { ChannelType } from 'discord.js';
 import type { GuildSettings } from './guild';
 import { logEvent } from './guild';
 import { recordAnswer } from './knowledge';
@@ -28,36 +27,51 @@ type PendingQuestion = {
   question: string;
   asker_discord_id: string | null;
   bot_draft: string | null;
-  thread_id: string | null;
+  channel_id: string | null;
+  message_id: string | null;
+  bot_message_id: string | null;
 };
 
-async function pendingForThread(
+const COLUMNS = 'id, question, asker_discord_id, bot_draft, channel_id, message_id, bot_message_id';
+
+/** The pending question one of these message ids belongs to, if any. */
+async function pendingForMessages(
   guildId: string,
-  threadId: string,
+  ids: (string | null | undefined)[],
 ): Promise<PendingQuestion | null> {
+  const known = ids.filter((id): id is string => Boolean(id));
+  if (known.length === 0) return null;
   const { data } = await serviceClient()
     .from('questions')
-    .select('id, question, asker_discord_id, bot_draft, thread_id')
+    .select(COLUMNS)
     .eq('guild_id', guildId)
-    .eq('thread_id', threadId)
     .eq('status', 'pending')
+    .or(known.map((id) => `bot_message_id.eq.${id},message_id.eq.${id}`).join(','))
+    .limit(1)
     .maybeSingle();
   return data ?? null;
 }
 
-/** A moderator wrote in one of the bot's threads: offer them the tick. */
-export async function onThreadMessage(message: Message, settings: GuildSettings): Promise<void> {
-  if (!settings.modRoleId) return;
-  if (!message.member?.roles.cache.has(settings.modRoleId)) return;
-  const pending = await pendingForThread(message.guild!.id, message.channelId);
-  if (!pending) return;
+/**
+ * A moderator replied to a question Sentry could not answer: offer them the
+ * tick, so one press turns their reply into knowledge. Returns whether this
+ * message was such a reply, which means it is an answer and not a question.
+ */
+export async function onModReply(message: Message, settings: GuildSettings): Promise<boolean> {
+  if (!settings.modRoleId || !message.guild) return false;
+  if (!message.member?.roles.cache.has(settings.modRoleId)) return false;
+  const repliedTo = message.reference?.messageId;
+  if (!repliedTo) return false;
+  const pending = await pendingForMessages(message.guild.id, [repliedTo]);
+  if (!pending) return false;
   await message.react(TICK);
   await message.react(UNSURE);
+  return true;
 }
 
 /**
- * A tick from a moderator. On the bot's own message it confirms the draft; on
- * a moderator's message it takes their text as the correction.
+ * A tick from a moderator. On Sentry's own message it confirms the draft it
+ * offered; on a moderator's reply it takes their text as the answer.
  */
 export async function onTick(
   reaction: MessageReaction | PartialMessageReaction,
@@ -67,13 +81,16 @@ export async function onTick(
   if (reaction.emoji.name !== TICK || user.bot) return;
   const message = reaction.message.partial ? await reaction.message.fetch() : reaction.message;
   const guild = message.guild;
-  if (!guild || message.channel.type !== ChannelType.PublicThread) return;
-  if (!settings.modRoleId) return;
+  if (!guild || !settings.modRoleId) return;
 
   const member = await guild.members.fetch(user.id).catch(() => null);
   if (!member?.roles.cache.has(settings.modRoleId)) return;
 
-  const pending = await pendingForThread(guild.id, message.channelId);
+  // Either the tick is on Sentry's own message, or on a reply to it.
+  const pending = await pendingForMessages(guild.id, [
+    message.id,
+    message.reference?.messageId ?? null,
+  ]);
   if (!pending) return;
 
   const fromBot = message.author?.id === message.client.user?.id;
@@ -89,18 +106,19 @@ export async function onTick(
   });
 
   const asker = pending.asker_discord_id ? `<@${pending.asker_discord_id}> ` : '';
-  await message.channel.send(`${asker}${answer}\n\nGot it. Next time I'll know.`);
+  if (message.channel.isSendable()) {
+    await message.channel.send(`${asker}${answer}\n\nGot it. Next time I'll know.`);
+  }
   await logEvent(guild.id, 'approved', {
     questionId: pending.id,
     answered_via: 'discord',
     answeredBy: user.id,
   });
-  await message.channel.setArchived(true).catch(() => undefined);
 }
 
 /**
  * Answers approved on the dashboard: the web app writes the event, the bot
- * posts it into the thread the question was asked in.
+ * posts it in the channel the question was asked in.
  */
 export function watchDashboardApprovals(client: Client): NodeJS.Timeout {
   let since = new Date().toISOString();
@@ -120,14 +138,14 @@ export function watchDashboardApprovals(client: Client): NodeJS.Timeout {
         if (payload.answered_via !== 'dashboard' || !payload.questionId) continue;
         const { data: question } = await serviceClient()
           .from('questions')
-          .select('thread_id, answer, asker_discord_id')
+          .select('channel_id, answer, asker_discord_id')
           .eq('id', payload.questionId)
           .maybeSingle();
-        if (!question?.thread_id || !question.answer) continue;
-        const thread = await client.channels.fetch(question.thread_id).catch(() => null);
-        if (!thread?.isTextBased() || !('send' in thread)) continue;
+        if (!question?.channel_id || !question.answer) continue;
+        const channel = await client.channels.fetch(question.channel_id).catch(() => null);
+        if (!channel?.isTextBased() || !channel.isSendable()) continue;
         const asker = question.asker_discord_id ? `<@${question.asker_discord_id}> ` : '';
-        await thread.send(`${asker}${question.answer}\n\nGot it. Next time I'll know.`);
+        await channel.send(`${asker}${question.answer}\n\nGot it. Next time I'll know.`);
       }
     })();
   }, POLL_MS);

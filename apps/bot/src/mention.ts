@@ -1,7 +1,9 @@
 // What happens when a member mentions the bot: ask the pipeline, then act by
-// tier. Tier 1 answers in the channel. Tiers 2 and 3 open a thread, post the
-// reply with the mod mention, and record the question as pending. Tier 4 says
-// nothing in public and reports quietly to the mod channel.
+// tier. Everything happens in the channel the question was asked in, the way
+// a Discord conversation runs; no threads. Tier 1 answers. Tiers 2 and 3
+// reply with the mod mention and record the question as pending, so a
+// moderator's reply can become knowledge. Tier 4 says nothing in public and
+// reports quietly to the mod channel.
 
 import { HISTORY_LIMIT, answer } from '@sentrybot/core';
 import type { Action, AnswerResult, HistoryTurn } from '@sentrybot/core';
@@ -26,13 +28,11 @@ export async function handleMention(message: Message, settings: GuildSettings): 
     return;
   }
 
-  // The same question, already waiting on a moderator: point at that thread
-  // rather than waking them twice.
+  // The same question, already waiting on a moderator: point at it rather
+  // than waking them twice.
   const pending = await findPending(guild.id, question);
-  if (pending?.threadId) {
-    await message.reply(
-      `Someone already asked this and the moderators have it: ${threadLink(guild.id, pending.threadId)}`,
-    );
+  if (pending?.link) {
+    await message.reply(`Someone just asked this and the moderators have it: ${pending.link}`);
     return;
   }
 
@@ -51,7 +51,7 @@ export async function handleMention(message: Message, settings: GuildSettings): 
       return;
     case 'partial':
     case 'none':
-      await openFallbackThread(message, result, settings, question);
+      await postFallback(message, result, settings, question);
       return;
     case 'flagged':
       await reportQuietly(message, result, settings);
@@ -98,11 +98,11 @@ async function postAnswer(
 }
 
 /**
- * Tiers 2 and 3: a thread on the member's message, the reply inside it with
- * the mod mention, and the question stored pending so a moderator's tick or
- * correction can become knowledge.
+ * Tiers 2 and 3: the reply in the channel, with the mod mention, and the
+ * question stored pending. A moderator replies to that message and ticks it,
+ * and their answer becomes knowledge.
  */
-async function openFallbackThread(
+async function postFallback(
   message: Message,
   result: Extract<AnswerResult, { tier: 'partial' | 'none' }>,
   settings: GuildSettings,
@@ -112,24 +112,9 @@ async function openFallbackThread(
   const mayPing = settings.fallbackMode === 'ping_role' && (await mayPingMods(guildId));
   const text = withMention(result.reply, settings, mayPing);
 
-  let threadId: string | null = null;
-  let postedId: string | null = null;
-  try {
-    const thread = await message.startThread({
-      name: question.slice(0, 90) || 'A question for the moderators',
-      autoArchiveDuration: 1440,
-    });
-    const posted = await thread.send(text.slice(0, MAX_MESSAGE));
-    // The tick a moderator presses to confirm the draft as written.
-    if (result.tier === 'partial') await posted.react('✅');
-    threadId = thread.id;
-    postedId = posted.id;
-  } catch (err) {
-    // No permission to open threads: answer in the channel instead, so the
-    // member is never left without a reply.
-    console.error(`sentry: could not open a thread: ${String(err)}`);
-    await message.reply(text.slice(0, MAX_MESSAGE));
-  }
+  const posted = await message.reply(text.slice(0, MAX_MESSAGE));
+  // The tick a moderator presses to confirm the reading as written.
+  if (result.tier === 'partial') await posted.react('✅').catch(() => undefined);
 
   const { error } = await serviceClient()
     .from('questions')
@@ -139,7 +124,7 @@ async function openFallbackThread(
       asker_name: message.author.displayName,
       channel_id: message.channelId,
       message_id: message.id,
-      thread_id: threadId,
+      bot_message_id: posted.id,
       question,
       bot_draft: result.tier === 'partial' ? result.draft : result.found,
       top_chunk_ids: result.topChunkIds,
@@ -150,8 +135,7 @@ async function openFallbackThread(
   await logEvent(guildId, 'mod_pinged', {
     question,
     tier: result.tier,
-    threadId,
-    messageId: postedId,
+    messageId: posted.id,
     quiet_queue: !mayPing,
   });
 }
@@ -174,10 +158,6 @@ async function reportQuietly(
 export function withMention(text: string, settings: GuildSettings, mayPing: boolean): string {
   const mention = mayPing && settings.modRoleId ? `<@&${settings.modRoleId}>` : 'the moderators';
   return text.split(MODS).join(mention);
-}
-
-function threadLink(guildId: string, threadId: string): string {
-  return `https://discord.com/channels/${guildId}/${threadId}`;
 }
 
 /**
@@ -203,10 +183,6 @@ async function runAction(message: Message, action: Action, settings: GuildSettin
         if (role.position >= (me.roles.highest.position ?? 0)) return;
         await message.member?.roles.add(role);
         await message.reply(`Given you ${role.name}.`);
-        break;
-      }
-      case 'open_thread': {
-        await message.startThread({ name: action.title.slice(0, 90), autoArchiveDuration: 1440 });
         break;
       }
       case 'escalate': {

@@ -7,14 +7,13 @@ import { MODS } from './tokens';
 type SettingsRow = Database['public']['Tables']['guild_settings']['Row'];
 type Match = Database['public']['Functions']['match_chunks']['Returns'][number];
 
-export const ACTION_TYPES = ['point_to_channel', 'assign_role', 'open_thread', 'escalate'] as const;
+export const ACTION_TYPES = ['point_to_channel', 'assign_role', 'escalate'] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
 /** What the model may propose. It never executes anything; the bot validates and acts. */
 export type Action =
   | { type: 'point_to_channel'; channelId: string }
   | { type: 'assign_role'; roleId: string }
-  | { type: 'open_thread'; channelId: string; title: string }
   | { type: 'escalate' };
 
 export type HistoryTurn = { role: 'user' | 'model'; text: string };
@@ -496,13 +495,12 @@ function actionRules(s: Settings, meta: DiscordMeta | null): string[] {
   const lines = [
     `- You may propose at most one action, only when every claim is grounded or self, only when it clearly helps, and only of these types: ${s.allowedActions.join(', ')}. Otherwise leave action null.`,
   ];
-  const needsChannel =
-    s.allowedActions.includes('point_to_channel') || s.allowedActions.includes('open_thread');
+  const needsChannel = s.allowedActions.includes('point_to_channel');
   if (needsChannel) {
     lines.push(
       meta && meta.channels.length > 0
         ? `- Channels (name: id): ${meta.channels.map((c) => `#${c.name}: ${c.id}`).join(', ')}. Put the id in channelId.`
-        : '- No channel ids are known yet, so do not propose point_to_channel or open_thread.',
+        : '- No channel ids are known yet, so do not propose point_to_channel.',
     );
   }
   if (s.allowedActions.includes('assign_role')) {
@@ -607,12 +605,6 @@ function validateAction(
       return knownChannel(raw.channelId)
         ? { type: 'point_to_channel', channelId: raw.channelId }
         : undefined;
-    case 'open_thread': {
-      const title = raw.title?.trim();
-      return knownChannel(raw.channelId) && title
-        ? { type: 'open_thread', channelId: raw.channelId, title }
-        : undefined;
-    }
     case 'assign_role': {
       const roleId = raw.roleId;
       return typeof roleId === 'string' && s.selfServeRoleIds.includes(roleId)

@@ -114,6 +114,7 @@ type QuestionRow = {
   channel_id: string | null;
   message_id: string | null;
   thread_id: string | null;
+  bot_message_id: string | null;
   question: string;
   bot_draft: string | null;
   top_chunk_ids: string[];

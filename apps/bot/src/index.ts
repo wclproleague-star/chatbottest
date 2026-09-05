@@ -1,12 +1,13 @@
 // Sentry's gateway client. One instance serves every guild, keyed by guild id;
 // nothing about a guild is held in memory beyond the current message.
 //
-// It answers when it is mentioned in a channel the owner allowed, opens a
-// thread when it is not sure, and never kicks, bans, times out or deletes.
+// It answers when it is mentioned in a channel the owner allowed, says so and
+// mentions the moderators when it is not sure, and never kicks, bans, times
+// out or deletes.
 
-import { Client, Events, GatewayIntentBits, Partials, ChannelType } from 'discord.js';
+import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import type { Message } from 'discord.js';
-import { onThreadMessage, onTick, watchDashboardApprovals } from './approve';
+import { onModReply, onTick, watchDashboardApprovals } from './approve';
 import { botEnv } from './env';
 import { isClaimed, loadSettings, markInstalled, markUninstalled, syncMeta } from './guild';
 import { handleMention } from './mention';
@@ -32,6 +33,12 @@ client.once(Events.ClientReady, async (ready) => {
     }
     await syncMeta(guild);
     await markInstalled(guild.id, guild.name);
+    // The owner named the bot on the web app; that name is what members see
+    // here, whatever the Discord application is called.
+    const { botName } = await loadSettings(guild.id);
+    if (botName && guild.members.me?.nickname !== botName) {
+      await guild.members.me?.setNickname(botName).catch(() => undefined);
+    }
   }
   watchDashboardApprovals(client);
 });
@@ -67,17 +74,17 @@ client.on(Events.MessageCreate, async (message: Message) => {
     if (!(await isClaimed(message.guild.id))) return;
     const settings = await loadSettings(message.guild.id);
 
-    // A moderator writing in one of the bot's threads: offer the tick.
-    if (message.channel.type === ChannelType.PublicThread) {
-      await onThreadMessage(message, settings);
-      return;
-    }
-
-    // Only a real mention of the bot, and only where the owner allowed it.
-    if (!client.user || !message.mentions.users.has(client.user.id)) return;
     const allowed = settings.allowedChannelIds;
     if (allowed.length > 0 && !allowed.includes(message.channelId)) return;
 
+    // A moderator replying to a question Sentry could not answer is answering
+    // it, not asking a new one.
+    if (message.reference?.messageId && (await onModReply(message, settings))) return;
+
+    // Only a real mention of the bot, written in the message. Replying to the
+    // bot mentions it implicitly, and that is not a question.
+    if (!client.user) return;
+    if (!message.content.includes(`<@${client.user.id}>`)) return;
     await handleMention(message, settings);
   } catch (err) {
     console.error(`sentry: message handler failed: ${String(err)}`);

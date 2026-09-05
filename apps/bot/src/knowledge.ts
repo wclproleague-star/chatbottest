@@ -61,7 +61,7 @@ export async function recordAnswer(input: {
   }
 }
 
-export type PendingMatch = { id: string; threadId: string | null; question: string };
+export type PendingMatch = { id: string; link: string | null; question: string };
 
 /**
  * A pending question in this guild that means the same thing, if there is one.
@@ -70,12 +70,12 @@ export type PendingMatch = { id: string; threadId: string | null; question: stri
 export async function findPending(guildId: string, question: string): Promise<PendingMatch | null> {
   const { data } = await serviceClient()
     .from('questions')
-    .select('id, thread_id, question')
+    .select('id, channel_id, bot_message_id, question')
     .eq('guild_id', guildId)
     .eq('status', 'pending')
     .order('created_at', { ascending: false })
     .limit(20);
-  const pending = (data ?? []).filter((q) => q.thread_id);
+  const pending = (data ?? []).filter((q) => q.channel_id && q.bot_message_id);
   if (pending.length === 0) return null;
 
   const vectors = await embed([question, ...pending.map((p) => p.question)], 'RETRIEVAL_QUERY');
@@ -94,7 +94,8 @@ export async function findPending(guildId: string, question: string): Promise<Pe
     }
   }
   if (!bestRow || bestScore < SAME_QUESTION) return null;
-  return { id: bestRow.id, threadId: bestRow.thread_id, question: bestRow.question };
+  const link = `https://discord.com/channels/${guildId}/${bestRow.channel_id}/${bestRow.bot_message_id}`;
+  return { id: bestRow.id, link, question: bestRow.question };
 }
 
 /** The vectors are unit length, so the dot product is the cosine. */

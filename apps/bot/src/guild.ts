@@ -4,6 +4,7 @@
 
 import { serviceClient } from '@sentrybot/core/supabase';
 import type { Database, Json } from '@sentrybot/core';
+import { ChannelType } from 'discord.js';
 import type { Guild } from 'discord.js';
 
 type SettingsRow = Database['public']['Tables']['guild_settings']['Row'];
@@ -51,8 +52,10 @@ export async function isClaimed(guildId: string): Promise<boolean> {
 
 /** The channels and roles the model may point at, refreshed whenever the bot sees the guild. */
 export async function syncMeta(guild: Guild): Promise<void> {
+  // Real channels of the server only. Threads are text channels too, and a
+  // thread is never somewhere to send a member.
   const channels = guild.channels.cache
-    .filter((c) => c.isTextBased())
+    .filter((c) => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement)
     .map((c) => ({ id: c.id, name: c.name }));
   const roles = guild.roles.cache
     .filter((r) => r.name !== '@everyone')
