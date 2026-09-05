@@ -5,8 +5,8 @@
 // moderator's reply can become knowledge. Tier 4 says nothing in public and
 // reports quietly to the mod channel.
 
-import { HISTORY_LIMIT, answer } from '@sentrybot/core';
-import type { Action, AnswerResult, HistoryTurn } from '@sentrybot/core';
+import { HISTORY_LIMIT, converse } from '@sentrybot/core';
+import type { Action, AnswerResult, Effects, HistoryTurn } from '@sentrybot/core';
 import { MODS } from '@sentrybot/core/tokens';
 import { serviceClient } from '@sentrybot/core/supabase';
 import type { Message, TextChannel } from 'discord.js';
@@ -37,17 +37,133 @@ export async function handleMention(message: Message, settings: GuildSettings): 
   }
 
   const history = await recentHistory(message);
-  const result = await answer({
+  const channel = message.channel;
+  const result = await converse({
     guildId: guild.id,
-    question,
+    // One conversation per member per channel, so a follow-up continues it.
+    conversationId: `${message.channelId}:${message.author.id}`,
+    userId: message.author.id,
     askerName: message.author.displayName,
+    message: question,
     channelId: message.channelId,
     history,
+    asker: {
+      nickname: message.member?.nickname ?? undefined,
+      roles: message.member?.roles.cache.map((r) => r.name).filter((n) => n !== '@everyone') ?? [],
+      isStaff: settings.modRoleId
+        ? (message.member?.roles.cache.has(settings.modRoleId) ?? false)
+        : false,
+    },
+    channel: {
+      name: 'name' in channel && typeof channel.name === 'string' ? channel.name : undefined,
+      category: 'parent' in channel && channel.parent ? channel.parent.name : undefined,
+      topic: 'topic' in channel && typeof channel.topic === 'string' ? channel.topic : undefined,
+    },
+    effects: discordEffects(message, settings),
   });
 
+  switch (result.outcome) {
+    // It asked the member something, or did something it verified: both are
+    // plain replies, and neither wakes a moderator.
+    case 'ask':
+    case 'assigned':
+      await message.reply(result.text.slice(0, MAX_MESSAGE));
+      return;
+    case 'escalate':
+      await postEscalation(message, result.text, result.summary, settings, question);
+      return;
+    case 'reply':
+      if (!result.graded) {
+        await message.reply(withMention(result.text, settings, true).slice(0, MAX_MESSAGE));
+        return;
+      }
+      await postGraded(message, result.graded, settings, question);
+      return;
+  }
+}
+
+/** What the loop can do in Discord, and nothing more. */
+function discordEffects(message: Message, settings: GuildSettings): Effects {
+  const guild = message.guild!;
+  return {
+    async listRoles() {
+      return settings.selfServeRoleIds
+        .map((id) => guild.roles.cache.get(id))
+        .filter((r): r is NonNullable<typeof r> => Boolean(r))
+        .map((r) => ({ id: r.id, name: r.name }));
+    },
+    async memberHasRole(userId, roleId) {
+      const member = await guild.members.fetch(userId).catch(() => null);
+      return member?.roles.cache.has(roleId) ?? false;
+    },
+    async memberInChannel(userId, channelId) {
+      const member = await guild.members.fetch(userId).catch(() => null);
+      const channel = guild.channels.cache.get(channelId);
+      if (!member || !channel) return false;
+      return channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel) ?? false;
+    },
+    async assignRole(userId, roleId) {
+      const member = await guild.members.fetch(userId).catch(() => null);
+      const role = guild.roles.cache.get(roleId);
+      const me = guild.members.me;
+      if (!member || !role || !me?.permissions.has(PermissionFlagsBits.ManageRoles)) return;
+      if (role.position >= me.roles.highest.position) return;
+      await member.roles.add(role);
+      await logEvent(guild.id, 'action', { action: { type: 'assign_role', roleId }, userId });
+    },
+    async channelName(channelId) {
+      const channel = guild.channels.cache.get(channelId);
+      return channel && 'name' in channel ? channel.name : null;
+    },
+  };
+}
+
+/** The loop gave up: post it with the mention and leave the moderators the summary. */
+async function postEscalation(
+  message: Message,
+  text: string,
+  summary: string,
+  settings: GuildSettings,
+  question: string,
+): Promise<void> {
+  const guildId = message.guild!.id;
+  const mayPing = settings.fallbackMode === 'ping_role' && (await mayPingMods(guildId));
+  const posted = await message.reply(withMention(text, settings, mayPing).slice(0, MAX_MESSAGE));
+  const { error } = await serviceClient().from('questions').insert({
+    guild_id: guildId,
+    asker_discord_id: message.author.id,
+    asker_name: message.author.displayName,
+    channel_id: message.channelId,
+    message_id: message.id,
+    bot_message_id: posted.id,
+    question,
+    bot_draft: summary,
+    status: 'pending',
+  });
+  if (error) console.error(`sentry: could not record the question: ${error.message}`);
+  await logEvent(guildId, 'mod_pinged', {
+    question,
+    tier: 'escalate',
+    summary,
+    messageId: posted.id,
+    quiet_queue: !mayPing,
+  });
+}
+
+/** A graded reply, acted on by its tier. */
+async function postGraded(
+  message: Message,
+  result: AnswerResult,
+  settings: GuildSettings,
+  question: string,
+): Promise<void> {
   switch (result.tier) {
     case 'answer':
       await postAnswer(message, result, settings);
+      return;
+    case 'clarify':
+      // Asking which one is meant is not an escalation: no mention, nothing pending.
+      await message.reply(result.question.slice(0, MAX_MESSAGE));
       return;
     case 'partial':
     case 'none':

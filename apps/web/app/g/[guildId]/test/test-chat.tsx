@@ -36,6 +36,7 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
     const history = turns.flatMap((t): HistoryTurn[] => {
       if (t.role === 'user') return [{ role: 'user' as const, text: t.text }];
       if (t.result.tier === 'answer') return [{ role: 'model' as const, text: t.result.answer }];
+      if (t.result.tier === 'clarify') return [{ role: 'model' as const, text: t.result.question }];
       if (t.result.tier === 'flagged') return [];
       return [{ role: 'model' as const, text: mods(t.result.reply) }];
     });
@@ -181,6 +182,14 @@ function Reply({ result, botName }: { result: AnswerResult; botName: string }) {
           </p>
         </Panel>
       </div>
+    );
+  }
+  // Asking which one is meant is a plain question, not a handoff.
+  if (result.tier === 'clarify') {
+    return (
+      <ThreadMessage role="sentry" name={botName} state="waiting">
+        {result.question}
+      </ThreadMessage>
     );
   }
   const next =

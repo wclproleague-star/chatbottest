@@ -1,6 +1,8 @@
 import type { Database, Json } from './database.types';
 import { embed, generateJson, Type } from './gemini';
 import type { Schema } from './gemini';
+import { resolutionBrief, resolveTarget } from './resolve';
+import type { Resolution, ResolutionContext } from './resolve';
 import { serviceClient } from './supabase';
 import { MODS } from './tokens';
 
@@ -25,6 +27,10 @@ export type AnswerInput = {
   channelId?: string;
   /** The recent messages of the channel or thread; the last six are used. */
   history?: HistoryTurn[];
+  /** Who is asking, as Discord shows them. */
+  asker?: { nickname?: string; roles?: string[]; isStaff?: boolean };
+  /** Where they wrote, which is often what tells you what they mean. */
+  channel?: { name?: string; category?: string; topic?: string };
 };
 
 /** Why a message was flagged, from the model. */
@@ -66,6 +72,7 @@ export const HISTORY_LIMIT = 6;
 export type AnswerResult =
   | {
       tier: 'answer';
+      resolution?: Resolution;
       answered: true;
       kind: 'conversation' | 'server';
       /** Carries {mods} only when the member asked for them, or asked what Sentry holds in full. */
@@ -78,6 +85,7 @@ export type AnswerResult =
     }
   | {
       tier: 'partial';
+      resolution?: Resolution;
       answered: false;
       reason: 'partial';
       kind: 'server';
@@ -92,6 +100,7 @@ export type AnswerResult =
     }
   | {
       tier: 'none';
+      resolution?: Resolution;
       answered: false;
       reason: 'no_knowledge' | 'refused';
       kind: 'server';
@@ -102,6 +111,20 @@ export type AnswerResult =
       claims: Claim[];
       refusalReason?: string;
       topChunkIds: string[];
+    }
+  | {
+      /**
+       * More than one thing could have been meant. One short question settles
+       * it; the moderators are not involved and are not mentioned.
+       */
+      tier: 'clarify';
+      answered: false;
+      reason: 'ambiguous';
+      kind: 'server';
+      question: string;
+      candidates: string[];
+      resolution: Resolution;
+      topChunkIds: [];
     }
   | {
       tier: 'flagged';
@@ -142,6 +165,8 @@ type ModelOutput = {
   asksAboutKnowledge?: boolean | null;
   /** Whether the member asked if that is everything you know. */
   asksCompleteness?: boolean | null;
+  /** Whether the member asked for a moderator themselves. */
+  asksForModerators?: boolean | null;
   reply: string;
   claims?: { text: string; grounding: string; chunkIds?: string[] | null }[] | null;
   confidence: number;
@@ -157,29 +182,64 @@ type ModelOutput = {
 
 export async function answer(input: AnswerInput): Promise<AnswerResult> {
   const { guildId, question } = input;
-  const db = serviceClient();
   const settings = await loadSettings(guildId);
+  const history = (input.history ?? []).slice(-HISTORY_LIMIT);
 
-  const [queryVector] = await embed([question], 'RETRIEVAL_QUERY');
-  if (!queryVector) throw new Error('Embedding the question returned nothing.');
+  // What the message alone brings back, which also says how many things in the
+  // knowledge could be meant.
+  let matches = await retrieve(guildId, question, settings.threshold);
 
-  const matched = await db.rpc('match_chunks', {
-    guild_id: guildId,
-    query_embedding: JSON.stringify(queryVector),
-    match_count: MATCH_COUNT,
-    min_similarity: settings.threshold,
-  });
-  if (matched.error) throw new Error(`match_chunks failed: ${matched.error.message}`);
-  const matches = matched.data ?? [];
+  // Who and where, then what they are referring to.
+  const context = await resolutionContext(guildId, input, settings, matches.length);
+  const resolution = await resolveTarget({ message: question, history, context });
+
+  const base = {
+    question,
+    askerName: input.askerName,
+    channelId: input.channelId,
+    resolution: {
+      subject: resolution.subject,
+      entity: resolution.entity,
+      timeWindow: resolution.timeWindow,
+      basis: resolution.basis,
+      candidates: resolution.candidates,
+      outcome: resolution.outcome,
+    },
+  };
+
+  // More than one thing could have been meant: one short question, no
+  // moderators. Asking is not escalating.
+  if (resolution.outcome === 'ambiguous') {
+    const asked =
+      resolution.question ??
+      `Which one do you mean: ${resolution.candidates.slice(0, 4).join(', ')}?`;
+    await logEvent(guildId, 'answered', { ...base, clarifying: asked });
+    return {
+      tier: 'clarify',
+      answered: false,
+      reason: 'ambiguous',
+      kind: 'server',
+      question: asked.slice(0, settings.maxChars),
+      candidates: resolution.candidates,
+      resolution,
+      topChunkIds: [],
+    };
+  }
+
+  // Resolved to one thing: look again with that thing named, so the retrieval
+  // is about the match they mean rather than matches in general.
+  if (resolution.outcome === 'unique' && resolution.entity) {
+    const enriched = [question, resolution.entity, resolution.timeWindow].filter(Boolean).join(' ');
+    const better = await retrieve(guildId, enriched, settings.threshold);
+    if (better.length > 0) matches = better;
+  }
   const topChunkIds = matches.map((m) => m.id);
-
-  const base = { question, askerName: input.askerName, channelId: input.channelId };
 
   const meta = await loadMeta(guildId);
   const raw = await generateJson<ModelOutput>({
-    system: systemPrompt(settings, matches, meta),
+    system: systemPrompt(settings, matches, meta, resolution, context),
     messages: [
-      ...(input.history ?? []).slice(-HISTORY_LIMIT),
+      ...history,
       { role: 'user', text: input.askerName ? `${input.askerName} says: ${question}` : question },
     ],
     schema: responseSchema(settings.allowedActions),
@@ -217,6 +277,7 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
     await logEvent(guildId, 'answered', { ...base, kind: 'conversation' });
     return {
       tier: 'answer',
+      resolution,
       answered: true,
       kind: 'conversation',
       answer: withoutMods,
@@ -254,6 +315,7 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
     });
     return {
       tier: 'none',
+      resolution,
       answered: false,
       reason: 'refused',
       kind: 'server',
@@ -277,6 +339,7 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
     });
     return {
       tier: 'none',
+      resolution,
       answered: false,
       reason: 'no_knowledge',
       kind: 'server',
@@ -302,6 +365,7 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
     });
     return {
       tier: 'partial',
+      resolution,
       answered: false,
       reason: 'partial',
       kind: 'server',
@@ -324,10 +388,13 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
   });
   return {
     tier: 'answer',
+    resolution,
     answered: true,
     kind: 'server',
-    // Asked whether that is all Sentry knows, the moderators are brought in to fill the gap.
-    answer: raw.asksCompleteness ? withMods : said,
+    // Asked whether that is all Sentry knows, the moderators are brought in to
+    // fill the gap. Otherwise a tier 1 answer never mentions them, whatever
+    // the model wrote.
+    answer: raw.asksCompleteness || raw.asksForModerators ? withMods : withoutMods,
     claims,
     confidence: claims.length === 0 ? 1 : confidence,
     usedChunkIds,
@@ -342,6 +409,96 @@ function weakestGrounding(claims: Claim[]): Grounding {
     if (claims.some((c) => c.grounding === g)) return g;
   }
   return 'self';
+}
+
+/** The chunks this guild has for a query, most alike first. */
+async function retrieve(guildId: string, query: string, threshold: number): Promise<Match[]> {
+  const [vector] = await embed([query], 'RETRIEVAL_QUERY');
+  if (!vector) throw new Error('Embedding the question returned nothing.');
+  const { data, error } = await serviceClient().rpc('match_chunks', {
+    guild_id: guildId,
+    query_embedding: JSON.stringify(vector),
+    match_count: MATCH_COUNT,
+    min_similarity: threshold,
+  });
+  if (error) throw new Error(`match_chunks failed: ${error.message}`);
+  return data ?? [];
+}
+
+/**
+ * Everything the bot may legitimately see, gathered for resolution: who is
+ * asking and what they hold, where they are writing, what the server has said
+ * about who belongs to what, what Sentry has already done for them, the time
+ * where the server lives, and how much of the knowledge could be meant.
+ */
+async function resolutionContext(
+  guildId: string,
+  input: AnswerInput,
+  settings: Settings,
+  knowledgeCandidates: number,
+): Promise<ResolutionContext> {
+  const db = serviceClient();
+  const [rosters, recent] = await Promise.all([
+    db
+      .from('documents')
+      .select('title, raw_text')
+      .eq('guild_id', guildId)
+      .eq('status', 'ready')
+      .order('created_at', { ascending: false })
+      .limit(8),
+    db
+      .from('bot_events')
+      .select('type, payload, created_at')
+      .eq('guild_id', guildId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+  ]);
+
+  const asker = input.asker ?? {};
+  const mine = (recent.data ?? []).filter((e) => {
+    const payload = e.payload as { askerName?: string; channelId?: string } | null;
+    return (
+      payload?.askerName === input.askerName ||
+      (input.channelId ? payload?.channelId === input.channelId : false)
+    );
+  });
+
+  return {
+    askerName: input.askerName ?? null,
+    askerNickname: asker.nickname ?? null,
+    askerRoles: asker.roles ?? [],
+    askerIsStaff: asker.isStaff ?? false,
+    channelName: input.channel?.name ?? null,
+    categoryName: input.channel?.category ?? null,
+    threadTopic: input.channel?.topic ?? null,
+    rosters: (rosters.data ?? []).map(
+      (d) => `${d.title ?? 'untitled'}: ${(d.raw_text ?? '').slice(0, 600)}`,
+    ),
+    recentActions: mine
+      .slice(0, 5)
+      .map((e) => `${e.created_at.slice(0, 16).replace('T', ' ')} ${e.type}`),
+    knowledgeCandidates,
+    now: nowIn(settings.timezone),
+    timezone: settings.timezone,
+  };
+}
+
+/** The date and time where the server lives, or in UTC when it has not said. */
+function nowIn(timezone: string | null): string {
+  try {
+    return new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone ?? 'UTC',
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString();
+  }
 }
 
 // Settings and Discord metadata ------------------------------------------
@@ -429,7 +586,13 @@ function clockLine(timezone: string): string | null {
 
 // Prompt and schema -------------------------------------------------------
 
-function systemPrompt(s: Settings, matches: Match[], meta: DiscordMeta | null): string {
+function systemPrompt(
+  s: Settings,
+  matches: Match[],
+  meta: DiscordMeta | null,
+  resolution: Resolution,
+  context: ResolutionContext,
+): string {
   const clock = s.timezone ? clockLine(s.timezone) : null;
   const lines: string[] = [
     `You are ${s.botName}, the assistant for a Discord server. Members mention you and you reply in the channel, in character, in your own words every time. The messages before this one are the recent conversation; use them as context.`,
@@ -440,6 +603,14 @@ function systemPrompt(s: Settings, matches: Match[], meta: DiscordMeta | null): 
     '',
     'The one rule: converse naturally, and never state a fact about this server (dates, times, rules, names, prices, results, roles, who does what) that is not grounded in the knowledge below.',
     '',
+    `Now: ${context.now}${context.timezone ? ` (${context.timezone})` : ''}. When the knowledge holds several of the thing they asked about, take the one their time window points at, ordered by date and time from now: "next" means the first still ahead, "last" the most recent behind.`,
+    resolution.aboutServer
+      ? ''
+      : 'What they are asking about does not belong to this server, so this is conversation: answer it yourself, from what you know, and leave the moderators out of it.',
+    resolution.outcome === 'unresolved'
+      ? `What they are referring to could not be worked out: they mean a specific ${resolution.subject} and nothing in the message or around them says which. Say plainly that you cannot tell which one they mean, do not guess, and hand it to the moderators with the literal token ${MODS}.`
+      : resolutionBrief(resolution),
+    '',
     'Decide kind first:',
     '- inappropriate: harassment, insults aimed at a person, slurs, sexual or NSFW content, doxxing (posting or asking for private details), scam or phishing links (free nitro, giveaways, login pages). Set flagCategory to one of harassment, slur, nsfw, doxxing, scam, and make reply one plain sentence for the moderators describing what was posted and why it was flagged. It is never shown to the member.',
     '- conversation: the reply claims nothing about this server. Greetings, thanks, banter, jokes, questions about you as a bot, and general knowledge (a capital city, a definition, arithmetic) are all conversation. Answer directly and briefly, in character, with no mention of the moderators. There is no knowledge gate on conversation.',
@@ -448,7 +619,7 @@ function systemPrompt(s: Settings, matches: Match[], meta: DiscordMeta | null): 
     '',
     s.scope === 'server_only'
       ? 'Scope: server only. Do not answer general-knowledge questions; reply with a friendly one-line redirect to what you can help with here. That is still conversation.'
-      : 'Scope: open. General-knowledge questions are answered directly, as conversation.',
+      : "Scope: open. General-knowledge questions are answered directly, as conversation, from what you know rather than from this server's knowledge. Two limits on that. Never state a specific figure, version, date or name you are not sure of: say you are not certain of the exact one rather than producing something plausible. And for anything that moves, a patch, the current meta, a price, a ranking, the news, say plainly that your information may be out of date, so they can check. Neither of these involves the moderators.",
     clock
       ? `The server's timezone is ${s.timezone} and the time there now is ${clock}. Asked the time, give it. That is conversation.`
       : 'No timezone is set for this server, so you do not know the time. Asked the time, ask which timezone they mean. That is conversation.',
@@ -540,6 +711,12 @@ function responseSchema(allowed: ActionType[]): Schema {
       nullable: true,
       description:
         'True only when the member asks whether there is more beyond what you hold: "is that the only one", "is that all you know", "anything else?". False when they simply ask what you know about a subject: "what do you know about X" is False.',
+    },
+    asksForModerators: {
+      type: Type.BOOLEAN,
+      nullable: true,
+      description:
+        'True when the member is asking for a moderator, a human or the staff ("ping the mods", "can someone from staff look at this").',
     },
     reply: {
       type: Type.STRING,

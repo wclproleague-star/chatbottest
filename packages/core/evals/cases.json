@@ -1,10 +1,35 @@
 [
-  { "message": "hi bro", "kind": "conversation", "tier": "answer" },
-  { "message": "thanks!", "kind": "conversation", "tier": "answer" },
-  { "message": "capital of France?", "kind": "conversation", "tier": "answer" },
-  { "message": "when's the bracket?", "kind": "server", "tier": "answer", "mods": false },
-  { "message": "is there a match on Saturday?", "kind": "server", "tier": "partial" },
-  { "message": "can my duo miss check-in?", "kind": "server", "tier": "none" },
+  {
+    "message": "hi bro",
+    "kind": "conversation",
+    "tier": "answer"
+  },
+  {
+    "message": "thanks!",
+    "kind": "conversation",
+    "tier": "answer"
+  },
+  {
+    "message": "capital of France?",
+    "kind": "conversation",
+    "tier": "answer"
+  },
+  {
+    "message": "when's the bracket?",
+    "kind": "server",
+    "tier": "answer",
+    "mods": false
+  },
+  {
+    "message": "is there a match on Saturday?",
+    "kind": "server",
+    "tier": "partial"
+  },
+  {
+    "message": "can my duo miss check-in?",
+    "kind": "server",
+    "tier": "none"
+  },
   {
     "message": "is this the only match you know about?",
     "kind": "server",
@@ -17,8 +42,17 @@
     "tier": "answer",
     "mods": false
   },
-  { "message": "who won last week?", "kind": "server", "tier": "none" },
-  { "message": "how do I get the EU role?", "kind": "server", "tier": "answer", "mods": false },
+  {
+    "message": "who won last week?",
+    "kind": "server",
+    "tier": "none"
+  },
+  {
+    "message": "how do I get the EU role?",
+    "kind": "server",
+    "tier": "answer",
+    "mods": false
+  },
   {
     "message": "shut up retard, nobody here wants you around",
     "kind": "inappropriate",
@@ -29,12 +63,104 @@
     "kind": "inappropriate",
     "tier": "flagged"
   },
-  { "message": "are you a bot?", "kind": "conversation", "tier": "answer" },
-  { "message": "ping the mods", "kind": "server", "tier": "answer", "mods": true },
-  { "message": "what time is it?", "kind": "conversation", "tier": "answer" },
-  { "message": "how do I sign up?", "kind": "server", "tier": "answer", "mods": false },
-  { "message": "rules for subs?", "kind": "server", "tier": "none" },
-  { "message": "lol", "kind": "conversation", "tier": "answer" },
-  { "message": "can you ban him?", "kind": "server", "tier": "none" },
-  { "message": "tell me a joke", "kind": "conversation", "tier": "answer" }
+  {
+    "message": "are you a bot?",
+    "kind": "conversation",
+    "tier": "answer"
+  },
+  {
+    "message": "ping the mods",
+    "kind": "server",
+    "tier": "answer",
+    "mods": true
+  },
+  {
+    "message": "what time is it?",
+    "kind": "conversation",
+    "tier": "answer"
+  },
+  {
+    "message": "how do I sign up?",
+    "kind": "server",
+    "tier": "answer",
+    "mods": false
+  },
+  {
+    "message": "rules for subs?",
+    "kind": "server",
+    "tier": "none"
+  },
+  {
+    "message": "lol",
+    "kind": "conversation",
+    "tier": "answer"
+  },
+  {
+    "message": "can you ban him?",
+    "kind": "server",
+    "tier": "none"
+  },
+  {
+    "message": "tell me a joke",
+    "kind": "conversation",
+    "tier": "answer"
+  },
+  {
+    "message": "when is my next match?",
+    "kind": "server",
+    "tier": "answer",
+    "mods": false,
+    "roles": ["Fast Forward"],
+    "entityMentions": "Fast Forward",
+    "note": "one team role resolves it, and the reply names the team it answered about"
+  },
+  {
+    "message": "when is my next match?",
+    "kind": "server",
+    "tier": "clarify",
+    "roles": ["Fast Forward", "Baguette"],
+    "candidatesInclude": ["Fast Forward", "Baguette"],
+    "note": "two team roles: it asks which, and never wakes a moderator to do it"
+  },
+  {
+    "message": "when is the game?",
+    "kind": "server",
+    "tier": "clarify",
+    "roles": [],
+    "candidatesInclude": ["Fast Forward"],
+    "note": "no context to choose a fixture, so it asks rather than guessing"
+  },
+  {
+    "message": "and is it still on?",
+    "kind": "server",
+    "tier": "answer",
+    "mods": false,
+    "roles": ["Fast Forward"],
+    "history": [
+      {
+        "role": "user",
+        "text": "when is my next match?"
+      },
+      {
+        "role": "model",
+        "text": "Your next Fast Forward match is Tuesday 8 September at 19:00 CET against Baguette."
+      }
+    ],
+    "entityMentions": ["Fast Forward", "Baguette"],
+    "note": "a pronoun refers to what the conversation was just about"
+  },
+  {
+    "message": "what's the current Wild Rift patch?",
+    "kind": "conversation",
+    "tier": "answer",
+    "mods": false,
+    "replyMatches": "out of date|may have changed|might have changed|no longer|check",
+    "note": "general knowledge that moves: answered, with a staleness caveat, and no moderator"
+  },
+  {
+    "message": "how much does a WCL entry cost?",
+    "kind": "server",
+    "tier": "none",
+    "note": "a price is a server fact: nothing in the knowledge covers it, so the moderators get it"
+  }
 ]

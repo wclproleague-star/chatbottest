@@ -69,6 +69,7 @@ type GuildSettingsRow = {
   confidence_threshold: number;
   allowed_actions: string[];
   self_serve_role_ids: string[];
+  role_proofs: Json;
   scope: 'open' | 'server_only';
   timezone: string | null;
   updated_at: string;

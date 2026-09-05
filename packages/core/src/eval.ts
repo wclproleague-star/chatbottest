@@ -28,6 +28,17 @@ type Case = {
   tier: AnswerResult['tier'];
   /** Whether the reply should carry the mod mention. Only meaningful on tier 1. */
   mods?: boolean;
+  /** The context a reference is resolved from: who is asking and where. */
+  roles?: string[];
+  channel?: string;
+  category?: string;
+  /** What the resolved target must name, and what a clarification must offer. */
+  entityMentions?: string | string[];
+  candidatesInclude?: string[];
+  /** A pattern the reply has to match, for a caveat that must be there. */
+  replyMatches?: string;
+  /** The messages before this one, oldest first, as the channel would show them. */
+  history?: { role: 'user' | 'model'; text: string }[];
 };
 
 /** The draft or found sentence must say what was found, never a canned hedge. */
@@ -37,6 +48,8 @@ function replyOf(result: AnswerResult): string {
   switch (result.tier) {
     case 'answer':
       return result.answer;
+    case 'clarify':
+      return result.question;
     case 'partial':
     case 'none':
       return result.reply;
@@ -51,11 +64,23 @@ function foundOf(result: AnswerResult): string | null {
   return null;
 }
 
-/** Tiers 2 and 3 always carry the mention; tier 1 carries it only when the case says so. */
+/**
+ * Tiers 2 and 3 always carry the mention; a clarification never does, because
+ * asking which one is meant is not an escalation; tier 1 carries it only when
+ * the case says so.
+ */
 function expectMods(c: Case, result: AnswerResult): boolean | null {
   if (result.tier === 'partial' || result.tier === 'none') return true;
+  if (result.tier === 'clarify') return false;
   if (result.tier === 'flagged') return null;
   return c.mods ?? null;
+}
+
+function normalise(text: string): string {
+  return text
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
 }
 
 function pad(text: string, width: number): string {
@@ -73,7 +98,14 @@ async function main(): Promise<void> {
   console.log(`${pad('message', 44)} ${pad('expected', 24)} ${pad('actual', 24)} result`);
   for (const c of cases) {
     try {
-      const result = await answer({ guildId, question: c.message });
+      const result = await answer({
+        guildId,
+        question: c.message,
+        askerName: 'kestrel',
+        history: c.history,
+        asker: { roles: c.roles ?? [], nickname: 'kestrel' },
+        channel: { name: c.channel, category: c.category },
+      });
       const actual = `${result.kind} / ${result.tier}`;
       const expected = `${c.kind} / ${c.tier}`;
       const problems: string[] = [];
@@ -84,11 +116,39 @@ async function main(): Promise<void> {
       if (wantMods !== null && wantMods !== replyOf(result).includes(MODS)) {
         problems.push(wantMods ? 'missing {mods}' : 'stray {mods}');
       }
+      // A resolved target has to be named in the reply, so the member can see
+      // what was answered and correct it.
+      const names = c.entityMentions
+        ? Array.isArray(c.entityMentions)
+          ? c.entityMentions
+          : [c.entityMentions]
+        : [];
+      if (
+        names.length > 0 &&
+        !names.some((n) => normalise(replyOf(result)).includes(normalise(n)))
+      ) {
+        problems.push(`the reply never names the target (${names.join(' or ')})`);
+      }
+      if (c.replyMatches && !new RegExp(c.replyMatches, 'i').test(replyOf(result))) {
+        problems.push('the reply carries no staleness caveat');
+      }
+      for (const candidate of c.candidatesInclude ?? []) {
+        const offered = result.tier === 'clarify' ? result.candidates.join(' ') : '';
+        if (!normalise(`${offered} ${replyOf(result)}`).includes(normalise(candidate))) {
+          problems.push(`the question never offers "${candidate}"`);
+        }
+      }
       if (problems.length > 0) failed++;
       console.log(
         `${pad(c.message, 44)} ${pad(expected, 24)} ${pad(actual, 24)} ${problems.length === 0 ? 'pass' : `FAIL (${problems.join(', ')})`}`,
       );
       console.log(`${' '.repeat(46)}reply: ${replyOf(result).replace(/\s+/g, ' ')}`);
+      const r = 'resolution' in result ? result.resolution : undefined;
+      if (r) {
+        console.log(
+          `${' '.repeat(46)}target: ${r.subject}${r.entity ? ` / ${r.entity}` : ''} (${r.outcome}${r.basis ? `, from ${r.basis}` : ''})`,
+        );
+      }
       if (found !== null) console.log(`${' '.repeat(46)}found: ${found.replace(/\s+/g, ' ')}`);
     } catch (err) {
       failed++;

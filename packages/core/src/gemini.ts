@@ -1,9 +1,9 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import type { Schema } from '@google/genai';
+import type { Content, FunctionDeclaration, Schema } from '@google/genai';
 import { env } from './env';
 
 export { Type };
-export type { Schema };
+export type { FunctionDeclaration, Schema };
 
 /** pgvector's HNSW index caps at 2000 dims; the model's default 3072 would not index. */
 export const EMBEDDING_DIMENSIONS = 768;
@@ -77,4 +77,60 @@ export async function generateJson<T>(input: {
   const text = response.text;
   if (!text) throw new Error('Gemini returned an empty response.');
   return JSON.parse(text) as T;
+}
+
+/** One step of a tool-using conversation: what the model said, and what it wants to call. */
+export type ToolStep = {
+  text: string;
+  calls: { name: string; args: Record<string, unknown> }[];
+  /** The model's own turn, kept as it came: its parts carry signatures the API requires back. */
+  content: Content;
+};
+
+/** A turn in a tool-using conversation, as the model sees it. */
+export type ToolTurn =
+  | { role: 'user' | 'model'; text: string }
+  | { model: Content }
+  | { role: 'tool'; name: string; result: unknown };
+
+/**
+ * One call to the chat model with tools available. The caller runs the loop:
+ * it executes whatever comes back in `calls`, appends the results as `tool`
+ * turns, and calls again. Nothing here executes anything.
+ */
+export async function generateWithTools(input: {
+  system: string;
+  turns: ToolTurn[];
+  tools: FunctionDeclaration[];
+  temperature?: number;
+}): Promise<ToolStep> {
+  const response = await ai().models.generateContent({
+    model: env().geminiModel,
+    contents: input.turns.map(toContent),
+    config: {
+      systemInstruction: input.system,
+      tools: [{ functionDeclarations: input.tools }],
+      temperature: input.temperature ?? 0.6,
+    },
+  });
+  const content = response.candidates?.[0]?.content ?? { role: 'model', parts: [] };
+  return {
+    content,
+    text: (response.text ?? '').trim(),
+    calls: (response.functionCalls ?? []).map((c) => ({
+      name: c.name ?? '',
+      args: (c.args ?? {}) as Record<string, unknown>,
+    })),
+  };
+}
+
+function toContent(turn: ToolTurn): Content {
+  if ('model' in turn) return turn.model;
+  if (turn.role === 'tool') {
+    return {
+      role: 'user',
+      parts: [{ functionResponse: { name: turn.name, response: { result: turn.result } } }],
+    };
+  }
+  return { role: turn.role, parts: [{ text: turn.text }] };
 }
