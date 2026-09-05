@@ -9,7 +9,7 @@
 
 import { spawn } from 'node:child_process';
 import process from 'node:process';
-import { fileURLToPath } from 'node:url';
+import { URL, fileURLToPath } from 'node:url';
 
 const next = fileURLToPath(new URL('node_modules/next/dist/bin/next', import.meta.url));
 const child = spawn(process.execPath, [next, 'dev', '--port', '3000', ...process.argv.slice(2)], {
