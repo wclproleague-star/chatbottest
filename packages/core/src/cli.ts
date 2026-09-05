@@ -7,7 +7,7 @@
 
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
-import { answer } from './answer';
+import { MODS, answer } from './answer';
 import { ingest } from './ingest';
 import { serviceClient } from './supabase';
 
@@ -71,26 +71,34 @@ async function runAsk(guildId: string, question: string): Promise<void> {
   const result = await answer({ guildId, question });
   const ms = Date.now() - started;
 
+  const mods = (text: string) => text.split(MODS).join('@Mods');
   console.log(`Q: ${question}`);
-  if (result.answered) {
-    console.log(`A: ${result.answer}`);
-    console.log(
-      `   answered, confidence ${result.confidence.toFixed(2)}, used ${result.usedChunkIds.length} of ${result.topChunkIds.length} matched chunk(s)` +
-        (result.action ? `, action ${JSON.stringify(result.action)}` : '') +
-        `, ${ms}ms`,
-    );
-  } else if (result.reason === 'no_knowledge') {
-    console.log(
-      `   no_knowledge: nothing matched above the threshold, so the chat model was not called.`,
-    );
-    console.log(`   In Discord, this is where I'd ask a mod. ${ms}ms`);
-  } else {
-    console.log(
-      `   ${result.reason}` +
-        (result.refusalReason ? ` (${result.refusalReason})` : '') +
-        `, confidence ${result.confidence.toFixed(2)}, ${result.topChunkIds.length} chunk(s) matched, ${ms}ms`,
-    );
-    console.log(`   draft: ${result.draft}`);
+  switch (result.tier) {
+    case 'answer':
+      console.log(`A: ${result.answer}`);
+      console.log(
+        `   tier 1 answer (${result.kind}), confidence ${result.confidence.toFixed(2)}, ${result.claims.length} claim(s), used ${result.usedChunkIds.length} of ${result.topChunkIds.length} matched chunk(s)` +
+          (result.action ? `, action ${JSON.stringify(result.action)}` : '') +
+          `, ${ms}ms`,
+      );
+      break;
+    case 'partial':
+      console.log(`A: ${mods(result.reply)}`);
+      console.log(
+        `   tier 2 partial: posted with the mod mention and stored pending. confidence ${result.confidence.toFixed(2)}, used ${result.usedChunkIds.length} of ${result.topChunkIds.length} matched chunk(s), ${ms}ms`,
+      );
+      break;
+    case 'none':
+      console.log(`A: ${mods(result.reply)}`);
+      console.log(
+        `   tier 3 none (${result.reason}${result.refusalReason ? `: ${result.refusalReason}` : ''}): posted with the mod mention. ${result.topChunkIds.length} chunk(s) matched, ${ms}ms`,
+      );
+      break;
+    case 'flagged':
+      console.log(
+        `   tier 4 flagged (${result.category}): no public reply. Report to the mod channel: ${result.note} ${ms}ms`,
+      );
+      break;
   }
   console.log('result:', JSON.stringify(result));
 }

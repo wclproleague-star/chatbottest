@@ -2,6 +2,7 @@ import type { Database, Json } from './database.types';
 import { embed, generateJson, Type } from './gemini';
 import type { Schema } from './gemini';
 import { serviceClient } from './supabase';
+import { MODS } from './tokens';
 
 type SettingsRow = Database['public']['Tables']['guild_settings']['Row'];
 type Match = Database['public']['Functions']['match_chunks']['Returns'][number];
@@ -23,29 +24,100 @@ export type AnswerInput = {
   question: string;
   askerName?: string;
   channelId?: string;
+  /** The recent messages of the channel or thread; the last six are used. */
   history?: HistoryTurn[];
 };
 
+/** Why a message was flagged, from the model. */
+export const FLAG_CATEGORIES = ['harassment', 'slur', 'nsfw', 'doxxing', 'scam'] as const;
+export type FlagCategory = (typeof FLAG_CATEGORIES)[number];
+
+export { MODS };
+
+/**
+ * What the message is. `conversation`: the reply claims nothing about this
+ * server, so nothing needs grounding. `server`: the reply says something about
+ * the server, so every such claim is graded. `inappropriate`: no public reply.
+ */
+export const KINDS = ['conversation', 'server', 'inappropriate'] as const;
+export type Kind = (typeof KINDS)[number];
+
+/**
+ * How a claim about the server stands up: `grounded`, a retrieved chunk says
+ * it; `self`, a true statement about what Sentry holds; `partial`, a hedged
+ * reading the chunks imply; `none`, nothing to stand on.
+ */
+export const GROUNDINGS = ['grounded', 'self', 'partial', 'none'] as const;
+export type Grounding = (typeof GROUNDINGS)[number];
+export type Claim = { text: string; grounding: Grounding; chunkIds: string[] };
+
+/** How many recent messages the model sees as context. */
+export const HISTORY_LIMIT = 6;
+
+/**
+ * One principle: Sentry converses naturally in the guild's persona, and never
+ * states a fact about the server that is not grounded in retrieved chunks.
+ * The tier is the weakest grounding among the reply's claims:
+ * - answer: every claim is grounded or self, or the reply makes none.
+ * - partial: a claim is a hedged reading; posted with {mods} asked to confirm,
+ *   kept pending with the draft, so a mod's tick or correction becomes knowledge.
+ * - none: a claim has nothing to stand on, or the topic is forbidden.
+ * - flagged: inappropriate content, reported quietly to the mod channel.
+ */
 export type AnswerResult =
   | {
+      tier: 'answer';
       answered: true;
+      kind: 'conversation' | 'server';
+      /** Carries {mods} only when the member asked for them, or asked what Sentry holds in full. */
       answer: string;
+      claims: Claim[];
       confidence: number;
       usedChunkIds: string[];
       topChunkIds: string[];
       action?: Action;
     }
-  | { answered: false; reason: 'no_knowledge'; topChunkIds: string[] }
   | {
+      tier: 'partial';
       answered: false;
-      reason: 'low_confidence' | 'refused';
+      reason: 'partial';
+      kind: 'server';
+      /** The hedged reply, with {mods} in it. */
+      reply: string;
+      /** The pending question's draft: one sentence stating what the knowledge says. */
       draft: string;
+      claims: Claim[];
       confidence: number;
+      usedChunkIds: string[];
+      topChunkIds: string[];
+    }
+  | {
+      tier: 'none';
+      answered: false;
+      reason: 'no_knowledge' | 'refused';
+      kind: 'server';
+      /** The reply saying it does not have this, with {mods} in it. */
+      reply: string;
+      /** One sentence stating what was found, or what the closest entries cover. */
+      found: string;
+      claims: Claim[];
       refusalReason?: string;
       topChunkIds: string[];
+    }
+  | {
+      tier: 'flagged';
+      answered: false;
+      reason: 'flagged';
+      kind: 'inappropriate';
+      category: FlagCategory;
+      /** One sentence for the mod channel report. */
+      note: string;
+      topChunkIds: [];
     };
 
 const MATCH_COUNT = 6;
+/** Replies vary in phrasing; the grading stays steady at this temperature. */
+const TEMPERATURE = 0.7;
 
 type Settings = {
   botName: string;
@@ -56,17 +128,24 @@ type Settings = {
   threshold: number;
   allowedActions: ActionType[];
   selfServeRoleIds: string[];
+  scope: 'open' | 'server_only';
+  timezone: string | null;
 };
 
 type DiscordMeta = { channels: NamedId[]; roles: NamedId[] };
 type NamedId = { id: string; name: string };
 
 type ModelOutput = {
-  /** Decided before the answer is written; the schema orders it first. */
-  coverage: 'full' | 'partial' | 'none';
-  answer: string;
+  kind: Kind;
+  flagCategory?: string | null;
+  found: string;
+  /** Whether the member asked what Sentry itself knows, holds or has. */
+  asksAboutKnowledge?: boolean | null;
+  /** Whether the member asked if that is everything you know. */
+  asksCompleteness?: boolean | null;
+  reply: string;
+  claims?: { text: string; grounding: string; chunkIds?: string[] | null }[] | null;
   confidence: number;
-  usedChunkIds: string[];
   refused: boolean;
   refusalReason?: string | null;
   action?: {
@@ -97,28 +176,72 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
 
   const base = { question, askerName: input.askerName, channelId: input.channelId };
 
-  if (matches.length === 0) {
-    await logEvent(guildId, 'low_confidence', { ...base, reason: 'no_knowledge' });
-    return { answered: false, reason: 'no_knowledge', topChunkIds: [] };
-  }
-
   const meta = await loadMeta(guildId);
   const raw = await generateJson<ModelOutput>({
     system: systemPrompt(settings, matches, meta),
     messages: [
-      ...(input.history ?? []),
-      { role: 'user', text: input.askerName ? `${input.askerName} asks: ${question}` : question },
+      ...(input.history ?? []).slice(-HISTORY_LIMIT),
+      { role: 'user', text: input.askerName ? `${input.askerName} says: ${question}` : question },
     ],
     schema: responseSchema(settings.allowedActions),
+    temperature: TEMPERATURE,
   });
 
-  // Partial coverage is not an answer. Cap it under the default threshold so it
-  // reaches a moderator; an owner who moves the slider to Confident accepts it.
-  const confidence =
-    raw.coverage === 'full' ? clamp01(raw.confidence) : Math.min(clamp01(raw.confidence), 0.4);
-  const draft = (raw.answer ?? '').trim().slice(0, settings.maxChars);
-  const usedChunkIds = (raw.usedChunkIds ?? []).filter((id) => topChunkIds.includes(id));
-  const action = validateAction(raw.action, settings, meta);
+  const said = (raw.reply ?? '').trim().slice(0, settings.maxChars);
+  const found = (raw.found ?? '').trim().slice(0, settings.maxChars) || said;
+  const confidence = clamp01(raw.confidence);
+  // The mention is a rule, not a choice.
+  const withMods = said.includes(MODS) ? said : `${said} ${MODS}`.trim();
+  const withoutMods = said
+    .split(MODS)
+    .join('the moderators')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
+  if (raw.kind === 'inappropriate') {
+    const category = flagCategory(raw.flagCategory);
+    const note = said || 'The message looked inappropriate.';
+    await logEvent(guildId, 'flagged', { ...base, category, note });
+    return {
+      tier: 'flagged',
+      answered: false,
+      reason: 'flagged',
+      kind: 'inappropriate',
+      category,
+      note,
+      topChunkIds: [],
+    };
+  }
+
+  // Conversation claims nothing about the server: answered directly, no gate, no tag.
+  if (raw.kind === 'conversation') {
+    await logEvent(guildId, 'answered', { ...base, kind: 'conversation' });
+    return {
+      tier: 'answer',
+      answered: true,
+      kind: 'conversation',
+      answer: withoutMods,
+      claims: [],
+      confidence: 1,
+      usedChunkIds: [],
+      topChunkIds,
+    };
+  }
+
+  // Server: grade every claim. A grounded or partial claim must cite a
+  // retrieved chunk; without one it has nothing to stand on.
+  const claims: Claim[] = (raw.claims ?? []).map((c) => {
+    const chunkIds = (c.chunkIds ?? []).filter((id) => topChunkIds.includes(id));
+    let grounding: Grounding = isGrounding(c.grounding) ? c.grounding : 'none';
+    if ((grounding === 'grounded' || grounding === 'partial') && chunkIds.length === 0) {
+      grounding = 'none';
+    }
+    // "I don't have that" stands as a self claim only when the member asked
+    // what Sentry holds. Asked about the server, a missing fact is ungrounded.
+    if (grounding === 'self' && !raw.asksAboutKnowledge) grounding = 'none';
+    return { text: String(c.text ?? '').trim(), grounding, chunkIds };
+  });
+  const usedChunkIds = [...new Set(claims.flatMap((c) => c.chunkIds))];
 
   if (raw.refused) {
     const refusalReason = raw.refusalReason?.trim() || undefined;
@@ -126,33 +249,100 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
       ...base,
       reason: 'refused',
       refusalReason,
-      confidence,
       topChunkIds,
-      draft,
+      reply: withMods,
+      found,
     });
-    return { answered: false, reason: 'refused', draft, confidence, refusalReason, topChunkIds };
+    return {
+      tier: 'none',
+      answered: false,
+      reason: 'refused',
+      kind: 'server',
+      reply: withMods,
+      found,
+      claims,
+      refusalReason,
+      topChunkIds,
+    };
   }
 
-  if (confidence < settings.threshold) {
+  const weakest = weakestGrounding(claims);
+
+  if (weakest === 'none') {
     await logEvent(guildId, 'low_confidence', {
       ...base,
-      reason: 'low_confidence',
-      confidence,
+      reason: 'no_knowledge',
       topChunkIds,
-      draft,
+      reply: withMods,
+      found,
     });
-    return { answered: false, reason: 'low_confidence', draft, confidence, topChunkIds };
+    return {
+      tier: 'none',
+      answered: false,
+      reason: 'no_knowledge',
+      kind: 'server',
+      reply: withMods,
+      found,
+      claims,
+      topChunkIds,
+    };
   }
 
-  await logEvent(guildId, 'answered', { ...base, confidence, usedChunkIds, action });
-  return {
-    answered: true,
-    answer: draft,
+  // A hedged reading, or a grounded reply the model is not confident in under
+  // the guild's threshold: posted with the mention and kept pending.
+  const grounded = claims.some((c) => c.grounding === 'grounded');
+  if (weakest === 'partial' || (grounded && confidence < settings.threshold)) {
+    const capped = Math.min(confidence, 0.4);
+    await logEvent(guildId, 'low_confidence', {
+      ...base,
+      reason: 'partial',
+      confidence: capped,
+      topChunkIds,
+      usedChunkIds,
+      draft: found,
+    });
+    return {
+      tier: 'partial',
+      answered: false,
+      reason: 'partial',
+      kind: 'server',
+      reply: withMods,
+      draft: found,
+      claims,
+      confidence: capped,
+      usedChunkIds,
+      topChunkIds,
+    };
+  }
+
+  const action = validateAction(raw.action, settings, meta);
+  await logEvent(guildId, 'answered', {
+    ...base,
+    kind: 'server',
     confidence,
+    usedChunkIds,
+    action,
+  });
+  return {
+    tier: 'answer',
+    answered: true,
+    kind: 'server',
+    // Asked whether that is all Sentry knows, the moderators are brought in to fill the gap.
+    answer: raw.asksCompleteness ? withMods : said,
+    claims,
+    confidence: claims.length === 0 ? 1 : confidence,
     usedChunkIds,
     topChunkIds,
     ...(action ? { action } : {}),
   };
+}
+
+/** The weakest grounding present; with no claims, nothing about the server was said. */
+function weakestGrounding(claims: Claim[]): Grounding {
+  for (const g of ['none', 'partial', 'grounded', 'self'] as const) {
+    if (claims.some((c) => c.grounding === g)) return g;
+  }
+  return 'self';
 }
 
 // Settings and Discord metadata ------------------------------------------
@@ -174,6 +364,8 @@ async function loadSettings(guildId: string): Promise<Settings> {
     threshold: row.confidence_threshold ?? 0.55,
     allowedActions: (row.allowed_actions ?? []).filter(isActionType),
     selfServeRoleIds: row.self_serve_role_ids ?? [],
+    scope: row.scope === 'server_only' ? 'server_only' : 'open',
+    timezone: row.timezone ?? null,
   };
 }
 
@@ -203,30 +395,97 @@ function isActionType(value: string): value is ActionType {
   return (ACTION_TYPES as readonly string[]).includes(value);
 }
 
+function isGrounding(value: string): value is Grounding {
+  return (GROUNDINGS as readonly string[]).includes(value);
+}
+
+function flagCategory(value: string | null | undefined): FlagCategory {
+  return (FLAG_CATEGORIES as readonly string[]).includes(value ?? '')
+    ? (value as FlagCategory)
+    : 'harassment';
+}
+
+/** The time in the guild's zone, as "18:00 CET, Sun 7 Sep"; null when the zone is not valid. */
+function clockLine(timezone: string): string | null {
+  try {
+    const now = new Date();
+    const time = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZoneName: 'short',
+    }).format(now);
+    const day = new Intl.DateTimeFormat('en-GB', {
+      timeZone: timezone,
+      weekday: 'short',
+      day: 'numeric',
+      month: 'short',
+    }).format(now);
+    return `${time}, ${day}`;
+  } catch {
+    return null;
+  }
+}
+
 // Prompt and schema -------------------------------------------------------
 
 function systemPrompt(s: Settings, matches: Match[], meta: DiscordMeta | null): string {
+  const clock = s.timezone ? clockLine(s.timezone) : null;
   const lines: string[] = [
-    `You are ${s.botName}, the assistant for a Discord server. Members mention you with a question and you reply in the channel.`,
+    `You are ${s.botName}, the assistant for a Discord server. Members mention you and you reply in the channel, in character, in your own words every time. The messages before this one are the recent conversation; use them as context.`,
   ];
   if (s.persona) lines.push(s.persona);
   lines.push(
     s.language ? `Reply in ${s.language}.` : 'Reply in the language the member wrote in.',
     '',
+    'The one rule: converse naturally, and never state a fact about this server (dates, times, rules, names, prices, results, roles, who does what) that is not grounded in the knowledge below.',
+    '',
+    'Decide kind first:',
+    '- inappropriate: harassment, insults aimed at a person, slurs, sexual or NSFW content, doxxing (posting or asking for private details), scam or phishing links (free nitro, giveaways, login pages). Set flagCategory to one of harassment, slur, nsfw, doxxing, scam, and make reply one plain sentence for the moderators describing what was posted and why it was flagged. It is never shown to the member.',
+    '- conversation: the reply claims nothing about this server. Greetings, thanks, banter, jokes, questions about you as a bot, and general knowledge (a capital city, a definition, arithmetic) are all conversation. Answer directly and briefly, in character, with no mention of the moderators. There is no knowledge gate on conversation.',
+    '- server: the message is about this server, its schedule, rules, roles, channels, people or moderators; or your reply would state something about the server.',
+    '- Asking what you know, hold or have is always server, never conversation, whatever the subject. "What do you know about baguettes?" is server: you are being asked about your own holdings, and you answer from them.',
+    '',
+    s.scope === 'server_only'
+      ? 'Scope: server only. Do not answer general-knowledge questions; reply with a friendly one-line redirect to what you can help with here. That is still conversation.'
+      : 'Scope: open. General-knowledge questions are answered directly, as conversation.',
+    clock
+      ? `The server's timezone is ${s.timezone} and the time there now is ${clock}. Asked the time, give it. That is conversation.`
+      : 'No timezone is set for this server, so you do not know the time. Asked the time, ask which timezone they mean. That is conversation.',
+    '',
+    'For every message, before the reply, write found: one plain sentence stating exactly what the knowledge says that bears on it, naming the specifics (times, channels, rules), or stating that nothing in it relates and what the closest entries cover instead. Never "not sure about that case"; found is what you found.',
+    '',
+    'For a server message, draft the reply, then list every claim about the server in it under claims, each with its grounding:',
+    '- grounded: the knowledge states it outright, in words you could quote. Put the chunk ids in chunkIds. Say it plainly. An inference is never grounded, however safe it feels.',
+    `- self: only when the member asked what you know, hold or have. Then the answer is a true statement about your holdings ("that is the only match in what I have", "I have nothing on baguettes"), no chunk needed, said directly and never hedged. Set asksCompleteness true only when they ask whether that is all you know (only, all, everything, anything else); asking what you know about a subject is not that. Never use self for a server question you cannot answer: that claim is none, however you phrase it.`,
+    `- partial: the knowledge does not state it but implies it for this exact case. Anything you conclude from what a list does not contain is partial: a day, a slot or a case the knowledge never mentions (the schedule lists Tuesday, Thursday and Sunday, so a Saturday match is unlikely) is a reading, not a fact, no matter how clearly the list implies it. Put the chunks it rests on in chunkIds, hedge it in the reply so it reads as a reading and not a fact, and ask the moderators to confirm in the same message with the literal token ${MODS}.`,
+    `- none: the member asked about the server and nothing in the knowledge bears on it, even if the topic appears (check-in rules exist, but nothing about a teammate missing it; conduct rules exist, but nothing about substitutes or past results). "I don't have anything on that" is a claim of grounding none, not self: they asked about the server, not about you. Do not state it as fact and do not turn a mention of the topic into a reading; say naturally that you do not have this, and mention the moderators with the literal token ${MODS}. Never hedge on nothing.`,
+    `- A request aimed at the moderators ("ping the mods") is a server message: say you are bringing them in, and mention them with ${MODS}.`,
+    '- What you are doing right now ("bringing them in", "let me check") is not a fact about the server. Do not list it as a claim.',
+    '- When the member asks for a fact about the server and you cannot state it, that absence is itself the claim: list "I have nothing on X" with grounding none. Never return an empty claims list for a question that asked for a server fact.',
+    '- Only a server message that asks for no fact at all (a request to fetch the moderators) lists no claims.',
+    '',
+    'Examples of the voice, for phrasing only; never reuse them word for word, vary every time:',
+    `- partial: "I don't think there's a match Saturday, the schedule I have only lists Tuesday, Thursday and Sunday. ${MODS}, can you confirm?"`,
+    `- none: "I don't have anything on that yet. ${MODS}, can one of you take this?"`,
+    `- none: "That's not something I've been given. Pinging ${MODS} for you."`,
+    `- self: "In what I have, that's the only match: the finals bracket goes up Sunday at 18:00 CET. ${MODS}, is there more?"`,
+    '- self, asked what you know: "Nothing on baguettes, sorry. I have the server rules, the tournament schedule and the roles."',
+    `- none, asked a server question you cannot answer: "I've got nothing on substitutes. ${MODS}, can one of you take this?"`,
+    '- conversation: "Hey. Ask me anything about the server."',
+    '- conversation: "Paris."',
+    '',
     'Rules:',
-    '- Answer only from the knowledge below.',
-    '- First decide coverage. full: the knowledge answers the exact question asked. partial: it covers the topic but not the specific case asked about, such as an exception, an edge case, or a what-if. none: it is unrelated.',
-    '- Related is not answered. When coverage is partial or none, do not answer the nearby question instead. Say in one short line that you are not sure about that specific case, and set confidence below 0.3.',
-    '- Never invent dates, prices, names, or rules. If a detail is not in the knowledge, do not state it.',
-    `- Keep the answer under ${s.maxChars} characters. Plain sentences; no headings, and no bullet list unless the member asked for one.`,
-    '- confidence is 0 to 1: how completely the knowledge answers this exact question.',
-    '- usedChunkIds lists the ids of the knowledge entries the answer relies on.',
+    '- Never invent dates, prices, names, or rules. If a detail is not in the knowledge, it is not a fact.',
+    `- Keep the reply under ${s.maxChars} characters. Plain sentences; no headings, and no bullet list unless the member asked for one.`,
+    '- confidence is 0 to 1: how completely the knowledge supports the server claims in the reply. Conversation is 1.',
     s.forbidden.length > 0
-      ? `- Forbidden topics: ${s.forbidden.join('; ')}. If the question touches one, set refused to true, give a short refusalReason, and make answer a one-line handoff to the moderators.`
+      ? `- Forbidden topics: ${s.forbidden.join('; ')}. If the message touches one, set refused to true, give a short refusalReason, and make reply a one-line handoff to the moderators with ${MODS} in it.`
       : '- No topics are forbidden.',
     ...actionRules(s, meta),
     '',
-    'Knowledge:',
+    matches.length > 0 ? 'Knowledge:' : 'Knowledge: none was found for this message.',
     ...matches.map((m) => `[id: ${m.id}]\n${m.content}`),
   );
   return lines.join('\n');
@@ -235,7 +494,7 @@ function systemPrompt(s: Settings, matches: Match[], meta: DiscordMeta | null): 
 function actionRules(s: Settings, meta: DiscordMeta | null): string[] {
   if (s.allowedActions.length === 0) return ['- Do not propose any action; leave it out.'];
   const lines = [
-    `- You may propose at most one action, only when it clearly helps, and only of these types: ${s.allowedActions.join(', ')}. Otherwise leave action null.`,
+    `- You may propose at most one action, only when every claim is grounded or self, only when it clearly helps, and only of these types: ${s.allowedActions.join(', ')}. Otherwise leave action null.`,
   ];
   const needsChannel =
     s.allowedActions.includes('point_to_channel') || s.allowedActions.includes('open_thread');
@@ -259,19 +518,53 @@ function actionRules(s: Settings, meta: DiscordMeta | null): string[] {
 
 function responseSchema(allowed: ActionType[]): Schema {
   const properties: Record<string, Schema> = {
-    // First in propertyOrdering, so the model commits to coverage before writing.
-    coverage: {
+    // Ordered: kind, then what was found, then the reply, then its claims.
+    kind: { type: Type.STRING, enum: [...KINDS], description: 'Decide this first.' },
+    flagCategory: {
       type: Type.STRING,
-      enum: ['full', 'partial', 'none'],
-      description:
-        'Decide this first. full: the knowledge answers the exact question. partial: it covers the topic but not this specific case. none: unrelated.',
+      nullable: true,
+      enum: [...FLAG_CATEGORIES],
+      description: 'Only when kind is inappropriate.',
     },
-    answer: {
+    found: {
       type: Type.STRING,
-      description: 'The reply to send. A one-line handoff when refused or unsure.',
+      description:
+        'One sentence stating exactly what the knowledge says that bears on this message, or that nothing relates. Never a hedge.',
+    },
+    asksAboutKnowledge: {
+      type: Type.BOOLEAN,
+      nullable: true,
+      description:
+        'True when the member asks what you know, hold or have ("what do you know about X", "is that all you know", "do you have anything on Y"). False when they ask a question about the server itself.',
+    },
+    asksCompleteness: {
+      type: Type.BOOLEAN,
+      nullable: true,
+      description:
+        'True only when the member asks whether there is more beyond what you hold: "is that the only one", "is that all you know", "anything else?". False when they simply ask what you know about a subject: "what do you know about X" is False.',
+    },
+    reply: {
+      type: Type.STRING,
+      description:
+        'The message to send, in character. For inappropriate, one sentence for the moderators instead.',
+    },
+    claims: {
+      type: Type.ARRAY,
+      nullable: true,
+      description:
+        'Every claim about this server made in the reply, with its grounding. Empty for conversation.',
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          text: { type: Type.STRING },
+          grounding: { type: Type.STRING, enum: [...GROUNDINGS] },
+          chunkIds: { type: Type.ARRAY, nullable: true, items: { type: Type.STRING } },
+        },
+        required: ['text', 'grounding'],
+        propertyOrdering: ['text', 'grounding', 'chunkIds'],
+      },
     },
     confidence: { type: Type.NUMBER },
-    usedChunkIds: { type: Type.ARRAY, items: { type: Type.STRING } },
     refused: { type: Type.BOOLEAN },
     refusalReason: { type: Type.STRING, nullable: true },
   };
@@ -291,7 +584,7 @@ function responseSchema(allowed: ActionType[]): Schema {
   return {
     type: Type.OBJECT,
     properties,
-    required: ['coverage', 'answer', 'confidence', 'usedChunkIds', 'refused'],
+    required: ['kind', 'found', 'reply', 'confidence', 'refused'],
     propertyOrdering: Object.keys(properties),
   };
 }
@@ -336,7 +629,7 @@ function clamp01(value: unknown): number {
 
 async function logEvent(
   guildId: string,
-  type: 'answered' | 'low_confidence',
+  type: 'answered' | 'low_confidence' | 'flagged',
   payload: Record<string, Json | undefined>,
 ): Promise<void> {
   const { error } = await serviceClient()

@@ -1,5 +1,6 @@
 'use client';
 
+import { MODS } from '@sentrybot/core/tokens';
 import type { AnswerResult, HistoryTurn } from '@sentrybot/core';
 import { Button, Input, Panel, ThreadMessage } from '@sentrybot/ui';
 import { useEffect, useRef, useState } from 'react';
@@ -34,8 +35,9 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
     setDraft('');
     const history = turns.flatMap((t): HistoryTurn[] => {
       if (t.role === 'user') return [{ role: 'user' as const, text: t.text }];
-      if (t.result.answered) return [{ role: 'model' as const, text: t.result.answer }];
-      return [{ role: 'model' as const, text: 'Not sure about that one. Asking a moderator.' }];
+      if (t.result.tier === 'answer') return [{ role: 'model' as const, text: t.result.answer }];
+      if (t.result.tier === 'flagged') return [];
+      return [{ role: 'model' as const, text: mods(t.result.reply) }];
     });
     setTurns((all) => [...all, { id: Date.now(), role: 'user', text: q }]);
     setPending(true);
@@ -144,34 +146,54 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
   );
 }
 
-/** Sentry's turn: the answer with the green rule, or the card for what it would hand to a mod. */
+/** The mod mention as it would read in Discord. */
+function mods(text: string): string {
+  return text.split(MODS).join('@Mods');
+}
+
+/**
+ * Sentry's turn. A full answer gets the green rule. The other tiers get the
+ * card: what it would post in Discord, and what would happen next.
+ */
 function Reply({ result, botName }: { result: AnswerResult; botName: string }) {
-  if (result.answered) {
+  if (result.tier === 'answer') {
     return (
       <ThreadMessage role="sentry" name={botName} state="answered">
-        {result.answer}
+        {mods(result.answer)}
       </ThreadMessage>
     );
   }
-  const reason =
-    result.reason === 'no_knowledge'
-      ? 'Nothing in the knowledge covers this.'
-      : result.reason === 'refused'
-        ? `It touches a topic Sentry is told to leave to people${result.refusalReason ? `: ${result.refusalReason}` : '.'}`
-        : `Not confident enough: ${result.confidence.toFixed(2)}, under the threshold.`;
-  const draft = result.reason === 'no_knowledge' ? null : result.draft;
+  if (result.tier === 'partial') {
+    return (
+      <ThreadMessage role="sentry" name={botName} state="waiting">
+        {mods(result.reply)}
+      </ThreadMessage>
+    );
+  }
+  if (result.tier === 'flagged') {
+    return (
+      <div className="max-w-[80%]">
+        <Panel className="border-ink border-l-2 shadow-none">
+          <p className="text-ui-sm text-ink-soft">{botName}</p>
+          <p className="text-thread mt-1">In Discord, I would not reply to this in public.</p>
+          <p className="text-ui-sm text-ink-soft mt-3">
+            A quiet report goes to the mod channel: {result.note} ({result.category})
+          </p>
+        </Panel>
+      </div>
+    );
+  }
+  const next =
+    result.reason === 'refused'
+      ? `It touches a topic Sentry is told to leave to people${result.refusalReason ? `: ${result.refusalReason}` : '.'}`
+      : result.found;
   return (
     <div data-state="waiting" className="max-w-[80%]">
       <Panel className="border-amber border-l-2 shadow-none">
         <p className="text-ui-sm text-ink-soft">{botName}</p>
         <p className="text-thread mt-1">In Discord, this is where I&apos;d ask a mod.</p>
-        {draft && (
-          <p className="text-thread text-ink-soft mt-3">
-            <span className="text-ink">What it almost said: </span>
-            {draft}
-          </p>
-        )}
-        <p className="text-ui-sm text-ink-soft mt-3">{reason}</p>
+        <p className="text-thread text-ink-soft mt-3">{mods(result.reply)}</p>
+        <p className="text-ui-sm text-ink-soft mt-3">{next}</p>
       </Panel>
     </div>
   );

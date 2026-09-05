@@ -16,7 +16,14 @@ export type DocumentStatus = 'processing' | 'ready' | 'error';
 export type QuestionStatus = 'pending' | 'answered' | 'dismissed';
 export type AnsweredVia = 'discord' | 'dashboard';
 export type BotEventType =
-  'answered' | 'low_confidence' | 'mod_pinged' | 'approved' | 'action' | 'install' | 'uninstall';
+  | 'answered'
+  | 'low_confidence'
+  | 'mod_pinged'
+  | 'approved'
+  | 'action'
+  | 'install'
+  | 'uninstall'
+  | 'flagged';
 export type OnboardingMode = 'chat' | 'form';
 
 type GuildRow = {
@@ -53,6 +60,7 @@ type GuildSettingsRow = {
   forbidden_topics: string[];
   fallback_mode: FallbackMode;
   mod_role_id: string | null;
+  mod_channel_id: string | null;
   allowed_channel_ids: string[];
   indexed_channel_ids: string[];
   intro_channel_id: string | null;
@@ -61,6 +69,8 @@ type GuildSettingsRow = {
   confidence_threshold: number;
   allowed_actions: string[];
   self_serve_role_ids: string[];
+  scope: 'open' | 'server_only';
+  timezone: string | null;
   updated_at: string;
 };
 

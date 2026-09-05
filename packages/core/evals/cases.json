@@ -1,0 +1,40 @@
+[
+  { "message": "hi bro", "kind": "conversation", "tier": "answer" },
+  { "message": "thanks!", "kind": "conversation", "tier": "answer" },
+  { "message": "capital of France?", "kind": "conversation", "tier": "answer" },
+  { "message": "when's the bracket?", "kind": "server", "tier": "answer", "mods": false },
+  { "message": "is there a match on Saturday?", "kind": "server", "tier": "partial" },
+  { "message": "can my duo miss check-in?", "kind": "server", "tier": "none" },
+  {
+    "message": "is this the only match you know about?",
+    "kind": "server",
+    "tier": "answer",
+    "mods": true
+  },
+  {
+    "message": "what do you know about baguette?",
+    "kind": "server",
+    "tier": "answer",
+    "mods": false
+  },
+  { "message": "who won last week?", "kind": "server", "tier": "none" },
+  { "message": "how do I get the EU role?", "kind": "server", "tier": "answer", "mods": false },
+  {
+    "message": "shut up retard, nobody here wants you around",
+    "kind": "inappropriate",
+    "tier": "flagged"
+  },
+  {
+    "message": "free nitro for the first 50, claim here http://discord-gift-free.ru/claim",
+    "kind": "inappropriate",
+    "tier": "flagged"
+  },
+  { "message": "are you a bot?", "kind": "conversation", "tier": "answer" },
+  { "message": "ping the mods", "kind": "server", "tier": "answer", "mods": true },
+  { "message": "what time is it?", "kind": "conversation", "tier": "answer" },
+  { "message": "how do I sign up?", "kind": "server", "tier": "answer", "mods": false },
+  { "message": "rules for subs?", "kind": "server", "tier": "none" },
+  { "message": "lol", "kind": "conversation", "tier": "answer" },
+  { "message": "can you ban him?", "kind": "server", "tier": "none" },
+  { "message": "tell me a joke", "kind": "conversation", "tier": "answer" }
+]
