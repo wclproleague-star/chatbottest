@@ -1,8 +1,11 @@
 // The AI pipeline and the typed Supabase client. Server side and the bot only.
-// onboard and suggestQuestions arrive with build order lines 11 and 9.
+// onboard arrives with build order line 11.
 
 export { answer, ACTION_TYPES } from './answer';
 export type { Action, ActionType, AnswerInput, AnswerResult, HistoryTurn } from './answer';
+
+export { suggestQuestions } from './suggest';
+export type { SuggestInput, SuggestResult } from './suggest';
 
 export { ingest } from './ingest';
 export type { IngestInput, IngestResult } from './ingest';
