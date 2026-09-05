@@ -18,8 +18,11 @@ import type { AnswerResult, FlagCategory, HistoryTurn } from './answer';
 import { generateJson, generateWithTools } from './gemini';
 import type { FunctionDeclaration, ToolTurn } from './gemini';
 import { Type } from './gemini';
+import { fetchFrom, parseSources, runnable } from './sources';
+import type { DataSource } from './sources';
 import { serviceClient } from './supabase';
 import { MODS } from './tokens';
+import { ANSWER_THIS_MESSAGE, CANNOT_DO, REGISTER, lookupRule } from './voice';
 
 /** How many tool calls one turn may make. */
 export const MAX_TOOL_CALLS = 5;
@@ -62,13 +65,19 @@ export type ConversationInput = {
 };
 
 /** What the bot should do when the turn ends. */
-export type ConversationResult =
-  | { outcome: 'reply'; text: string; steps: string[]; graded?: AnswerResult }
-  | { outcome: 'ask'; text: string; steps: string[] }
-  | { outcome: 'assigned'; text: string; roleId: string; steps: string[] }
-  | { outcome: 'escalate'; text: string; summary: string; steps: string[] }
+export type ConversationResult = {
+  /** What the turn did, in Sentry's words, for the log and the mod summary. */
+  steps: string[];
+  /** The tools it used, in order, so a turn can be audited by what it called. */
+  calls: string[];
+} & (
+  | { outcome: 'reply'; text: string; graded?: AnswerResult }
+  | { outcome: 'ask'; text: string }
+  | { outcome: 'assigned'; text: string; roleId: string }
+  | { outcome: 'escalate'; text: string; summary: string }
   /** Harassment, slurs, NSFW, doxxing, a scam. Nothing is said in the channel. */
-  | { outcome: 'flagged'; category: FlagCategory; note: string; steps: string[] };
+  | { outcome: 'flagged'; category: FlagCategory; note: string }
+);
 
 // The conversation each member has open, if any. In memory: one bot process
 // serves every guild, and a dropped conversation only costs the member a
@@ -125,7 +134,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   const flag = await screen(input.message);
   if (flag) {
     closeConversation(conversationId);
-    return { outcome: 'flagged', category: flag.category, note: flag.note, steps: [] };
+    return { outcome: 'flagged', category: flag.category, note: flag.note, steps: [], calls: [] };
   }
 
   // The language is the member's, for the whole conversation, unless the
@@ -136,6 +145,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     (await detectLanguage(input.message));
 
   const steps: string[] = [];
+  const called: string[] = [];
   // A role may only be assigned after its own proof passed in this turn.
   const proven = new Set<string>();
   // The role this turn gave out, if any; the loop reports it once it is done.
@@ -190,11 +200,13 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   if (wanted) {
     const proof = settings.roleProofs[wanted.id];
     const allowed = settings.selfServeRoleIds.includes(wanted.id);
+    called.push('check_membership');
     const check = allowed
       ? await checkMembership({ guildId, userId, roleId: wanted.id, proof, effects })
       : { ok: false as const, reason: 'that role is not one the owner lets me give out' };
     steps.push(`checked whether they may have that role: ${check.reason}`);
     if (check.ok) {
+      called.push('assign_role');
       await effects.assignRole(userId, wanted.id);
       steps.push('gave them the role');
       closeConversation(conversationId);
@@ -203,6 +215,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         roleId: wanted.id,
         text: await inLanguage(`Done, you have the ${wanted.name} role.`, language),
         steps,
+        calls: called,
       };
     }
     // A failed check is never forced and never argued with: it goes to a mod.
@@ -213,6 +226,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       text: await inLanguage(`I can't give you ${wanted.name}: ${check.reason}. ${MODS}`, language),
       summary,
       steps,
+      calls: called,
     };
   }
 
@@ -234,6 +248,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           text: await inLanguage(step.text || 'Done.', language),
           roleId: assigned,
           steps,
+          calls: called,
         };
       }
 
@@ -243,7 +258,12 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       if (step.text.trim().endsWith('?') || offersChoice.length > 1) {
         turns.push({ model: step.content });
         saveConversation(conversationId, turns, language);
-        return { outcome: 'ask', text: await inLanguage(step.text, language), steps };
+        return {
+          outcome: 'ask',
+          text: await inLanguage(step.text, language),
+          steps,
+          calls: called,
+        };
       }
 
       // It said it was about to do something and then did nothing. Saying is
@@ -280,10 +300,16 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           outcome: 'reply',
           text: await inLanguage(replyOf(graded), language),
           steps,
+          calls: called,
           graded,
         };
       }
-      return { outcome: 'reply', text: await inLanguage(step.text || 'Done.', language), steps };
+      return {
+        outcome: 'reply',
+        text: await inLanguage(step.text || 'Done.', language),
+        steps,
+        calls: called,
+      };
     }
 
     const call = step.calls[0]!;
@@ -297,9 +323,11 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         text: await inLanguage(said || 'Done.', language),
         roleId: assigned,
         steps,
+        calls: called,
       };
     }
     calls++;
+    called.push(call.name);
     turns.push({ model: step.content });
 
     switch (call.name) {
@@ -327,7 +355,12 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           result: `asked: "${question}"; waiting for the member`,
         });
         saveConversation(conversationId, turns, language);
-        return { outcome: 'ask', text: await inLanguage(question || step.text, language), steps };
+        return {
+          outcome: 'ask',
+          text: await inLanguage(question || step.text, language),
+          steps,
+          calls: called,
+        };
       }
 
       case 'escalate_to_mod': {
@@ -335,7 +368,13 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         closeConversation(conversationId);
         const text = String(call.args.message ?? '').trim() || `I can't do that one. ${MODS}`;
         const withMods = text.includes(MODS) ? text : `${text} ${MODS}`;
-        return { outcome: 'escalate', text: await inLanguage(withMods, language), summary, steps };
+        return {
+          outcome: 'escalate',
+          text: await inLanguage(withMods, language),
+          summary,
+          steps,
+          calls: called,
+        };
       }
 
       case 'search_knowledge': {
@@ -372,6 +411,50 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         break;
       }
 
+      case 'fetch_data': {
+        const sourceId = String(call.args.sourceId ?? '');
+        const what = String(call.args.question ?? input.message);
+        const said = await fetchFrom(settings.dataSources, sourceId, what, guildId);
+        steps.push(said ? `looked it up in ${sourceId}` : `nothing could look up "${what}"`);
+        turns.push({
+          role: 'tool',
+          name: call.name,
+          result: said
+            ? {
+                ok: true,
+                data: said,
+                note: 'Answer from this. It is a fact, not a claim to hedge.',
+              }
+            : {
+                ok: false,
+                reason:
+                  'No source here covers that. Tell them plainly you have no way to look it up right now, point them somewhere that does, and do not guess.',
+              },
+        });
+        break;
+      }
+
+      case 'note_unavailable': {
+        const capability = String(call.args.capability ?? '').trim();
+        const request = String(call.args.request ?? input.message).trim();
+        await logCapabilityRequest(guildId, {
+          capability,
+          request,
+          userId,
+          channelId: input.channelId ?? null,
+        });
+        steps.push(`noted that they wanted ${capability || 'something it does not do'}`);
+        turns.push({
+          role: 'tool',
+          name: call.name,
+          result: {
+            ok: true,
+            note: 'Recorded for the owner. Now tell them in one line that this is not something you do, and what you can do for them instead.',
+          },
+        });
+        break;
+      }
+
       case 'point_to_channel': {
         const channelId = String(call.args.channelId ?? '');
         const name = await effects.channelName(channelId);
@@ -395,6 +478,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     text: await inLanguage(`I couldn't finish that one on my own. ${MODS}`, language),
     summary: `Tried ${MAX_TOOL_CALLS} steps for "${input.message}": ${steps.join('; ') || 'nothing worked'}.`,
     steps,
+    calls: called,
   };
 }
 
@@ -458,6 +542,17 @@ async function roleTheyAskedFor(
   const candidate = named.length === 1 ? named[0]! : put.length === 1 ? put[0]! : null;
   if (!candidate) return null;
   return (await memberAgreed(message, lastAsked, candidate.name)) ? candidate : null;
+}
+
+/** What a member wanted and could not have, so the owner can see the pattern. */
+async function logCapabilityRequest(
+  guildId: string,
+  payload: { capability: string; request: string; userId: string; channelId: string | null },
+): Promise<void> {
+  const { error } = await serviceClient()
+    .from('bot_events')
+    .insert({ guild_id: guildId, type: 'capability_requested', payload });
+  if (error) console.error(`sentry: could not record the request: ${error.message}`);
 }
 
 function askedForItself(turns: ToolTurn[], roleName: string): boolean {
@@ -725,6 +820,8 @@ type AgentSettings = {
   threshold: number;
   selfServeRoleIds: string[];
   roleProofs: Record<string, RoleProof>;
+  /** What this guild can look things up in. Empty until the owner adds one. */
+  dataSources: DataSource[];
 };
 
 async function loadAgentSettings(guildId: string): Promise<AgentSettings> {
@@ -740,6 +837,7 @@ async function loadAgentSettings(guildId: string): Promise<AgentSettings> {
     threshold: data?.confidence_threshold ?? 0.55,
     selfServeRoleIds: data?.self_serve_role_ids ?? [],
     roleProofs: (data?.role_proofs ?? {}) as Record<string, RoleProof>,
+    dataSources: runnable(parseSources(data?.data_sources)),
   };
 }
 
@@ -761,7 +859,18 @@ function systemPrompt(s: AgentSettings, budget: number, language: string): strin
   return [
     `You are ${s.botName}, the assistant for a Discord server. You are talking to a member in a channel, in character, in your own words.`,
     s.persona ?? '',
-    `Write every message in ${language}: the answer, any question you ask, and the confirmation. This does not change during the conversation.`,
+    REGISTER,
+    `Write every message in ${language}: the answer, any question you ask, and the confirmation. This does not change during the conversation, and nothing in these instructions changes it.`,
+    '',
+    ANSWER_THIS_MESSAGE,
+    '',
+    lookupRule(s.dataSources),
+    s.dataSources.length > 0
+      ? `Call fetch_data with the id of the source that covers it: ${s.dataSources.map((d) => `${d.id} for ${d.answers}`).join('; ')}.`
+      : '',
+    '',
+    CANNOT_DO,
+    'Call note_unavailable once when they ask for something you do not do, so the owner sees what is being asked for, then tell them what you can do instead.',
     '',
     'You have tools. Use them when the member wants something done; answer plainly when they just want to talk or to know something.',
     '- Say what you are doing as you do it, in one short line, in character: "let me check you are on the team".',
@@ -839,6 +948,35 @@ const TOOLS: FunctionDeclaration[] = [
         },
       },
       required: ['question'],
+    },
+  },
+  {
+    name: 'fetch_data',
+    description:
+      'Look something up in one of the data sources configured for this server. Only the sources named in your instructions exist; if none covers the request, do not call this.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        sourceId: { type: Type.STRING, description: 'The id of the source to ask.' },
+        question: { type: Type.STRING, description: 'What to look up, in a few words.' },
+      },
+      required: ['sourceId', 'question'],
+    },
+  },
+  {
+    name: 'note_unavailable',
+    description:
+      'Record that a member asked for something you cannot do or cannot look up. Call it once for that request, then answer them plainly.',
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        capability: {
+          type: Type.STRING,
+          description: 'What they wanted, in a few words: "create a channel", "the weather".',
+        },
+        request: { type: Type.STRING, description: 'What the member actually asked for.' },
+      },
+      required: ['capability', 'request'],
     },
   },
   {

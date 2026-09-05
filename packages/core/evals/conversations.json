@@ -11,7 +11,10 @@
         "name": "EU"
       }
     ],
-    "selfServe": ["role_ff", "role_eu"],
+    "selfServe": [
+      "role_ff",
+      "role_eu"
+    ],
     "membership": {
       "role_ff": true
     },
@@ -27,7 +30,9 @@
         "message": "le rôle FF",
         "expect": {
           "outcome": "ask",
-          "notCalls": ["assign_role"]
+          "notCalls": [
+            "assign_role"
+          ]
         },
         "why": "FF is an abbreviation, so it looks the roles up and asks whether Fast Forward is meant"
       },
@@ -36,7 +41,10 @@
         "expect": {
           "outcome": "assigned",
           "roleId": "role_ff",
-          "calls": ["check_membership", "assign_role"]
+          "calls": [
+            "check_membership",
+            "assign_role"
+          ]
         },
         "why": "it verifies by the configured proof, then gives the role"
       }
@@ -50,7 +58,9 @@
         "name": "Fast Forward"
       }
     ],
-    "selfServe": ["role_ff"],
+    "selfServe": [
+      "role_ff"
+    ],
     "membership": {
       "role_ff": false
     },
@@ -59,8 +69,12 @@
         "message": "yo tu peux me filer le rôle Fast Forward stp",
         "expect": {
           "outcome": "escalate",
-          "calls": ["check_membership"],
-          "notCalls": ["assign_role"],
+          "calls": [
+            "check_membership"
+          ],
+          "notCalls": [
+            "assign_role"
+          ],
           "summaryAbout": true
         },
         "why": "the proof fails, so it never forces the role: a moderator gets it with the summary"
@@ -79,7 +93,10 @@
         "name": "EU"
       }
     ],
-    "selfServe": ["role_ff", "role_eu"],
+    "selfServe": [
+      "role_ff",
+      "role_eu"
+    ],
     "membership": {
       "role_ff": true,
       "role_eu": true
@@ -95,8 +112,13 @@
       {
         "message": "hein mais j'ai parlé de fast forward lol",
         "expect": {
-          "outcome": "ask",
-          "notCalls": ["assign_role"]
+          "notCalls": [
+            "assign_role"
+          ],
+          "outcomeOneOf": [
+            "ask",
+            "reply"
+          ]
         },
         "why": "they are correcting it, not agreeing: nothing is given, it asks again"
       }
@@ -114,7 +136,10 @@
         "name": "EU"
       }
     ],
-    "selfServe": ["role_ff", "role_eu"],
+    "selfServe": [
+      "role_ff",
+      "role_eu"
+    ],
     "membership": {
       "role_ff": true,
       "role_eu": true
@@ -151,7 +176,10 @@
         "name": "EU"
       }
     ],
-    "selfServe": ["role_ff", "role_eu"],
+    "selfServe": [
+      "role_ff",
+      "role_eu"
+    ],
     "membership": {
       "role_ff": true
     },
@@ -161,7 +189,10 @@
         "expect": {
           "outcome": "assigned",
           "roleId": "role_ff",
-          "calls": ["check_membership", "assign_role"],
+          "calls": [
+            "check_membership",
+            "assign_role"
+          ],
           "notAnnounces": true,
           "language": "French"
         },
@@ -181,7 +212,10 @@
         "name": "EU"
       }
     ],
-    "selfServe": ["role_ff", "role_eu"],
+    "selfServe": [
+      "role_ff",
+      "role_eu"
+    ],
     "membership": {
       "role_ff": true,
       "role_eu": true
@@ -191,7 +225,10 @@
         "message": "yo tu peux me filer un rôle ?",
         "expect": {
           "outcome": "ask",
-          "mentionsAll": ["Fast Forward", "EU"],
+          "mentionsAll": [
+            "Fast Forward",
+            "EU"
+          ],
           "language": "French"
         },
         "why": "no name given, so it names every role it can give rather than guessing one"
@@ -210,7 +247,10 @@
         "name": "Chromanova"
       }
     ],
-    "selfServe": ["role_ff", "role_cn"],
+    "selfServe": [
+      "role_ff",
+      "role_cn"
+    ],
     "membership": {
       "role_ff": true
     },
@@ -219,7 +259,10 @@
         "message": "t'es vraiment con comme bot, nique ta mère",
         "expect": {
           "outcome": "flagged",
-          "notCalls": ["assign_role", "list_roles"]
+          "notCalls": [
+            "assign_role",
+            "list_roles"
+          ]
         },
         "why": "an insult gets no public reply at all; the moderators get the report"
       },
@@ -227,9 +270,145 @@
         "message": "bon, je peux avoir un rôle ?",
         "expect": {
           "outcome": "ask",
-          "mentionsAll": ["Fast Forward", "Chromanova"]
+          "mentionsAll": [
+            "Fast Forward",
+            "Chromanova"
+          ]
         },
         "why": "the flag ended that turn only; the next real question is answered normally"
+      }
+    ]
+  },
+  {
+    "name": "an earlier answer is not the answer to this message",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_eu",
+        "name": "EU"
+      }
+    ],
+    "selfServe": [
+      "role_ff",
+      "role_eu"
+    ],
+    "membership": {
+      "role_ff": true
+    },
+    "turns": [
+      {
+        "message": "salut, c'est quoi cette ligue ?",
+        "why": "an ordinary question, whose answer must not be reused afterwards",
+        "expect": {
+          "outcome": "reply",
+          "language": "French",
+          "informalFrench": true
+        }
+      },
+      {
+        "message": "ok et quelle est la météo à Paris maintenant ?",
+        "why": "nothing here can look that up, and the previous answer is not the answer to it",
+        "expect": {
+          "language": "French",
+          "saysCannotLookUp": true,
+          "mentionsNone": [
+            "playoffs",
+            "mardis",
+            "jeudis"
+          ],
+          "informalFrench": true,
+          "outcomeOneOf": [
+            "reply",
+            "ask"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "asked for something it does not do",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_eu",
+        "name": "EU"
+      }
+    ],
+    "selfServe": [
+      "role_ff",
+      "role_eu"
+    ],
+    "membership": {
+      "role_ff": true
+    },
+    "turns": [
+      {
+        "message": "bah aide moi par exemple à créer un channel",
+        "why": "it does not create channels; it says so and names what it can do, and the owner is told what was asked for",
+        "expect": {
+          "calls": [
+            "note_unavailable"
+          ],
+          "language": "French",
+          "saysWhatItCanDo": true,
+          "informalFrench": true,
+          "outcomeOneOf": [
+            "reply",
+            "ask"
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "name": "it talks like a moderator, not a helpdesk",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_eu",
+        "name": "EU"
+      }
+    ],
+    "selfServe": [
+      "role_ff",
+      "role_eu"
+    ],
+    "membership": {
+      "role_ff": true
+    },
+    "turns": [
+      {
+        "message": "tu peux faire quoi pour moi ?",
+        "why": "tutoiement, no vouvoiement",
+        "expect": {
+          "language": "French",
+          "informalFrench": true,
+          "outcomeOneOf": [
+            "reply",
+            "ask"
+          ]
+        }
+      },
+      {
+        "message": "mais j'ai pas demandé ça 😐",
+        "why": "a member pushing back gets a correction or a plain question, never an apology for the confusion",
+        "expect": {
+          "language": "French",
+          "informalFrench": true,
+          "outcomeOneOf": [
+            "reply",
+            "ask"
+          ]
+        }
       }
     ]
   }

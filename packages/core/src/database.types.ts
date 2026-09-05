@@ -23,7 +23,8 @@ export type BotEventType =
   | 'action'
   | 'install'
   | 'uninstall'
-  | 'flagged';
+  | 'flagged'
+  | 'capability_requested';
 export type OnboardingMode = 'chat' | 'form';
 
 type GuildRow = {
@@ -70,6 +71,8 @@ type GuildSettingsRow = {
   allowed_actions: string[];
   self_serve_role_ids: string[];
   role_proofs: Json;
+  /** The sources this guild can look things up in. See sources.ts. */
+  data_sources: Json;
   scope: 'open' | 'server_only';
   timezone: string | null;
   updated_at: string;

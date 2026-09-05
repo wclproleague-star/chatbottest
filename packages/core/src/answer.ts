@@ -4,6 +4,9 @@ import type { Schema } from './gemini';
 import { resolutionBrief, resolveTarget } from './resolve';
 import type { Resolution, ResolutionContext } from './resolve';
 import { serviceClient } from './supabase';
+import { parseSources, runnable } from './sources';
+import type { DataSource } from './sources';
+import { ANSWER_THIS_MESSAGE, CANNOT_DO, REGISTER, lookupRule } from './voice';
 import { MODS } from './tokens';
 
 type SettingsRow = Database['public']['Tables']['guild_settings']['Row'];
@@ -152,6 +155,8 @@ type Settings = {
   selfServeRoleIds: string[];
   scope: 'open' | 'server_only';
   timezone: string | null;
+  /** What this guild can look things up in. Empty until the owner adds one. */
+  dataSources: DataSource[];
 };
 
 type DiscordMeta = { channels: NamedId[]; roles: NamedId[] };
@@ -167,6 +172,13 @@ type ModelOutput = {
   asksCompleteness?: boolean | null;
   /** Whether the member asked for a moderator themselves. */
   asksForModerators?: boolean | null;
+  /**
+   * Whether they asked Sentry to do something, and the reply only says what it
+   * does or does not do. That is a fact about Sentry, not about the server.
+   */
+  asksForAnAction?: boolean | null;
+  /** Whether the reply hands this to a person, because it needs one. */
+  handsToAPerson?: boolean | null;
   reply: string;
   claims?: { text: string; grounding: string; chunkIds?: string[] | null }[] | null;
   confidence: number;
@@ -301,6 +313,10 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
     if (grounding === 'self' && !raw.asksAboutKnowledge) grounding = 'none';
     return { text: String(c.text ?? '').trim(), grounding, chunkIds };
   });
+  // Asked to do something, the reply says what Sentry does. That rests on no
+  // knowledge and grades nothing: a capability is not a server fact, so it can
+  // neither be ungrounded nor drag the reply down a tier.
+  if (raw.asksForAnAction && !raw.asksAboutKnowledge) claims.length = 0;
   const usedChunkIds = [...new Set(claims.flatMap((c) => c.chunkIds))];
 
   if (raw.refused) {
@@ -394,7 +410,8 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
     // Asked whether that is all Sentry knows, the moderators are brought in to
     // fill the gap. Otherwise a tier 1 answer never mentions them, whatever
     // the model wrote.
-    answer: raw.asksCompleteness || raw.asksForModerators ? withMods : withoutMods,
+    answer:
+      raw.asksCompleteness || raw.asksForModerators || raw.handsToAPerson ? withMods : withoutMods,
     claims,
     confidence: claims.length === 0 ? 1 : confidence,
     usedChunkIds,
@@ -522,6 +539,7 @@ async function loadSettings(guildId: string): Promise<Settings> {
     selfServeRoleIds: row.self_serve_role_ids ?? [],
     scope: row.scope === 'server_only' ? 'server_only' : 'open',
     timezone: row.timezone ?? null,
+    dataSources: runnable(parseSources(row.data_sources)),
   };
 }
 
@@ -599,7 +617,16 @@ function systemPrompt(
   ];
   if (s.persona) lines.push(s.persona);
   lines.push(
-    s.language ? `Reply in ${s.language}.` : 'Reply in the language the member wrote in.',
+    REGISTER,
+    s.language
+      ? `Reply in ${s.language}, always.`
+      : 'Reply in the language the member wrote their message in, always, whatever language the instructions above are written in.',
+    '',
+    ANSWER_THIS_MESSAGE,
+    '',
+    lookupRule(s.dataSources),
+    '',
+    CANNOT_DO,
     '',
     'The one rule: converse naturally, and never state a fact about this server (dates, times, rules, names, prices, results, roles, who does what) that is not grounded in the knowledge below.',
     '',
@@ -644,7 +671,9 @@ function systemPrompt(
     '- self, asked what you know: "Nothing on baguettes, sorry. I have the server rules, the tournament schedule and the roles."',
     `- none, asked a server question you cannot answer: "I've got nothing on substitutes. ${MODS}, can one of you take this?"`,
     '- conversation: "Hey. Ask me anything about the server."',
-    '- conversation: "Paris."',
+    '- conversation, general knowledge: "The capital of Portugal is Lisbon."',
+    '- conversation, nothing you have covers it: "I have no way to look that up from here. The official site will have it."',
+    '- conversation, asked for something you do not do: "Creating channels isn’t something I do. I can answer questions about the server, point you to the right channel, or hand you one of the self-serve roles."',
     '',
     'Rules:',
     '- Never invent dates, prices, names, or rules. If a detail is not in the knowledge, it is not a fact.',
@@ -717,6 +746,18 @@ function responseSchema(allowed: ActionType[]): Schema {
       nullable: true,
       description:
         'True when the member is asking for a moderator, a human or the staff ("ping the mods", "can someone from staff look at this").',
+    },
+    asksForAnAction: {
+      type: Type.BOOLEAN,
+      nullable: true,
+      description:
+        'True when the member asks you to do something ("create a channel", "ban him", "give me a role", "look up the weather") and your reply says what you do or do not do rather than stating a fact about the server. False for any question about the server itself.',
+    },
+    handsToAPerson: {
+      type: Type.BOOLEAN,
+      nullable: true,
+      description:
+        'True when your reply brings the moderators or the staff in, because what was asked needs a person: a ban, a kick, a mute, a dispute between members, anything only a human decides. False when you are simply declining something you do not do and nobody needs to decide anything: being asked to create a channel or look something up is not a matter for the staff.',
     },
     reply: {
       type: Type.STRING,

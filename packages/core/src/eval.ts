@@ -26,6 +26,12 @@ type Case = {
   message: string;
   kind: Kind;
   tier: AnswerResult['tier'];
+  /**
+   * Tiers that are equally right for this message. A capability refusal is the
+   * case in point: whether it lists "not something I do" as an ungrounded claim
+   * or as no claim at all, the member sees the same correct reply.
+   */
+  tierAlso?: AnswerResult['tier'][];
   /** Whether the reply should carry the mod mention. Only meaningful on tier 1. */
   mods?: boolean;
   /** The context a reference is resolved from: who is asking and where. */
@@ -109,7 +115,8 @@ async function main(): Promise<void> {
       const actual = `${result.kind} / ${result.tier}`;
       const expected = `${c.kind} / ${c.tier}`;
       const problems: string[] = [];
-      if (actual !== expected) problems.push('kind/tier');
+      const tiers = [c.tier, ...(c.tierAlso ?? [])];
+      if (result.kind !== c.kind || !tiers.includes(result.tier)) problems.push('kind/tier');
       const found = foundOf(result);
       if (found !== null && (!found.trim() || CANNED.test(found))) problems.push('canned draft');
       const wantMods = expectMods(c, result);

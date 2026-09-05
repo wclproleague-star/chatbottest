@@ -26,7 +26,9 @@ type Turn = {
   message: string;
   why: string;
   expect: {
-    outcome: ConversationResult['outcome'];
+    outcome?: ConversationResult['outcome'];
+    /** For a turn that may legitimately end more than one way. */
+    outcomeOneOf?: ConversationResult['outcome'][];
     roleId?: string;
     calls?: string[];
     notCalls?: string[];
@@ -38,6 +40,14 @@ type Turn = {
     mentionsAll?: string[];
     /** The reply must report what happened, never announce what is coming. */
     notAnnounces?: boolean;
+    /** Words the reply must not contain, such as an earlier answer's subject. */
+    mentionsNone?: string[];
+    /** It must say plainly that it cannot look this up, rather than guess. */
+    saysCannotLookUp?: boolean;
+    /** A refusal must say what it can do instead, not stop at "I cannot". */
+    saysWhatItCanDo?: boolean;
+    /** French must be tutoiement, with no helpdesk apology. */
+    informalFrench?: boolean;
   };
 };
 type Script = {
@@ -76,34 +86,59 @@ function fakeEffects(script: Script, trace: Trace): Effects {
   };
 }
 
-/** What language a reply is in, and whether it announces rather than reports. */
-async function judge(text: string): Promise<{ language: string; announces: boolean }> {
-  if (!text.trim()) return { language: 'English', announces: false };
+/** Everything the scripts assert about the wording of one reply. */
+type Judged = {
+  language: string;
+  announces: boolean;
+  cannotLookUp: boolean;
+  saysWhatItCanDo: boolean;
+  formal: boolean;
+};
+
+async function judge(text: string): Promise<Judged> {
+  const fallback: Judged = {
+    language: 'English',
+    announces: false,
+    cannotLookUp: false,
+    saysWhatItCanDo: false,
+    formal: false,
+  };
+  if (!text.trim()) return fallback;
   try {
-    return await generateJson<{ language: string; announces: boolean }>({
+    return await generateJson<Judged>({
       system: [
-        'Two things about this message.',
+        'Five things about this message from a Discord bot.',
         'language: the language it is written in, in English, one word.',
-        'announces: true when it says the writer is about to do something ("let me assign you the role", "je vais te donner le rôle"), false when it reports something done or states a fact.',
+        'announces: true when it says the writer is about to do something ("let me assign you the role"), false when it reports something done or states a fact.',
+        'cannotLookUp: true when it says plainly that it has no way to look this up or has no live data, rather than answering with a value.',
+        'saysWhatItCanDo: true when it names something concrete it can do instead, not merely refusing.',
+        'formal: true when French uses vouvoiement, or when it apologises for a misunderstanding ("désolé pour la confusion") or closes like a helpdesk. False for plain tutoiement, and false for any message not in French.',
       ].join(' '),
       messages: [{ role: 'user', text }],
       schema: {
         type: Type.OBJECT,
-        properties: { language: { type: Type.STRING }, announces: { type: Type.BOOLEAN } },
-        required: ['language', 'announces'],
-        propertyOrdering: ['language', 'announces'],
+        properties: {
+          language: { type: Type.STRING },
+          announces: { type: Type.BOOLEAN },
+          cannotLookUp: { type: Type.BOOLEAN },
+          saysWhatItCanDo: { type: Type.BOOLEAN },
+          formal: { type: Type.BOOLEAN },
+        },
+        required: ['language', 'announces', 'cannotLookUp', 'saysWhatItCanDo', 'formal'],
+        propertyOrdering: ['language', 'announces', 'cannotLookUp', 'saysWhatItCanDo', 'formal'],
       },
       temperature: 0,
     });
   } catch {
-    return { language: 'English', announces: false };
+    return fallback;
   }
 }
 
 function problems(turn: Turn, result: ConversationResult, trace: Trace): string[] {
   const out: string[] = [];
-  if (result.outcome !== turn.expect.outcome) {
-    out.push(`outcome ${result.outcome}, expected ${turn.expect.outcome}`);
+  const allowed = turn.expect.outcomeOneOf ?? (turn.expect.outcome ? [turn.expect.outcome] : []);
+  if (allowed.length > 0 && !allowed.includes(result.outcome)) {
+    out.push(`outcome ${result.outcome}, expected ${allowed.join(' or ')}`);
   }
   if (
     turn.expect.roleId &&
@@ -111,11 +146,15 @@ function problems(turn: Turn, result: ConversationResult, trace: Trace): string[
   ) {
     out.push(`did not assign ${turn.expect.roleId}`);
   }
+  // Reaching for a tool and getting it done are different things. calls asks
+  // what the turn tried, so it counts refused attempts; notCalls asks what
+  // must not happen to the member, so it counts only what Discord actually did.
+  const tried = [...trace.calls, ...result.calls];
   for (const call of turn.expect.calls ?? []) {
-    if (!trace.calls.includes(call)) out.push(`never called ${call}`);
+    if (!tried.includes(call)) out.push(`never called ${call}`);
   }
   for (const call of turn.expect.notCalls ?? []) {
-    if (trace.calls.includes(call)) out.push(`called ${call}, which it must not`);
+    if (trace.calls.includes(call)) out.push(`${call} actually happened, and must not`);
   }
   if (
     turn.expect.summaryAbout &&
@@ -155,8 +194,23 @@ async function main(): Promise<void> {
         const found = problems(turn, result, trace);
         const text = 'text' in result ? result.text : '';
         const wants = turn.expect;
-        if (wants.language || wants.notAnnounces) {
+        if (
+          wants.language ||
+          wants.notAnnounces ||
+          wants.saysCannotLookUp ||
+          wants.saysWhatItCanDo ||
+          wants.informalFrench
+        ) {
           const seen = await judge(text);
+          if (wants.saysCannotLookUp && !seen.cannotLookUp) {
+            found.push('did not say plainly that it cannot look this up');
+          }
+          if (wants.saysWhatItCanDo && !seen.saysWhatItCanDo) {
+            found.push('refused without saying what it can do instead');
+          }
+          if (wants.informalFrench && seen.formal) {
+            found.push('vouvoiement or a helpdesk apology, not one of the moderators talking');
+          }
           if (
             wants.language &&
             !seen.language.toLowerCase().includes(wants.language.toLowerCase())
@@ -165,6 +219,11 @@ async function main(): Promise<void> {
           }
           if (wants.notAnnounces && seen.announces) {
             found.push('announced an action instead of reporting one');
+          }
+        }
+        for (const word of wants.mentionsNone ?? []) {
+          if (new RegExp(`\\b${word}\\b`, 'iu').test(text)) {
+            found.push(`reused "${word}" from an earlier answer`);
           }
         }
         for (const name of wants.mentionsAll ?? []) {
