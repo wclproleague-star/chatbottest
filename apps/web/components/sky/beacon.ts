@@ -72,10 +72,15 @@ const BEACON_PARALLAX_PX = 4;
 /** The slit's colour change, ms. */
 const LIGHT_MS = 240;
 
-/** How bright the strip is in linear light; the bloom threshold sits just under it. */
-const STRIP_INTENSITY = 2;
-const BLOOM_THRESHOLD = 1.2;
-const BLOOM_STRENGTH = 0.6;
+/**
+ * The strip shows its state colour exactly: its linear value is the inverse of
+ * the tone curve at that colour, so ACES lands on the hex. The bloom takes
+ * anything above the body's range, which only the strip and the lit recess
+ * reach; it is drawn at full resolution with a 2px kernel, and only where it
+ * spreads past its source, so the strip itself stays exact.
+ */
+const BLOOM_THRESHOLD = 0.25;
+const BLOOM_STRENGTH = 1.0;
 /** Grain amplitude in sRGB, matched by eye to the still's grain. */
 const GRAIN = 0.05;
 
@@ -86,6 +91,20 @@ const ALBEDO = '#0b0d10';
 /** sRGB hex to a linear colour, whatever ColorManagement is set to. */
 function linear(hex: string): THREE.Color {
   return new THREE.Color(hex).convertSRGBToLinear();
+}
+
+/** The linear value the ACES fit maps onto y: the curve inverted per channel. */
+function acesInverse(y: number): number {
+  const a = 2.51 - 2.43 * y;
+  const b = 0.03 - 0.59 * y;
+  const c = -0.14 * y;
+  return (-b + Math.sqrt(b * b - 4 * a * c)) / (2 * a);
+}
+
+/** A colour that comes out of the tone curve as the given hex. */
+function throughAces(hex: string): THREE.Color {
+  const l = linear(hex);
+  return new THREE.Color(acesInverse(l.r), acesInverse(l.g), acesInverse(l.b));
 }
 
 export function createBeacon(renderer: THREE.WebGLRenderer) {
@@ -163,6 +182,20 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   );
   floor.position.set(slitX, slitY, front - recess - floorDepth / 2);
   group.add(floor);
+  // The recess is lined in a lighter matte grey, seen from inside, so the
+  // strip's light shows on its walls and the lip catches a faint edge.
+  const linerMaterial = new THREE.MeshStandardMaterial({
+    color: linear('#262b32'),
+    roughness: 0.9,
+    metalness: 0,
+    side: THREE.BackSide,
+  });
+  const liner = new THREE.Mesh(
+    new THREE.BoxGeometry(slitW - chamfer, slitH - chamfer, recess + chamfer),
+    linerMaterial,
+  );
+  liner.position.set(slitX, slitY, front - (recess + chamfer) / 2 + chamfer * 0.5);
+  group.add(liner);
   const stripMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false });
   const strip = new THREE.Mesh(
     new THREE.PlaneGeometry(slitW - 2 * chamfer - 0.002, slitH - 2 * chamfer - 0.002),
@@ -248,6 +281,14 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     green: linear(GREEN),
     off: new THREE.Color(0, 0, 0),
   };
+  // What the strip must hold so it displays the hex exactly.
+  const shown: Record<Light, THREE.Color> = {
+    amber: throughAces(AMBER),
+    green: throughAces(GREEN),
+    off: new THREE.Color(0, 0, 0),
+  };
+  const fromShown = shown.amber.clone();
+  const currentShown = shown.amber.clone();
   const amount: Record<Light, number> = { amber: 1, green: 1, off: 0 };
   let lightNow: Light = 'amber';
   const fromColor = colors.amber.clone();
@@ -261,6 +302,7 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     if (next === lightNow) return;
     lightNow = next;
     fromColor.copy(current);
+    fromShown.copy(currentShown);
     fromAmount = currentAmount;
     changedAt = now;
   }
@@ -269,14 +311,15 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   function tick(now: number) {
     const k = changedAt < 0 ? 1 : Math.min(1, (now - changedAt) / LIGHT_MS);
     current.lerpColors(fromColor, colors[lightNow], k);
+    currentShown.lerpColors(fromShown, shown[lightNow], k);
     currentAmount = fromAmount + (amount[lightNow] - fromAmount) * k;
     if (k >= 1) changedAt = -1;
-    stripMaterial.color.copy(current).multiplyScalar(STRIP_INTENSITY * currentAmount);
+    stripMaterial.color.copy(currentShown).multiplyScalar(currentAmount);
     slitLight.color.copy(current);
-    slitLight.intensity = 40 * currentAmount;
+    slitLight.intensity = 24 * currentAmount;
     spillLight.color.copy(current);
-    spillLight.intensity = 0.12 * currentAmount;
-    spillMaterial.color.copy(current).multiplyScalar(0.11 * currentAmount);
+    spillLight.intensity = 0.072 * currentAmount;
+    spillMaterial.color.copy(current).multiplyScalar(0.066 * currentAmount);
   }
 
   /** Lay the camera's frustum over the photograph's rect and stand the beacon at x. */
@@ -302,13 +345,13 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     depthBuffer: true,
     stencilBuffer: false,
   });
-  const half = { type: THREE.HalfFloatType, depthBuffer: false, stencilBuffer: false } as const;
-  const bright = new THREE.WebGLRenderTarget(1, 1, half);
-  const blurA = new THREE.WebGLRenderTarget(1, 1, half);
-  const blurB = new THREE.WebGLRenderTarget(1, 1, half);
+  const flat = { type: THREE.HalfFloatType, depthBuffer: false, stencilBuffer: false } as const;
+  const bright = new THREE.WebGLRenderTarget(1, 1, flat);
+  const blurA = new THREE.WebGLRenderTarget(1, 1, flat);
+  const blurB = new THREE.WebGLRenderTarget(1, 1, flat);
   const quad = new THREE.PlaneGeometry(2, 2);
   const quadCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-  const halfSize = new THREE.Vector2(1, 1);
+  const fullSize = new THREE.Vector2(1, 1);
   const brightMaterial = new THREE.ShaderMaterial({
     uniforms: { uMap: { value: hdr.texture }, uThreshold: { value: BLOOM_THRESHOLD } },
     vertexShader: QUAD_VERT,
@@ -320,7 +363,7 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   const blurMaterial = new THREE.ShaderMaterial({
     uniforms: {
       uMap: { value: null },
-      uResolution: { value: halfSize },
+      uResolution: { value: fullSize },
       uDirection: { value: new THREE.Vector2(1, 0) },
     },
     vertexShader: QUAD_VERT,
@@ -333,6 +376,7 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     uniforms: {
       uBeacon: { value: hdr.texture },
       uBloom: { value: blurB.texture },
+      uBright: { value: bright.texture },
       uStrength: { value: BLOOM_STRENGTH },
       uFade: { value: 1 },
       uGrain: { value: GRAIN },
@@ -360,12 +404,10 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     targetW = w;
     targetH = h;
     hdr.setSize(w, h);
-    const hw = Math.max(1, Math.ceil(w / 2));
-    const hh = Math.max(1, Math.ceil(h / 2));
-    bright.setSize(hw, hh);
-    blurA.setSize(hw, hh);
-    blurB.setSize(hw, hh);
-    halfSize.set(hw, hh);
+    bright.setSize(w, h);
+    blurA.setSize(w, h);
+    blurB.setSize(w, h);
+    fullSize.set(w, h);
   }
 
   function blur(
@@ -393,8 +435,8 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
 
     renderer.setRenderTarget(bright);
     renderer.render(brightScene, quadCamera);
-    // One pass each way at half resolution: the glow stays within about
-    // half the slit's width on either side.
+    // One pass each way at full resolution with a 2px kernel: the halo stays
+    // within a tenth of the slit's width on either side.
     blur(bright, blurA, 1, 0);
     blur(blurA, blurB, 0, 1);
 
@@ -592,7 +634,7 @@ varying vec2 vUv;
 void main() {
   vec3 c = texture2D(uMap, vUv).rgb;
   float l = max(c.r, max(c.g, c.b));
-  float k = smoothstep(uThreshold, uThreshold + 0.6, l);
+  float k = smoothstep(uThreshold, uThreshold + 0.15, l);
   gl_FragColor = vec4(c * k, 1.0);
 }
 `;
@@ -604,11 +646,11 @@ uniform vec2 uDirection;
 varying vec2 vUv;
 void main() {
   vec2 step = uDirection / uResolution;
-  vec3 c = texture2D(uMap, vUv).rgb * 0.2270270270;
-  c += texture2D(uMap, vUv + step * 1.3846153846).rgb * 0.3162162162;
-  c += texture2D(uMap, vUv - step * 1.3846153846).rgb * 0.3162162162;
-  c += texture2D(uMap, vUv + step * 3.2307692308).rgb * 0.0702702703;
-  c += texture2D(uMap, vUv - step * 3.2307692308).rgb * 0.0702702703;
+  vec3 c = texture2D(uMap, vUv).rgb * 0.38;
+  c += texture2D(uMap, vUv + step).rgb * 0.24;
+  c += texture2D(uMap, vUv - step).rgb * 0.24;
+  c += texture2D(uMap, vUv + step * 2.0).rgb * 0.07;
+  c += texture2D(uMap, vUv - step * 2.0).rgb * 0.07;
   gl_FragColor = vec4(c, 1.0);
 }
 `;
@@ -620,6 +662,7 @@ void main() {
 const COMPOSITE_FRAG = /* glsl */ `
 uniform sampler2D uBeacon;
 uniform sampler2D uBloom;
+uniform sampler2D uBright;
 uniform float uStrength;
 uniform float uFade;
 uniform float uGrain;
@@ -635,7 +678,8 @@ float hash(vec2 p) {
 }
 void main() {
   vec4 b = texture2D(uBeacon, vUv);
-  vec3 bloom = texture2D(uBloom, vUv).rgb * uStrength;
+  // Only the spread past the source: the strip itself keeps its exact colour.
+  vec3 bloom = max(texture2D(uBloom, vUv).rgb - texture2D(uBright, vUv).rgb, 0.0) * uStrength;
   vec3 object = b.a > 0.0005 ? b.rgb / b.a : vec3(0.0);
   vec3 objectOut = toSRGB(aces(object + bloom)) * b.a;
   vec3 glow = toSRGB(aces(bloom));
