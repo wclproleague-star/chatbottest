@@ -110,7 +110,7 @@ A sentry is the one awake while everyone else sleeps. The site tells that in one
    * Mod reply lands with a 240ms spring and a small settle: "One sub allowed if declared before check-in."
    * Sentry: "Got it. Next time I'll know." (amber turns green)
 
-   The beacon's light follows the thread: amber at rest and during "Asking @Mods", green while Sentry answers and on "Got it", a 240ms change of the slit's colour; the body never flickers. Dawn follows after this screen.
+   The beacon's light: amber at rest on the first screen, the sentry watching. On the thread screen it stays amber through "Asking @Mods" and turns green on "Got it. Next time I'll know.", a 240ms change of the slit's colour; the body never flickers. Green is only ever the result of an answer. Dawn follows after this screen.
 3. **Dawn.** As the hero leaves the viewport the sky fades, not cuts: stars thin, ink lightens through a short dusk band into paper over about 60vh, scroll-linked. The nav follows: transparent over the sky, then a small ink pill on paper. The most important transition on the site. One full session.
 4. **The inbox row.** Three real rows: question, bot draft, "what it almost knew", Approve. Two green, one amber. Hover or tap Approve on the amber row: 180ms crossfade to green and the bot's follow-up line appears beneath. The feature, demonstrated, with no icons and no explanatory copy.
 5. **The bot card.** Empty fields: name, tone, language, what it knows, what it won't touch, who it wakes. A "Try it" button. On click, fields fill one by one with a 120ms stagger. User-triggered only.
