@@ -100,7 +100,9 @@ A sentry is the one awake while everyone else sleeps. The site tells that in one
 **The five moments** (the only places the page may be spectacular)
 
 1. **The sky.** Three.js starfield, ~15,000 points with real depth, slow drift, cursor parallax on desktop and gyroscope on mobile, max 12px travel. Behind it a nebula as a fragment shader of layered noise, very low contrast, barely moving. Near-monochrome: ink blue-black and warm white. Exactly two tinted stars in the whole sky, one green and one amber, far apart. No purple, no blue glow, no lens flare, no shooting stars.
-2. **The thread.** A conversation panel floating over the sky, rendered in the site's own type, not a Discord screenshot. Plays once on load, about nine seconds, then holds:
+2. **The scene, then the thread.** The hero is a full-bleed cinematic still: a tall matte black beacon alone on a headland above the sea at night, one narrow slit of light, moonless sky, beacon in the right third (`assets/beacon/scene-amber.jpg`, `scene-green.jpg`, `scene-off.jpg`, generated, 16:9). The coded sky from moment 1 runs as a motion layer over the image's sky region only. Headline bottom-left in star white at 140 to 180px, three lines max: **The server assistant that asks before it answers.** Bottom-right: one line of body, the primary button "Set up your bot", and the text link "See how it learns". Pill nav top centre. Nothing else in the hero.
+
+   Second screen, pinned: as the hero scrolls, the scene holds and darkens 20%, and a conversation panel in smoked glass plays once over it, rendered in the site's own type, not a Discord screenshot. About nine seconds, then holds:
    * Member: "when's the finals bracket posted?"
    * Sentry, typing at reading speed: "Sunday 18:00 CET, in #announcements. Check-in closes an hour before."
    * Member: "and if my duo can't make check-in?"
@@ -108,9 +110,7 @@ A sentry is the one awake while everyone else sleeps. The site tells that in one
    * Mod reply lands with a 240ms spring and a small settle: "One sub allowed if declared before check-in."
    * Sentry: "Got it. Next time I'll know." (amber turns green)
 
-   Below it, left aligned: **The server assistant that asks before it answers.** One line of body. One primary button, "Set up your bot". One text link, "See how it learns". Nothing else in the hero.
-
-   A photographed hero object (the beacon, files arriving in `assets/beacon/`) sits centre over the sky with a real drop shadow; headline left, thread right on desktop, stacked on mobile. Its light follows the thread: amber during "Asking @Mods", green on "Got it", via a masked crossfade of three light-state images, 240ms. A short rotation video plays once on load, then holds on the still. Until the files exist, use a placeholder silhouette.
+   The beacon's light in the image follows the thread: amber during "Asking @Mods", green on "Got it", via a crossfade of the three light-state stills masked to the slit, 240ms; the body never flickers. Dawn follows after this screen.
 3. **Dawn.** As the hero leaves the viewport the sky fades, not cuts: stars thin, ink lightens through a short dusk band into paper over about 60vh, scroll-linked. The nav follows: transparent over the sky, then a small ink pill on paper. The most important transition on the site. One full session.
 4. **The inbox row.** Three real rows: question, bot draft, "what it almost knew", Approve. Two green, one amber. Hover or tap Approve on the amber row: 180ms crossfade to green and the bot's follow-up line appears beneath. The feature, demonstrated, with no icons and no explanatory copy.
 5. **The bot card.** Empty fields: name, tone, language, what it knows, what it won't touch, who it wakes. A "Try it" button. On click, fields fill one by one with a 120ms stagger. User-triggered only.
@@ -129,7 +129,7 @@ One family for everything, including the thread: Instrument Sans, using the widt
 
 Single column, left aligned, max 1120px, 24px mobile gutters. Sections separated by space and scale, never by cards, dividers, or background bands. 160px between sections desktop, 96px mobile.
 
-Page order: sky and thread (full viewport) → dawn → "How it learns" (inbox rows) → "Set up by talking. Or not." (bot card) → "It can point, hand off, and assign the roles you allow. It doesn't moderate." (four short lines, one per action) → "Built for communities. Useful for companies with one." (two columns of plain text) → "Pricing" (three rows that read like a menu: name, one sentence, price; no feature grids) → footer with the tagline.
+Page order: scene (full viewport) → thread screen (pinned, full viewport) → dawn → "How it learns" (inbox rows) → "Set up by talking. Or not." (bot card) → "It can point, hand off, and assign the roles you allow. It doesn't moderate." (four short lines, one per action) → "Built for communities. Useful for companies with one." (two columns of plain text) → "Pricing" (three rows that read like a menu: name, one sentence, price; no feature grids) → footer with the tagline.
 
 **Craft**
 
@@ -159,6 +159,7 @@ Same tokens on paper, no night mode. Quiet, dense enough to be useful, the inbox
 Final. Wins over earlier design lines where they conflict.
 
 #### Hero, final
+Layout superseded by moment 2 (the cinematic still and the pinned thread screen). The glass, panel text, sky-loading and light-state lines below still stand.
 - The thread panel is smoked glass, not white: night #070A10 at 72% opacity, backdrop blur 24px, one 1px inner highlight on the top edge only in star white at 14%, no other border, no glow, no noise, no refraction, radius 16px, shadow 0 32px 80px rgba(0,0,0,0.45). Stars stay faintly visible through it; if blur kills them, 64%. Remove the white variant.
 - Panel text: star white messages, sender names star white at 55%, cursor star white. State rules unchanged.
 - Headline breaks in exactly three lines from 1024px up: "The server assistant / that asks before / it answers." Never a single word on a line. Below 1024, two or four lines are acceptable, never five.
@@ -207,7 +208,7 @@ Final. Wins over earlier design lines where they conflict.
 - Knowledge score: the word "Thin", "Decent" or "Solid" in ink plus its explaining sentence. No bar, no gauge.
 
 #### Mobile, decided
-- Hero at 375: headline, beacon at 60% scale, panel full width with 16px margins, body, buttons. The thread still plays. Height may exceed the viewport; the sky continues behind it.
+- Hero at 375: the scene still full-bleed with the beacon kept in frame, headline bottom-left at 40px in three lines, body and buttons below it. Thread screen: panel full width with 16px margins, the thread still plays.
 - Dawn band 40vh on mobile. All panels 16px side margins, sections 96px apart. Pricing rows stack name, sentence, price. Nothing hidden on mobile except the two nav links.
 
 #### Process rule
