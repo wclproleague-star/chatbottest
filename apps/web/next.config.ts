@@ -15,6 +15,10 @@ for (const file of ['.env.local', '.env']) {
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // `next build` and `next dev` share .next by default, so building while the
+  // dev server is up replaces the chunks it is still serving and every page
+  // comes back unstyled until it is restarted. The build writes somewhere else.
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
   transpilePackages: ['@sentrybot/core', '@sentrybot/ui'],
   // core's Node-only dependencies stay external to the server bundle.
   serverExternalPackages: ['unpdf', '@google/genai'],

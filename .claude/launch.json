@@ -6,7 +6,7 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
         "run",
-        "dev"
+        "dev:web"
       ],
       "port": 3000
     }

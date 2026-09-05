@@ -21,3 +21,4 @@ Thumbs.db
 # Windows). The canonical content is .agents/, pinned by skills-lock.json.
 .claude/skills/
 bot.log
+.next-dev/
