@@ -14,6 +14,12 @@ export type Limits = {
   memberCooldownMs: number;
   /** The longest member message the model ever sees. */
   maxMessageChars: number;
+  /** How many questions Sentry answers for one guild in a calendar month. */
+  monthlyAnswers: number;
+  /** The longest single document that may be ingested. */
+  maxDocumentChars: number;
+  /** How much a guild may hold in total, in chunks. */
+  maxGuildChunks: number;
 };
 
 export const DEFAULT_LIMITS: Limits = {
@@ -21,6 +27,9 @@ export const DEFAULT_LIMITS: Limits = {
   memberWindowMs: 30_000,
   memberCooldownMs: 60_000,
   maxMessageChars: 2000,
+  monthlyAnswers: 2000,
+  maxDocumentChars: 200_000,
+  maxGuildChunks: 5000,
 };
 
 type Window = { hits: number[]; until: number };
@@ -74,12 +83,20 @@ export function parseLimits(value: unknown): Limits {
     memberWindowMs: number('memberWindowMs'),
     memberCooldownMs: number('memberCooldownMs'),
     maxMessageChars: number('maxMessageChars'),
+    monthlyAnswers: number('monthlyAnswers'),
+    maxDocumentChars: number('maxDocumentChars'),
+    maxGuildChunks: number('maxGuildChunks'),
   };
 }
 
 /** Forgets a member's history. Used by the forget-me flow and by the tests. */
 export function forgetMember(key: string): void {
   windows.delete(key);
+}
+
+/** The first instant of the month a date falls in, in UTC. Quotas run monthly. */
+export function monthStart(now: Date = new Date()): Date {
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
 /**

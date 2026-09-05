@@ -71,6 +71,7 @@ function replyOf(result: AnswerResult): string {
     case 'flagged':
       return `[${result.category}] ${result.note}`;
     case 'sensitive':
+    case 'quota':
       return result.reply;
     case 'ignore':
       return '';

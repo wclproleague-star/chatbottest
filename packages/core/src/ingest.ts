@@ -1,5 +1,7 @@
 import { chunkText } from './chunk';
 import { recordConflicts } from './conflicts';
+import { parseLimits } from './limits';
+import type { Limits } from './limits';
 import { findPersonal, personalSummary } from './personal';
 import type { Database } from './database.types';
 import { extractText } from './extract';
@@ -9,6 +11,16 @@ import { DOCUMENTS_BUCKET, serviceClient } from './supabase';
 type DocumentRow = Database['public']['Tables']['documents']['Row'];
 
 export type IngestInput = { guildId: string; documentId: string };
+/** This guild's limits, over the defaults. */
+async function guildLimits(guildId: string): Promise<Limits> {
+  const { data } = await serviceClient()
+    .from('guild_settings')
+    .select('limits')
+    .eq('guild_id', guildId)
+    .maybeSingle();
+  return parseLimits(data?.limits);
+}
+
 export type IngestResult = {
   documentId: string;
   chunkCount: number;
@@ -47,6 +59,25 @@ export async function ingest({ guildId, documentId }: IngestInput): Promise<Inge
     const text = await loadText(doc);
     const chunks = chunkText(text);
     if (chunks.length === 0) throw new Error('The document has no text to index.');
+
+    // Two caps, both settings with defaults, both stated in what they mean to
+    // an owner rather than in bytes: one document, and one guild's total.
+    const limits = await guildLimits(guildId);
+    if (text.length > limits.maxDocumentChars) {
+      throw new Error(
+        `This document is ${Math.round(text.length / 1000)}k characters and the limit is ${Math.round(limits.maxDocumentChars / 1000)}k. Split it into a few smaller ones, by topic, and Sentry will answer better from them anyway.`,
+      );
+    }
+    const { count: held } = await serviceClient()
+      .from('chunks')
+      .select('id', { count: 'exact', head: true })
+      .eq('guild_id', guildId)
+      .neq('document_id', documentId);
+    if ((held ?? 0) + chunks.length > limits.maxGuildChunks) {
+      throw new Error(
+        `This would take the server past what it can hold (${limits.maxGuildChunks} pieces of knowledge). Remove a document you no longer need, or ask for a higher limit.`,
+      );
+    }
 
     const vectors = await embed(
       chunks.map((c) => c.content),

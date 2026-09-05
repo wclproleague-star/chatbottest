@@ -4,6 +4,8 @@ import type { Schema } from './gemini';
 import { conflictsFor } from './conflicts';
 import type { Conflict } from './conflicts';
 import { detectLanguage, inLanguage } from './language';
+import { monthStart, parseLimits } from './limits';
+import type { Limits } from './limits';
 import { resolutionBrief, resolveTarget } from './resolve';
 import type { Resolution, ResolutionContext } from './resolve';
 import { serviceClient } from './supabase';
@@ -160,6 +162,18 @@ export type AnswerResult =
       topChunkIds: [];
     }
   | {
+      /**
+       * The guild has used its allowance for the month. Nothing is spent on
+       * the message, and the member is told plainly rather than ignored.
+       */
+      tier: 'quota';
+      answered: false;
+      reason: 'quota';
+      kind: 'conversation';
+      reply: string;
+      topChunkIds: [];
+    }
+  | {
       tier: 'flagged';
       answered: false;
       reason: 'flagged';
@@ -185,6 +199,7 @@ type Settings = {
   selfServeRoleIds: string[];
   scope: 'open' | 'server_only';
   timezone: string | null;
+  limits: Limits;
   /** What this guild can look things up in. Empty until the owner adds one. */
   dataSources: DataSource[];
 };
@@ -242,6 +257,7 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
     case 'partial':
     case 'none':
     case 'sensitive':
+    case 'quota':
       return { ...result, reply: await inLanguage(result.reply, language) };
     // Nothing reaches the member: the note is for the moderators.
     case 'flagged':
@@ -253,6 +269,19 @@ export async function answer(input: AnswerInput): Promise<AnswerResult> {
 async function grade(input: AnswerInput): Promise<AnswerResult> {
   const { guildId, question } = input;
   const settings = await loadSettings(guildId);
+
+  // A guild has a monthly allowance. Past it Sentry says so plainly, in the
+  // channel, and spends nothing: no embedding, no model call, no moderator.
+  if (await overQuota(guildId, settings.limits)) {
+    return {
+      tier: 'quota',
+      answered: false,
+      reason: 'quota',
+      kind: 'conversation',
+      reply: `I have answered as much as this server's plan allows this month. It starts again on the first, and the moderators can raise it before then.`,
+      topChunkIds: [],
+    };
+  }
   const history = (input.history ?? []).slice(-HISTORY_LIMIT);
 
   // What the message alone brings back, which also says how many things in the
@@ -578,6 +607,22 @@ async function allTitles(
   return candidates.every(isTitle);
 }
 
+/** Whether this guild has already had its month's worth of answers. */
+async function overQuota(guildId: string, limits: Limits): Promise<boolean> {
+  try {
+    const { count } = await serviceClient()
+      .from('bot_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('guild_id', guildId)
+      .in('type', ['answered', 'low_confidence'])
+      .gte('created_at', monthStart().toISOString());
+    return (count ?? 0) >= limits.monthlyAnswers;
+  } catch {
+    // A count that cannot be read is not a reason to stop answering.
+    return false;
+  }
+}
+
 async function retrieve(guildId: string, query: string, threshold: number): Promise<Match[]> {
   const [vector] = await embed([query], 'RETRIEVAL_QUERY');
   if (!vector) throw new Error('Embedding the question returned nothing.');
@@ -688,6 +733,7 @@ async function loadSettings(guildId: string): Promise<Settings> {
     selfServeRoleIds: row.self_serve_role_ids ?? [],
     scope: row.scope === 'server_only' ? 'server_only' : 'open',
     timezone: row.timezone ?? null,
+    limits: parseLimits(row.limits),
     dataSources: runnable(parseSources(row.data_sources)),
   };
 }

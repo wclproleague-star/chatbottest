@@ -19,6 +19,7 @@ for (const file of ['.env.local', '.env']) {
 
 const { ingest } = await import('./ingest');
 const { approveDocument, saveSettings } = await import('./settings');
+const { forgetPerson } = await import('./forget');
 const { serviceClient } = await import('./supabase');
 const { embed } = await import('./gemini');
 
@@ -110,6 +111,83 @@ console.log(['', 'a document carrying personal details'].join(String.fromCharCod
 
   // Left as it was found, so the next run starts from the same place.
   await db.from('documents').delete().eq('id', DOCUMENT);
+}
+
+console.log(['', 'one guild cannot see another'].join(String.fromCharCode(10)));
+{
+  const SEED = '900000000000000001';
+  const secret = 'Obsidian Kite';
+  const { data: theirs } = await db
+    .from('chunks')
+    .select('id')
+    .eq('guild_id', GUILD)
+    .ilike('content', `%${secret}%`);
+  check('the fact exists in the other guild', (theirs ?? []).length > 0);
+
+  const [vector] = await embed([`what is the trophy called?`], 'RETRIEVAL_QUERY');
+  const { data: leaked } = await db.rpc('match_chunks', {
+    guild_id: SEED,
+    query_embedding: JSON.stringify(vector!),
+    match_count: 6,
+    min_similarity: 0.1,
+  });
+  check(
+    'retrieval in this guild never returns it',
+    !(leaked ?? []).some((m) => m.content.includes(secret)),
+  );
+}
+
+console.log(['', 'forgetting a member'].join(String.fromCharCode(10)));
+{
+  const MEMBER = '424242424242424242';
+  const DOC = '00000000-0000-4000-8000-00000000c010';
+  await db.from('documents').upsert({
+    id: DOC,
+    guild_id: GUILD,
+    title: 'Roster',
+    source_type: 'paste',
+    raw_text: ['Team Baguette roster:', 'kestrel, captain', 'ephemera, support'].join(
+      String.fromCharCode(10),
+    ),
+    status: 'processing',
+  });
+  await ingest({ guildId: GUILD, documentId: DOC });
+  await db.from('questions').insert({
+    guild_id: GUILD,
+    asker_discord_id: MEMBER,
+    asker_name: 'ephemera',
+    channel_id: 'c1',
+    message_id: 'm1',
+    bot_message_id: null,
+    question: 'when do I play?',
+    status: 'pending',
+  });
+  await db.from('conversations').insert({
+    guild_id: GUILD,
+    key: `c1:${MEMBER}`,
+    turns: [],
+    expires_at: new Date(Date.now() + 60_000).toISOString(),
+  });
+
+  const report = await forgetPerson(GUILD, MEMBER, ['ephemera']);
+  check('their questions are gone', report.questions === 1, String(report.questions));
+  check('their open conversation is gone', report.conversations === 1);
+  check('the roster was edited', report.documents.length === 1);
+
+  const { data: left } = await db
+    .from('chunks')
+    .select('content')
+    .eq('guild_id', GUILD)
+    .ilike('content', '%ephemera%');
+  check('their name is out of the knowledge', (left ?? []).length === 0);
+  const { data: others } = await db
+    .from('chunks')
+    .select('content')
+    .eq('document_id', DOC)
+    .ilike('content', '%kestrel%');
+  check('everybody else is still there', (others ?? []).length > 0);
+
+  await db.from('documents').delete().eq('id', DOC);
 }
 
 console.log(

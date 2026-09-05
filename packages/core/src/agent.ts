@@ -872,6 +872,7 @@ function replyOf(result: AnswerResult): string {
     case 'ignore':
       return '';
     case 'sensitive':
+    case 'quota':
       return result.reply;
   }
 }

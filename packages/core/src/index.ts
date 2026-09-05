@@ -45,6 +45,9 @@ export { extractText } from './extract';
 export { embed, EMBEDDING_DIMENSIONS } from './gemini';
 export type { EmbedTask } from './gemini';
 
+export { forgetPerson } from './forget';
+export type { ForgetReport } from './forget';
+
 export { saveSettings, approveDocument, needsOwner } from './settings';
 export type { SaveOutcome, SettingsPatch } from './settings';
 

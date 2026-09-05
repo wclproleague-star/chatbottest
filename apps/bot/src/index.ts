@@ -84,7 +84,19 @@ client.on(Events.GuildDelete, async (guild) => {
 
 client.on(Events.MessageCreate, async (message: Message) => {
   try {
-    if (message.author.bot || !message.guild) return;
+    if (message.author.bot) return;
+    // A direct message is not a channel Sentry serves: it has no server to
+    // answer about, no moderators to bring in and no owner who agreed to it.
+    // One line, once, then silence. Sentry never opens a DM itself.
+    if (!message.guild) {
+      if (!(await claim(message.channelId, 'dm-pointer'))) return;
+      await message
+        .reply(
+          'I only answer inside the server I was set up for. Ask me there and mention me, and I will help if I can.',
+        )
+        .catch(() => undefined);
+      return;
+    }
     if (!(await isClaimed(message.guild.id))) return;
     const settings = await loadSettings(message.guild.id);
 

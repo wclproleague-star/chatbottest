@@ -38,7 +38,9 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
       if (t.result.tier === 'answer') return [{ role: 'model' as const, text: t.result.answer }];
       if (t.result.tier === 'clarify') return [{ role: 'model' as const, text: t.result.question }];
       if (t.result.tier === 'flagged' || t.result.tier === 'ignore') return [];
-      if (t.result.tier === 'sensitive') return [{ role: 'model' as const, text: t.result.reply }];
+      if (t.result.tier === 'sensitive' || t.result.tier === 'quota') {
+        return [{ role: 'model' as const, text: t.result.reply }];
+      }
       return [{ role: 'model' as const, text: mods(t.result.reply) }];
     });
     setTurns((all) => [...all, { id: Date.now(), role: 'user', text: q }]);
@@ -204,6 +206,14 @@ function Reply({ result, botName }: { result: AnswerResult; botName: string }) {
           In Discord, the moderators get this quietly: {result.note}
         </p>
       </div>
+    );
+  }
+  // The month's allowance is spent: said plainly, and not a mod's problem.
+  if (result.tier === 'quota') {
+    return (
+      <ThreadMessage role="sentry" name={botName} state="waiting">
+        {result.reply}
+      </ThreadMessage>
     );
   }
   // Asking which one is meant is a plain question, not a handoff.

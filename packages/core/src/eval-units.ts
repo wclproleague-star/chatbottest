@@ -7,7 +7,14 @@
 //   pnpm --filter @sentrybot/core eval:units
 
 import process from 'node:process';
-import { DEFAULT_LIMITS, allowMessage, forModel, forgetMember, parseLimits } from './limits';
+import {
+  DEFAULT_LIMITS,
+  allowMessage,
+  forModel,
+  forgetMember,
+  monthStart,
+  parseLimits,
+} from './limits';
 import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
 import { findPersonal, personalSummary } from './personal';
 import { clockIn, inZone, pastRetention } from './times';
@@ -135,6 +142,25 @@ console.log(['', 'personal details in the knowledge'].join(String.fromCharCode(1
     findPersonal('4111 1111 1111 1111').some((f) => f.kind === 'card'),
   );
   check('the same detail is not reported twice', findPersonal('a@b.com and a@b.com').length === 1);
+}
+
+console.log(['', 'what a guild may spend'].join(String.fromCharCode(10)));
+{
+  const limits = parseLimits({ monthlyAnswers: 5, maxDocumentChars: 1000, maxGuildChunks: 10 });
+  check('a quota can be set', limits.monthlyAnswers === 5);
+  check('a document cap can be set', limits.maxDocumentChars === 1000);
+  check('a guild cap can be set', limits.maxGuildChunks === 10);
+  check('the defaults are generous, not zero', DEFAULT_LIMITS.monthlyAnswers > 100);
+  const start = monthStart(new Date('2026-09-17T13:45:00.000Z'));
+  check(
+    'the month starts at its first instant',
+    start.toISOString() === '2026-09-01T00:00:00.000Z',
+  );
+  const january = monthStart(new Date('2026-01-01T00:00:00.000Z'));
+  check(
+    'the first of the month is its own start',
+    january.toISOString() === '2026-01-01T00:00:00.000Z',
+  );
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);
