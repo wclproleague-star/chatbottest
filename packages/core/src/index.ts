@@ -25,7 +25,13 @@ export type {
 export { suggestQuestions } from './suggest';
 export type { SuggestInput, SuggestResult } from './suggest';
 
-export { converse, rememberMemberName, MAX_TOOL_CALLS, CONVERSATION_TTL_MS } from './agent';
+export {
+  converse,
+  hasOpenConversation,
+  rememberMemberName,
+  MAX_TOOL_CALLS,
+  CONVERSATION_TTL_MS,
+} from './agent';
 export type { ConversationInput, ConversationResult, Effects, RoleProof } from './agent';
 
 export { ingest } from './ingest';

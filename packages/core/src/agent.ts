@@ -97,6 +97,14 @@ function closeConversation(id: string): void {
   conversations.delete(id);
 }
 
+/**
+ * Whether Sentry is waiting on this member here. It only waits after asking
+ * them something, so their next message is the answer to it, mention or not.
+ */
+export function hasOpenConversation(id: string): boolean {
+  return loadConversation(id).length > 0;
+}
+
 export async function converse(input: ConversationInput): Promise<ConversationResult> {
   const { guildId, conversationId, userId, effects } = input;
   const settings = await loadAgentSettings(guildId);

@@ -7,6 +7,7 @@
 
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import type { Message } from 'discord.js';
+import { hasOpenConversation } from '@sentrybot/core';
 import { onModReply, onTick, watchDashboardApprovals } from './approve';
 import { botEnv } from './env';
 import { isClaimed, loadSettings, markInstalled, markUninstalled, syncMeta } from './guild';
@@ -81,10 +82,18 @@ client.on(Events.MessageCreate, async (message: Message) => {
     // it, not asking a new one.
     if (message.reference?.messageId && (await onModReply(message, settings))) return;
 
-    // Only a real mention of the bot, written in the message. Replying to the
-    // bot mentions it implicitly, and that is not a question.
     if (!client.user) return;
-    if (!message.content.includes(`<@${client.user.id}>`)) return;
+    // Sentry answers when it is named, when someone replies to something it
+    // said, and when it is waiting on an answer to its own question. A reply
+    // mentions it implicitly, which is why the mention alone is not the test.
+    const named = message.content.includes(`<@${client.user.id}>`);
+    const repliedTo = message.reference?.messageId;
+    const answeringSentry = repliedTo
+      ? (await message.channel.messages.fetch(repliedTo).catch(() => null))?.author.id ===
+        client.user.id
+      : false;
+    const waiting = hasOpenConversation(`${message.channelId}:${message.author.id}`);
+    if (!named && !answeringSentry && !waiting) return;
     await handleMention(message, settings);
   } catch (err) {
     console.error(`sentry: message handler failed: ${String(err)}`);
