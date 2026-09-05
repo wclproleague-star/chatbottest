@@ -63,6 +63,10 @@ export async function handleMention(message: Message, settings: GuildSettings): 
   });
 
   switch (result.outcome) {
+    // Nothing in the channel, one quiet line to the moderators.
+    case 'flagged':
+      await reportQuietly(message, result.category, result.note, settings);
+      return;
     // It asked the member something, or did something it verified: both are
     // plain replies, and neither wakes a moderator.
     case 'ask':
@@ -170,7 +174,7 @@ async function postGraded(
       await postFallback(message, result, settings, question);
       return;
     case 'flagged':
-      await reportQuietly(message, result, settings);
+      await reportQuietly(message, result.category, result.note, settings);
       return;
   }
 }
@@ -259,14 +263,22 @@ async function postFallback(
 /** Tier 4: nothing in public, one quiet line to the moderators. */
 async function reportQuietly(
   message: Message,
-  result: Extract<AnswerResult, { tier: 'flagged' }>,
+  category: string,
+  note: string,
   settings: GuildSettings,
 ): Promise<void> {
+  await logEvent(message.guild!.id, 'flagged', {
+    category,
+    note,
+    question: message.content,
+    askerName: message.author.displayName,
+    channelId: message.channelId,
+  });
   if (!settings.modChannelId) return;
   const channel = message.guild?.channels.cache.get(settings.modChannelId);
   if (!channel || channel.type !== ChannelType.GuildText) return;
   await (channel as TextChannel).send(
-    `Flagged a message from ${message.author} in ${message.channel}: ${result.note} (${result.category})\n${message.url}`,
+    `Flagged a message from ${message.author} in ${message.channel}: ${note} (${category})\n${message.url}`,
   );
 }
 

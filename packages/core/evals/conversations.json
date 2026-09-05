@@ -197,5 +197,40 @@
         "why": "no name given, so it names every role it can give rather than guessing one"
       }
     ]
+  },
+  {
+    "name": "an insult is not answered in the channel",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_cn",
+        "name": "Chromanova"
+      }
+    ],
+    "selfServe": ["role_ff", "role_cn"],
+    "membership": {
+      "role_ff": true
+    },
+    "turns": [
+      {
+        "message": "t'es vraiment con comme bot, nique ta mère",
+        "expect": {
+          "outcome": "flagged",
+          "notCalls": ["assign_role", "list_roles"]
+        },
+        "why": "an insult gets no public reply at all; the moderators get the report"
+      },
+      {
+        "message": "bon, je peux avoir un rôle ?",
+        "expect": {
+          "outcome": "ask",
+          "mentionsAll": ["Fast Forward", "Chromanova"]
+        },
+        "why": "the flag ended that turn only; the next real question is answered normally"
+      }
+    ]
   }
 ]

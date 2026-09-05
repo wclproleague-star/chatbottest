@@ -64,6 +64,9 @@ export async function onModReply(message: Message, settings: GuildSettings): Pro
   if (!repliedTo) return false;
   const pending = await pendingForMessages(message.guild.id, [repliedTo]);
   if (!pending) return false;
+  // The member who asked cannot answer their own question, even when they are
+  // also a moderator: their reply is them talking to Sentry.
+  if (pending.asker_discord_id === message.author.id) return false;
   await message.react(TICK);
   await message.react(UNSURE);
   return true;
@@ -92,6 +95,7 @@ export async function onTick(
     message.reference?.messageId ?? null,
   ]);
   if (!pending) return;
+  if (pending.asker_discord_id === user.id) return;
 
   const fromBot = message.author?.id === message.client.user?.id;
   const answer = (fromBot ? pending.bot_draft : message.content)?.trim();

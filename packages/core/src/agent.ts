@@ -13,8 +13,8 @@
 // contract in answer.ts, so an informational reply is graded the same way and
 // an ungrounded fact is still hedged or handed over rather than asserted.
 
-import { answer } from './answer';
-import type { AnswerResult, HistoryTurn } from './answer';
+import { answer, FLAG_CATEGORIES } from './answer';
+import type { AnswerResult, FlagCategory, HistoryTurn } from './answer';
 import { generateJson, generateWithTools } from './gemini';
 import type { FunctionDeclaration, ToolTurn } from './gemini';
 import { Type } from './gemini';
@@ -66,7 +66,9 @@ export type ConversationResult =
   | { outcome: 'reply'; text: string; steps: string[]; graded?: AnswerResult }
   | { outcome: 'ask'; text: string; steps: string[] }
   | { outcome: 'assigned'; text: string; roleId: string; steps: string[] }
-  | { outcome: 'escalate'; text: string; summary: string; steps: string[] };
+  | { outcome: 'escalate'; text: string; summary: string; steps: string[] }
+  /** Harassment, slurs, NSFW, doxxing, a scam. Nothing is said in the channel. */
+  | { outcome: 'flagged'; category: FlagCategory; note: string; steps: string[] };
 
 // The conversation each member has open, if any. In memory: one bot process
 // serves every guild, and a dropped conversation only costs the member a
@@ -117,6 +119,15 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     },
   ];
 
+  // Inappropriate content never reaches the loop: there is nothing to discuss
+  // with it, and whatever is said about it belongs to the moderators, not to
+  // the channel.
+  const flag = await screen(input.message);
+  if (flag) {
+    closeConversation(conversationId);
+    return { outcome: 'flagged', category: flag.category, note: flag.note, steps: [] };
+  }
+
   // The language is the member's, for the whole conversation, unless the
   // owner has forced one. Held rather than re-judged, so it cannot drift.
   const language =
@@ -132,7 +143,78 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   // Each correction is offered once; a second time it is not worth the round trip.
   let nagged = false;
   let guessed = false;
+  const performAssign = async (roleId: string): Promise<Record<string, unknown>> => {
+    if (!settings.selfServeRoleIds.includes(roleId)) {
+      return { ok: false, reason: 'that role is not one the owner lets me give out' };
+    }
+    const roleName = (await effects.listRoles()).find((r) => r.id === roleId)?.name ?? '';
+    // Either they asked for this role themselves, or they agreed to it when
+    // Sentry proposed it. Agreement is judged on its own, because a member who
+    // disputes a guess repeats the name too, and the model running the
+    // conversation is a poor judge of whether it was heard.
+    const requested = askedForItself(turns, roleName);
+    const agreed =
+      requested ||
+      (await memberAgreed(input.message, questionsAsked(turns).at(-1) ?? '', roleName));
+    if (!agreed) {
+      return {
+        ok: false,
+        needsConfirmation: true,
+        roleName,
+        reason: `The member has not agreed to be given "${roleName}". Repeating a name, correcting you or sounding unsure is not agreement. This is not a failure and not for the moderators: ask them plainly whether they want "${roleName}", and assign it only if they say yes.`,
+      };
+    }
+    if (!proven.has(roleId)) {
+      // Never forced: without a passed check there is nothing to stand on.
+      return {
+        ok: false,
+        reason: `check_membership has not passed for "${roleName}" in this conversation. Call it now; this is not a failure and not for the moderators.`,
+      };
+    }
+    await effects.assignRole(userId, roleId);
+    steps.push('gave them the role');
+    assigned = roleId;
+    return { ok: true, role: roleName, note: 'Tell them it is done, in one short line.' };
+  };
   let calls = 0;
+
+  // When the member has plainly asked for one role, the turn is not a matter
+  // of judgement any more: check them, give it to them, tell them. Deciding
+  // this here rather than in the prompt is what stops the three failures we
+  // saw live, all of them the model's discretion rather than its knowledge:
+  // announcing the assignment instead of making it, asking a third time for a
+  // name already given, and waking a moderator over a check that passed. The
+  // two things that protect the member are unchanged and still run first:
+  // their own consent, and the proof the owner configured for that role.
+  const wanted = await roleTheyAskedFor(input.message, turns, await effects.listRoles());
+  if (wanted) {
+    const proof = settings.roleProofs[wanted.id];
+    const allowed = settings.selfServeRoleIds.includes(wanted.id);
+    const check = allowed
+      ? await checkMembership({ guildId, userId, roleId: wanted.id, proof, effects })
+      : { ok: false as const, reason: 'that role is not one the owner lets me give out' };
+    steps.push(`checked whether they may have that role: ${check.reason}`);
+    if (check.ok) {
+      await effects.assignRole(userId, wanted.id);
+      steps.push('gave them the role');
+      closeConversation(conversationId);
+      return {
+        outcome: 'assigned',
+        roleId: wanted.id,
+        text: await inLanguage(`Done, you have the ${wanted.name} role.`, language),
+        steps,
+      };
+    }
+    // A failed check is never forced and never argued with: it goes to a mod.
+    closeConversation(conversationId);
+    const summary = `${input.askerName ?? 'A member'} asked for the ${wanted.name} role. The check for it did not pass: ${check.reason}.`;
+    return {
+      outcome: 'escalate',
+      text: await inLanguage(`I can't give you ${wanted.name}: ${check.reason}. ${MODS}`, language),
+      summary,
+      steps,
+    };
+  }
 
   while (calls <= MAX_TOOL_CALLS) {
     const budget = MAX_TOOL_CALLS - calls;
@@ -282,62 +364,11 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       }
 
       case 'assign_role': {
-        const roleId = String(call.args.roleId ?? '');
-        const allowed = settings.selfServeRoleIds.includes(roleId);
-        if (!allowed) {
-          turns.push({
-            role: 'tool',
-            name: call.name,
-            result: { ok: false, reason: 'that role is not one the owner lets me give out' },
-          });
-          break;
-        }
-        const roles = await effects.listRoles();
-        const roleName = roles.find((r) => r.id === roleId)?.name ?? '';
-        // Either they asked for this role themselves, or they agreed to it
-        // when Sentry proposed it. Agreement is judged on its own, because a
-        // member who disputes a guess repeats the name too, and the model
-        // running the conversation is a poor judge of whether it was heard.
-        const requested = askedForItself(turns, roleName);
-        const agreed =
-          requested ||
-          (await memberAgreed(input.message, questionsAsked(turns).at(-1) ?? '', roleName));
-        if (!agreed) {
-          turns.push({
-            role: 'tool',
-            name: call.name,
-            result: {
-              ok: false,
-              needsConfirmation: true,
-              roleName,
-              reason: `The member has not agreed to be given "${roleName}". Repeating a name, correcting you or sounding unsure is not agreement. This is not a failure and not for the moderators: ask them plainly whether they want "${roleName}", and assign it only if they say yes.`,
-            },
-          });
-          break;
-        }
-        if (!proven.has(roleId)) {
-          // Never forced: without a passed check there is nothing to stand on.
-          turns.push({
-            role: 'tool',
-            name: call.name,
-            result: {
-              ok: false,
-              reason: 'check_membership has not passed for this role in this conversation',
-            },
-          });
-          break;
-        }
-        await effects.assignRole(userId, roleId);
-        steps.push('gave them the role');
-        assigned = roleId;
+        const result = await performAssign(String(call.args.roleId ?? ''));
         // The write is a tool like any other: the loop goes round once more so
         // the member is told it is done, in their own language, rather than
         // being left with the narration that preceded it.
-        turns.push({
-          role: 'tool',
-          name: call.name,
-          result: { ok: true, role: roleName, note: 'Tell them it is done, in one short line.' },
-        });
+        turns.push({ role: 'tool', name: call.name, result });
         break;
       }
 
@@ -410,6 +441,25 @@ function questionsAsked(turns: ToolTurn[]): string[] {
  * their own request counts here; anything they say after Sentry names a role
  * is an answer to Sentry, and answers are judged, not pattern-matched.
  */
+/**
+ * The single role this message asks for, or null. Either they named one of the
+ * roles on offer, or they said yes to the one Sentry last put to them; the
+ * consent judge decides in both cases, so a mention in a question, a dispute
+ * or a hesitation is not a request.
+ */
+async function roleTheyAskedFor(
+  message: string,
+  turns: ToolTurn[],
+  offered: { id: string; name: string }[],
+): Promise<{ id: string; name: string } | null> {
+  const named = offered.filter((r) => mentions(message, r.name));
+  const lastAsked = questionsAsked(turns).at(-1) ?? '';
+  const put = offered.filter((r) => mentions(lastAsked, r.name));
+  const candidate = named.length === 1 ? named[0]! : put.length === 1 ? put[0]! : null;
+  if (!candidate) return null;
+  return (await memberAgreed(message, lastAsked, candidate.name)) ? candidate : null;
+}
+
 function askedForItself(turns: ToolTurn[], roleName: string): boolean {
   if (!roleName) return false;
   for (const turn of turns) {
@@ -431,7 +481,9 @@ async function memberAgreed(latest: string, question: string, roleName: string):
       system: [
         'You decide one thing: has this member agreed to be given the role named below?',
         'Only a clear yes counts: they ask for it by name, accept it, or confirm it.',
-        'These are not agreement: repeating the name back, correcting you, disputing what you said, asking a question, sounding unsure, or joking.',
+        'Answering the question with the full name of the role, or with a plain yes, is a clear yes: "le rôle Fast Forward" and "oui exactement" both mean they want it.',
+        'These are not agreement: correcting you, disputing what you said, asking a question, sounding unsure, or joking.',
+        'A sentence that argues with you is never a yes, even when it contains the name: "hein mais j’ai parlé de Fast Forward" is a member telling you that you misheard, not one accepting the role.',
         'Nor is naming it by initials or a shortened form: "FF" for "Fast Forward" is a guess at what they mean, so say no and let it be confirmed.',
         'When it is not clear, say no.',
         'Answer in any language the member may have written in.',
@@ -454,6 +506,43 @@ async function memberAgreed(latest: string, question: string, roleName: string):
   } catch {
     // Unable to tell means no: a role given wrongly costs more than one more question.
     return false;
+  }
+}
+
+/**
+ * Whether this message is one Sentry should not answer in public: harassment,
+ * a slur, sexual content, doxxing, a scam. Returns the one line a moderator
+ * gets, which the member never sees.
+ */
+async function screen(message: string): Promise<{ category: FlagCategory; note: string } | null> {
+  if (!message.trim()) return null;
+  try {
+    const out = await generateJson<{ inappropriate: boolean; category: string; note: string }>({
+      system: [
+        'Decide whether this message is harassment, an insult aimed at a person or at the assistant, a slur, sexual or NSFW content, doxxing, or a scam or phishing link.',
+        'Rudeness, impatience and swearing on their own are not: "putain c\'est long" is impatience, "nique ta mère" is an insult.',
+        'note is one plain sentence for the moderators saying what was posted and why it was flagged. It is never shown to the member.',
+      ].join(' '),
+      messages: [{ role: 'user', text: message }],
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          inappropriate: { type: Type.BOOLEAN },
+          category: { type: Type.STRING, enum: [...FLAG_CATEGORIES] },
+          note: { type: Type.STRING },
+        },
+        required: ['inappropriate', 'category', 'note'],
+        propertyOrdering: ['inappropriate', 'category', 'note'],
+      },
+      temperature: 0,
+    });
+    if (!out.inappropriate) return null;
+    const category = (FLAG_CATEGORIES as readonly string[]).includes(out.category)
+      ? (out.category as FlagCategory)
+      : 'harassment';
+    return { category, note: out.note.trim() || 'The message looked inappropriate.' };
+  } catch {
+    return null;
   }
 }
 
@@ -685,6 +774,7 @@ function systemPrompt(s: AgentSettings, budget: number, language: string): strin
     '- Never say what you are about to do. Do it in this turn and report what happened: "Done, you have the Fast Forward role", or why it did not work. "Let me check" is only ever said alongside the check itself.',
     '- When the member confirms the thing you just asked them about, act on it there and then. Do not ask the same question again in other words.',
     '- Confirm before you act on a name the member did not write in full. Initials, an abbreviation, a nickname or a partial name all need one short ask_user first ("FF, you mean Fast Forward?"), even when only one role could match. Act straight away only when they wrote the role name as it is.',
+    '- When the member did write the role name as it is, asking them to confirm it is asking the same question twice: run the check and the assignment in that turn.',
     `- You have ${budget} tool call(s) left in this turn. When they run out you must escalate_to_mod.`,
     '',
     'When you have nothing left to do, reply to the member in one or two short sentences.',
