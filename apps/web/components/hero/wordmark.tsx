@@ -1,19 +1,25 @@
 'use client';
 
 // SENTRY across the hero, behind the beacon. Instrument Sans at the condensed
-// end of its width axis, weight 600 for this single use, star white. The size
-// fits the container up to 280px; past that the letters are spaced out to
-// span it, since the word is short and the container wide. Below 220px the
-// size keeps shrinking so it still spans a phone.
+// end of its width axis, weight 700 for this single use, tracking -0.01em so
+// the letters nearly touch, star white. The size is whatever makes the word
+// span the container exactly. It reports where the R stands, so the beacon can
+// be placed a third of the way across it.
 
 import { useEffect, useRef } from 'react';
 
-const MAX_PX = 280;
-const LETTERS = 'SENTRY';
+const LETTERS = ['S', 'E', 'N', 'T', 'R', 'Y'] as const;
+const R_INDEX = 4;
 
-export function Wordmark() {
+/** A letter's horizontal extent in viewport px. */
+export type LetterRect = { left: number; right: number };
+
+export function Wordmark({ onLetterR }: { onLetterR?: (rect: LetterRect) => void }) {
   const box = useRef<HTMLDivElement>(null);
   const text = useRef<HTMLSpanElement>(null);
+  const letterR = useRef<HTMLSpanElement>(null);
+  const report = useRef(onLetterR);
+  report.current = onLetterR;
 
   useEffect(() => {
     const el = box.current;
@@ -21,18 +27,12 @@ export function Wordmark() {
     if (!el || !span) return;
     const fit = () => {
       const width = el.clientWidth;
-      span.style.letterSpacing = '0px';
-      span.style.marginRight = '0px';
       span.style.fontSize = '100px';
       const natural = span.getBoundingClientRect().width;
       if (!natural) return;
-      const size = Math.min(MAX_PX, (width / natural) * 100);
-      span.style.fontSize = `${size}px`;
-      const at = span.getBoundingClientRect().width;
-      // Spacing goes after every letter, the last one too; pull that back.
-      const gap = Math.max(0, (width - at) / (LETTERS.length - 1));
-      span.style.letterSpacing = `${gap}px`;
-      span.style.marginRight = `${-gap}px`;
+      span.style.fontSize = `${(width / natural) * 100}px`;
+      const r = letterR.current?.getBoundingClientRect();
+      if (r) report.current?.({ left: r.left, right: r.right });
     };
     fit();
     const observer = new ResizeObserver(fit);
@@ -46,9 +46,13 @@ export function Wordmark() {
       <span
         ref={text}
         className="text-star inline-block whitespace-nowrap leading-none"
-        style={{ fontStretch: '75%', fontWeight: 600, letterSpacing: 0 }}
+        style={{ fontStretch: '75%', fontWeight: 700, letterSpacing: '-0.01em' }}
       >
-        {LETTERS}
+        {LETTERS.map((letter, i) => (
+          <span key={letter} ref={i === R_INDEX ? letterR : undefined}>
+            {letter}
+          </span>
+        ))}
       </span>
     </div>
   );

@@ -18,6 +18,7 @@ import { HeroThread } from './hero-thread';
 import { Scene } from './scene';
 import { HOLD_AT, lightAt } from './script';
 import { Wordmark } from './wordmark';
+import type { LetterRect } from './wordmark';
 
 /** The thread starts once this much of screen 2 is in view. */
 const THREAD_AT = 0.5;
@@ -35,6 +36,7 @@ export function Opening() {
   const [screen2, setScreen2] = useState(0);
   const [dawn, setDawn] = useState(0);
   const [panel, setPanel] = useState<SkyRect | null>(null);
+  const [letterR, setLetterR] = useState<LetterRect | null>(null);
   const heroLayer = useRef<HTMLDivElement>(null);
   const markLayer = useRef<HTMLDivElement>(null);
   const threadLayer = useRef<HTMLDivElement>(null);
@@ -151,11 +153,12 @@ export function Opening() {
           dark={DARKEN * screen2}
           dawn={dawn}
           boost={panel}
+          anchor={letterR ? letterR.right : null}
           onReady={() => setReady(true)}
           behind={
             <div ref={markLayer} className="absolute inset-0 will-change-transform">
               <div className="max-w-page absolute inset-x-0 top-[14svh] mx-auto px-4 md:px-6">
-                <Wordmark />
+                <Wordmark onLetterR={setLetterR} />
               </div>
             </div>
           }
