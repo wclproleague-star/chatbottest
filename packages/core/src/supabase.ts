@@ -1,21 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
-import WebSocket from 'ws';
 import type { Database } from './database.types';
 import { env } from './env';
 
-type RealtimeOptions = NonNullable<NonNullable<Parameters<typeof createClient>[2]>['realtime']>;
-
-// supabase-js refuses to construct without a WebSocket. Node 22 has one built
-// in; Node 20 does not, so hand it ws there.
-function realtimeOptions(): RealtimeOptions {
-  if ('WebSocket' in globalThis) return {};
-  return { transport: WebSocket as unknown as NonNullable<RealtimeOptions['transport']> };
-}
-
+// supabase-js needs a WebSocket for realtime. Node 22, which the repo pins,
+// has one built in; nothing is handed in here.
 function makeClient() {
   return createClient<Database>(env().supabaseUrl, env().supabaseServiceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },
-    realtime: realtimeOptions(),
   });
 }
 
