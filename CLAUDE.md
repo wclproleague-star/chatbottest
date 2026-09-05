@@ -303,6 +303,19 @@ One line per session. Do not start the next until the current one runs and I've 
 
    A playbook is also triggerable in conversation: a moderator or the owner asks in their own words ("prépare les matchs de cette semaine et fais-moi un rapport"), the agent matches it to a playbook, resolves the missing parameters from context and says what it inferred, and asks rather than guessing when one cannot be resolved. It then previews the plan, the counts of what will be created or changed plus anything unmapped, and waits for confirmation whenever the plan touches more than three objects or the playbook is not marked `auto_run`. Afterwards it reports in the channel and in the dashboard: what was done, what was skipped, what needs a human. Only the owner and holders of the configured mod role may trigger one; a member gets a polite refusal.
 
+   **A playbook is a flow, not a list of actions.** Five kinds of step, and steps may read variables set by earlier ones and loop until a condition holds (a best-of-three runs its game step until one side has two wins).
+   * `do`: one allowlisted tool call, the same allowlist the answer loop uses.
+   * `wait_for`: an event, and what to do when it does not come. A message, an attachment, a reaction or a button press, filtered by channel and by who may satisfy it (a role, a named member, either captain), with a timeout and a timeout action of its own.
+   * `ask`: a question put to particular members or roles as Discord buttons or a select menu, with the answer stored as a variable. Free text is a fallback, never the default: a button is unambiguous and a typed answer is not.
+   * `if`: a branch on a variable or on a check that has run.
+   * `pick`: a random choice, a coin flip, or one item drawn from a list, announced in the channel with what it chose so nobody has to trust it silently.
+
+   **Creating one is a conversation, for someone who knows nothing about any of this.** The owner describes the routine in plain language. The model works out what is missing rather than asking them to specify a flow: who may satisfy each wait, what happens when it times out, who gets asked, what is decided at random. It asks about those one at a time, then reads the whole flow back in plain language for approval. Editing is the same: "ajoute : cinq minutes après le screenshot, demande quel côté pour la game 2" changes the stored flow, and the bot reads back only the part that changed. The structured form is never shown by default; a "show details" toggle reveals it for anyone who wants it.
+
+   **The eval that must pass, as a scripted flow:** a best-of-three match. Both captains get Ready buttons and the flow waits for both, nudging at a timeout; a coin flip picks the side and announces it; after each game it waits for a screenshot, sending a reminder at 30 minutes and pinging the moderators at 45; between games it asks the losing captain which side they want, as buttons; when one side reaches two wins it posts the result and archives. Every wait names who may satisfy it, and every timeout has an action.
+
+   **The bot contract gains interactions.** Sentry registers the buttons and select menus a running playbook needs, handles `InteractionCreate`, checks that the person who clicked is one the step allows, answers the interaction within Discord's three seconds and does the work after, and records the click as the variable. A click by someone the step does not allow is answered privately and changes nothing. Interactions are claimed by id like every other event, so a double delivery cannot count twice.
+
    Playbooks are what "trained on your playbook" means in the marketing copy.
 13. Marketing: inbox rows, bot card, actions, audiences, pricing, footer.
 14. Mobile pass at 375px, then a final pass removing one thing from every section.

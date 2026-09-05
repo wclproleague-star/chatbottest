@@ -1,5 +1,7 @@
 // The AI pipeline and the typed Supabase client. Server side and the bot only.
-// onboard arrives with build order line 11.
+
+export { onboard, missing, DEFAULT_FORBIDDEN } from './onboard';
+export type { DraftConfig, OnboardMessage, OnboardResult } from './onboard';
 
 export {
   answer,
