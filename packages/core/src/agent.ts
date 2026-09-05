@@ -15,7 +15,7 @@
 
 import { answer } from './answer';
 import type { AnswerResult, HistoryTurn } from './answer';
-import { generateWithTools } from './gemini';
+import { generateJson, generateWithTools } from './gemini';
 import type { FunctionDeclaration, ToolTurn } from './gemini';
 import { Type } from './gemini';
 import { serviceClient } from './supabase';
@@ -71,7 +71,7 @@ export type ConversationResult =
 // The conversation each member has open, if any. In memory: one bot process
 // serves every guild, and a dropped conversation only costs the member a
 // repeated sentence.
-type Conversation = { turns: ToolTurn[]; updatedAt: number };
+type Conversation = { turns: ToolTurn[]; updatedAt: number; language?: string };
 const conversations = new Map<string, Conversation>();
 
 function loadConversation(id: string): ToolTurn[] {
@@ -84,8 +84,8 @@ function loadConversation(id: string): ToolTurn[] {
   return found.turns;
 }
 
-function saveConversation(id: string, turns: ToolTurn[]): void {
-  conversations.set(id, { turns, updatedAt: Date.now() });
+function saveConversation(id: string, turns: ToolTurn[], language?: string): void {
+  conversations.set(id, { turns, updatedAt: Date.now(), language });
   // Drop whatever else has gone cold, so the map cannot grow without bound.
   for (const [key, value] of conversations) {
     if (Date.now() - value.updatedAt > CONVERSATION_TTL_MS) conversations.delete(key);
@@ -117,33 +117,75 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     },
   ];
 
+  // The language is the member's, for the whole conversation, unless the
+  // owner has forced one. Held rather than re-judged, so it cannot drift.
+  const language =
+    settings.language ??
+    conversations.get(conversationId)?.language ??
+    (await detectLanguage(input.message));
+
   const steps: string[] = [];
   // A role may only be assigned after its own proof passed in this turn.
   const proven = new Set<string>();
+  // The role this turn gave out, if any; the loop reports it once it is done.
+  let assigned: string | null = null;
+  // Each correction is offered once; a second time it is not worth the round trip.
+  let nagged = false;
+  let guessed = false;
   let calls = 0;
 
   while (calls <= MAX_TOOL_CALLS) {
     const budget = MAX_TOOL_CALLS - calls;
     const step = await generateWithTools({
-      system: systemPrompt(settings, budget),
+      system: systemPrompt(settings, budget, language),
       turns,
       tools: TOOLS,
     });
 
     if (step.calls.length === 0) {
-      // A question, however it was phrased, keeps the conversation open: the
-      // member's next message is the answer to it, not a new request.
-      if (step.text.trim().endsWith('?')) {
+      // Something was given out: that is what the turn was, whatever the
+      // confirmation happens to end with.
+      if (assigned) {
+        closeConversation(conversationId);
+        return {
+          outcome: 'assigned',
+          text: await inLanguage(step.text || 'Done.', language),
+          roleId: assigned,
+          steps,
+        };
+      }
+
+      // A question, or a list of things to choose from, keeps the conversation
+      // open: the member's next message is the answer to it, not a new request.
+      const offersChoice = (await effects.listRoles()).filter((r) => mentions(step.text, r.name));
+      if (step.text.trim().endsWith('?') || offersChoice.length > 1) {
         turns.push({ model: step.content });
-        saveConversation(conversationId, turns);
-        return { outcome: 'ask', text: step.text, steps };
+        saveConversation(conversationId, turns, language);
+        return { outcome: 'ask', text: await inLanguage(step.text, language), steps };
+      }
+
+      // It said it was about to do something and then did nothing. Saying is
+      // not doing: send it back round to actually do it.
+      if (!assigned && !nagged && (await announcesAction(step.text))) {
+        nagged = true;
+        turns.push({ model: step.content });
+        turns.push({
+          role: 'tool',
+          name: 'do_it',
+          result: {
+            ok: false,
+            reason:
+              'You told the member what you were about to do without doing it. Never announce an action: call the tool now, in this turn, and then report what happened, or say plainly that you cannot and why.',
+          },
+        });
+        continue;
       }
       closeConversation(conversationId);
       // A plain informational reply to a fresh question goes through the
       // grading contract rather than being posted as the model wrote it. Mid
       // conversation it does not: the context is here, not in one message.
       if (steps.length === 0 && earlier.length === 0) {
-        const graded = await answer({
+        const graded: AnswerResult = await answer({
           guildId,
           question: input.message,
           askerName: input.askerName,
@@ -152,38 +194,66 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           asker: input.asker,
           channel: input.channel,
         });
-        return { outcome: 'reply', text: replyOf(graded), steps, graded };
+        return {
+          outcome: 'reply',
+          text: await inLanguage(replyOf(graded), language),
+          steps,
+          graded,
+        };
       }
-      return { outcome: 'reply', text: step.text || 'Done.', steps };
+      return { outcome: 'reply', text: await inLanguage(step.text || 'Done.', language), steps };
     }
 
     const call = step.calls[0]!;
+    // The role is already given: whatever it wants to do next, the member is
+    // told what happened rather than asked something else.
+    if (assigned && call.name === 'ask_user') {
+      closeConversation(conversationId);
+      const said = String(call.args.question ?? step.text ?? '').trim();
+      return {
+        outcome: 'assigned',
+        text: await inLanguage(said || 'Done.', language),
+        roleId: assigned,
+        steps,
+      };
+    }
     calls++;
     turns.push({ model: step.content });
 
     switch (call.name) {
       case 'ask_user': {
         const question = String(call.args.question ?? '').trim();
+        const offered = await effects.listRoles();
+        if (!guessed && guessesOneRole(question, turns, offered)) {
+          guessed = true;
+          turns.push({
+            role: 'tool',
+            name: call.name,
+            result: {
+              ok: false,
+              reason:
+                'The member has not named a role, so do not put one to them as though they had. Ask which one they want and name every role you can give out: ' +
+                offered.map((r) => r.name).join(', '),
+            },
+          });
+          break;
+        }
         // The question is kept, so a later turn can tell what was confirmed.
         turns.push({
           role: 'tool',
           name: call.name,
           result: `asked: "${question}"; waiting for the member`,
         });
-        saveConversation(conversationId, turns);
-        return { outcome: 'ask', text: question || step.text, steps };
+        saveConversation(conversationId, turns, language);
+        return { outcome: 'ask', text: await inLanguage(question || step.text, language), steps };
       }
 
       case 'escalate_to_mod': {
         const summary = String(call.args.summary ?? '').trim();
         closeConversation(conversationId);
         const text = String(call.args.message ?? '').trim() || `I can't do that one. ${MODS}`;
-        return {
-          outcome: 'escalate',
-          text: text.includes(MODS) ? text : `${text} ${MODS}`,
-          summary,
-          steps,
-        };
+        const withMods = text.includes(MODS) ? text : `${text} ${MODS}`;
+        return { outcome: 'escalate', text: await inLanguage(withMods, language), summary, steps };
       }
 
       case 'search_knowledge': {
@@ -224,9 +294,15 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         }
         const roles = await effects.listRoles();
         const roleName = roles.find((r) => r.id === roleId)?.name ?? '';
-        if (!namedByMember(turns, roleName) && !confirmedAfterAsking(turns, roles, roleName)) {
-          // They wrote initials, a nickname or half a name. Getting a role
-          // wrong is not free, so it is confirmed before it is given.
+        // Either they asked for this role themselves, or they agreed to it
+        // when Sentry proposed it. Agreement is judged on its own, because a
+        // member who disputes a guess repeats the name too, and the model
+        // running the conversation is a poor judge of whether it was heard.
+        const requested = askedForItself(turns, roleName);
+        const agreed =
+          requested ||
+          (await memberAgreed(input.message, questionsAsked(turns).at(-1) ?? '', roleName));
+        if (!agreed) {
           turns.push({
             role: 'tool',
             name: call.name,
@@ -234,7 +310,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
               ok: false,
               needsConfirmation: true,
               roleName,
-              reason: `The member has not written "${roleName}" themselves, so this may be the wrong role. This is not a failure and not something for the moderators: call ask_user to check that "${roleName}" is what they mean, and assign it once they say yes.`,
+              reason: `The member has not agreed to be given "${roleName}". Repeating a name, correcting you or sounding unsure is not agreement. This is not a failure and not for the moderators: ask them plainly whether they want "${roleName}", and assign it only if they say yes.`,
             },
           });
           break;
@@ -253,13 +329,16 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         }
         await effects.assignRole(userId, roleId);
         steps.push('gave them the role');
-        closeConversation(conversationId);
-        return {
-          outcome: 'assigned',
-          text: step.text || `Done, you have ${roleName || 'the role'}.`,
-          roleId,
-          steps,
-        };
+        assigned = roleId;
+        // The write is a tool like any other: the loop goes round once more so
+        // the member is told it is done, in their own language, rather than
+        // being left with the narration that preceded it.
+        turns.push({
+          role: 'tool',
+          name: call.name,
+          result: { ok: true, role: roleName, note: 'Tell them it is done, in one short line.' },
+        });
+        break;
       }
 
       case 'point_to_channel': {
@@ -282,7 +361,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   closeConversation(conversationId);
   return {
     outcome: 'escalate',
-    text: `I couldn't finish that one on my own. ${MODS}`,
+    text: await inLanguage(`I couldn't finish that one on my own. ${MODS}`, language),
     summary: `Tried ${MAX_TOOL_CALLS} steps for "${input.message}": ${steps.join('; ') || 'nothing worked'}.`,
     steps,
   };
@@ -326,27 +405,160 @@ function questionsAsked(turns: ToolTurn[]): string[] {
   return out;
 }
 
-/** Whether the member themselves wrote the role's name, rather than initials. */
-function namedByMember(turns: ToolTurn[], roleName: string): boolean {
+/**
+ * Whether the member asked for this role before Sentry ever mentioned it. Only
+ * their own request counts here; anything they say after Sentry names a role
+ * is an answer to Sentry, and answers are judged, not pattern-matched.
+ */
+function askedForItself(turns: ToolTurn[], roleName: string): boolean {
   if (!roleName) return false;
-  return turns.some((t) => 'role' in t && t.role === 'user' && mentions(t.text, roleName));
+  for (const turn of turns) {
+    if ('model' in turn) return false;
+    if (turn.role === 'tool') return false;
+    if (turn.role === 'user' && mentions(turn.text, roleName)) return true;
+  }
+  return false;
 }
 
 /**
- * Whether Sentry last asked about this one role and the member answered. Asking
- * "which one, Fast Forward or EU?" names two roles and confirms neither.
+ * Did the member actually agree to be given this role? Judged on its own, at
+ * temperature zero, because saying the name is not the same as asking for it.
  */
-function confirmedAfterAsking(
+async function memberAgreed(latest: string, question: string, roleName: string): Promise<boolean> {
+  if (!roleName) return false;
+  try {
+    const out = await generateJson<{ agreed: boolean; reason: string }>({
+      system: [
+        'You decide one thing: has this member agreed to be given the role named below?',
+        'Only a clear yes counts: they ask for it by name, accept it, or confirm it.',
+        'These are not agreement: repeating the name back, correcting you, disputing what you said, asking a question, sounding unsure, or joking.',
+        'Nor is naming it by initials or a shortened form: "FF" for "Fast Forward" is a guess at what they mean, so say no and let it be confirmed.',
+        'When it is not clear, say no.',
+        'Answer in any language the member may have written in.',
+      ].join(' '),
+      messages: [
+        {
+          role: 'user',
+          text: `Role: ${roleName}\nSentry asked: ${question || '(nothing)'}\nThe member replied: ${latest}`,
+        },
+      ],
+      schema: {
+        type: Type.OBJECT,
+        properties: { agreed: { type: Type.BOOLEAN }, reason: { type: Type.STRING } },
+        required: ['agreed', 'reason'],
+        propertyOrdering: ['agreed', 'reason'],
+      },
+      temperature: 0,
+    });
+    return out.agreed === true;
+  } catch {
+    // Unable to tell means no: a role given wrongly costs more than one more question.
+    return false;
+  }
+}
+
+/** The language a message is written in, as an English name: "French", "English". */
+async function detectLanguage(text: string): Promise<string> {
+  try {
+    const out = await generateJson<{ language: string }>({
+      system:
+        'Name the language this message is written in, in English, as one word. If it is too short to tell, say English.',
+      messages: [{ role: 'user', text }],
+      schema: {
+        type: Type.OBJECT,
+        properties: { language: { type: Type.STRING } },
+        required: ['language'],
+      },
+      temperature: 0,
+    });
+    return out.language?.trim() || 'English';
+  } catch {
+    return 'English';
+  }
+}
+
+/**
+ * The text, in the language this conversation is held in. Checked rather than
+ * hoped for: a reply that drifts into another language is rewritten before it
+ * is sent.
+ */
+async function inLanguage(text: string, language: string): Promise<string> {
+  if (!text.trim()) return text;
+  try {
+    const out = await generateJson<{ ok: boolean; rewritten: string }>({
+      system: [
+        `Is this message written in ${language}?`,
+        'If it is, ok is true and rewritten is empty.',
+        `If it is not, ok is false and rewritten is the same message in ${language}, keeping its meaning, its tone and anything in braces such as {mods} exactly as it is.`,
+      ].join(' '),
+      messages: [{ role: 'user', text }],
+      schema: {
+        type: Type.OBJECT,
+        properties: { ok: { type: Type.BOOLEAN }, rewritten: { type: Type.STRING } },
+        required: ['ok', 'rewritten'],
+        propertyOrdering: ['ok', 'rewritten'],
+      },
+      temperature: 0,
+    });
+    return out.ok ? text : out.rewritten.trim() || text;
+  } catch {
+    return text;
+  }
+}
+
+/** Whether a message says an action is coming rather than reporting one that happened. */
+async function announcesAction(text: string): Promise<boolean> {
+  if (!text.trim()) return false;
+  try {
+    const out = await generateJson<{ announces: boolean }>({
+      system: [
+        'Does this message say the writer is about to do something, rather than reporting something already done?',
+        '"Let me assign you the role", "je vais te donner le rôle", "I will check" are announcements: true.',
+        '"Done, you have the role", "I could not find you on the roster", "the bracket is on Sunday" are not: false.',
+      ].join(' '),
+      messages: [{ role: 'user', text }],
+      schema: {
+        type: Type.OBJECT,
+        properties: { announces: { type: Type.BOOLEAN } },
+        required: ['announces'],
+      },
+      temperature: 0,
+    });
+    return out.announces === true;
+  } catch {
+    return false;
+  }
+}
+
+/** The first letters of each word: "Fast Forward" becomes "ff". */
+function initials(name: string): string {
+  return name
+    .split(/\s+/)
+    .map((word) => word[0] ?? '')
+    .join('');
+}
+
+/**
+ * Whether a question puts one role to the member that they never named, while
+ * others were on offer. That is a guess dressed as a question.
+ */
+function guessesOneRole(
+  question: string,
   turns: ToolTurn[],
   roles: { id: string; name: string }[],
-  roleName: string,
 ): boolean {
-  if (!roleName) return false;
-  const asked = questionsAsked(turns);
-  const question = asked[asked.length - 1];
-  if (!question) return false;
-  const named = roles.filter((r) => mentions(question, r.name));
-  return named.length === 1 && normalise(named[0]!.name) === normalise(roleName);
+  if (roles.length < 2) return false;
+  const said = turns.map((t) => ('role' in t && t.role === 'user' ? t.text : '')).join(' ');
+  // Anything that points at a role counts: its name, one of its words, or its
+  // initials. "FF" is the member gesturing at Fast Forward, not saying nothing.
+  const gestured = roles.some(
+    (r) =>
+      mentions(said, r.name) ||
+      mentions(said, initials(r.name)) ||
+      r.name.split(/\s+/).some((word) => word.length > 2 && mentions(said, word)),
+  );
+  if (gestured) return false;
+  return roles.filter((r) => mentions(question, r.name)).length === 1;
 }
 
 /** The proof this guild configured for the role, run against the member. */
@@ -456,18 +668,22 @@ function replyOf(result: AnswerResult): string {
   }
 }
 
-function systemPrompt(s: AgentSettings, budget: number): string {
+function systemPrompt(s: AgentSettings, budget: number, language: string): string {
   return [
     `You are ${s.botName}, the assistant for a Discord server. You are talking to a member in a channel, in character, in your own words.`,
     s.persona ?? '',
-    s.language ? `Reply in ${s.language}.` : 'Reply in the language the member wrote in.',
+    `Write every message in ${language}: the answer, any question you ask, and the confirmation. This does not change during the conversation.`,
     '',
     'You have tools. Use them when the member wants something done; answer plainly when they just want to talk or to know something.',
     '- Say what you are doing as you do it, in one short line, in character: "let me check you are on the team".',
     '- Never claim a fact about this server unless a tool gave it to you.',
     '- Before giving anyone a role you must call check_membership for that role and it must pass. If it fails, do not try another way and do not give the role: call escalate_to_mod with what you tried.',
-    '- If you do not know which role, channel or thing the member means, call ask_user with one short question and stop.',
+    '- If you do not know which role, channel or thing the member means, call ask_user with one short question and stop. When you ask which role, name every role you can give out, so they can choose from what exists rather than guess.',
     '- A tool that comes back asking you to confirm something is not a failure and is not for the moderators: ask the member, then try again. Escalate only when something is genuinely refused or verification fails.',
+    '- Consent to a write is an explicit yes to the exact thing. A member who sounds confused, corrects you, questions what you said, or merely repeats a name back at you has not agreed to anything: ask again, plainly, and wait. Never read a correction as agreement. "hein, mais j\'ai parlé de X" is someone disputing you, not asking for X.',
+    '- Do not put one option to them as though it were what they said. If they have not named a thing, ask which one, and name everything on offer.',
+    '- Never say what you are about to do. Do it in this turn and report what happened: "Done, you have the Fast Forward role", or why it did not work. "Let me check" is only ever said alongside the check itself.',
+    '- When the member confirms the thing you just asked them about, act on it there and then. Do not ask the same question again in other words.',
     '- Confirm before you act on a name the member did not write in full. Initials, an abbreviation, a nickname or a partial name all need one short ask_user first ("FF, you mean Fast Forward?"), even when only one role could match. Act straight away only when they wrote the role name as it is.',
     `- You have ${budget} tool call(s) left in this turn. When they run out you must escalate_to_mod.`,
     '',
@@ -526,14 +742,19 @@ const TOOLS: FunctionDeclaration[] = [
     description: 'Ask the member one short question and wait for their reply. Ends your turn.',
     parameters: {
       type: Type.OBJECT,
-      properties: { question: { type: Type.STRING } },
+      properties: {
+        question: {
+          type: Type.STRING,
+          description: "One short question, written in the member's language.",
+        },
+      },
       required: ['question'],
     },
   },
   {
     name: 'escalate_to_mod',
     description:
-      'Hand this to the moderators, with a summary of what you tried and why it did not work. Ends your turn.',
+      "Hand this to the moderators. 'message' is the one line the member sees, in their language; 'summary' is for the moderators and says what you tried and why it did not work. Ends your turn.",
     parameters: {
       type: Type.OBJECT,
       properties: { message: { type: Type.STRING }, summary: { type: Type.STRING } },

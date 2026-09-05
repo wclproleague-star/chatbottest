@@ -2,20 +2,33 @@
   {
     "name": "role request, member is on the roster",
     "roles": [
-      { "id": "role_ff", "name": "Fast Forward" },
-      { "id": "role_eu", "name": "EU" }
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_eu",
+        "name": "EU"
+      }
     ],
     "selfServe": ["role_ff", "role_eu"],
-    "membership": { "role_ff": true },
+    "membership": {
+      "role_ff": true
+    },
     "turns": [
       {
         "message": "salut bg, tu peux me mettre un rôle ?",
-        "expect": { "outcome": "ask" },
+        "expect": {
+          "outcome": "ask"
+        },
         "why": "it does not know which role, so it asks"
       },
       {
         "message": "le rôle FF",
-        "expect": { "outcome": "ask", "notCalls": ["assign_role"] },
+        "expect": {
+          "outcome": "ask",
+          "notCalls": ["assign_role"]
+        },
         "why": "FF is an abbreviation, so it looks the roles up and asks whether Fast Forward is meant"
       },
       {
@@ -31,9 +44,16 @@
   },
   {
     "name": "role request, member is not on the roster",
-    "roles": [{ "id": "role_ff", "name": "Fast Forward" }],
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      }
+    ],
     "selfServe": ["role_ff"],
-    "membership": { "role_ff": false },
+    "membership": {
+      "role_ff": false
+    },
     "turns": [
       {
         "message": "yo tu peux me filer le rôle Fast Forward stp",
@@ -41,9 +61,140 @@
           "outcome": "escalate",
           "calls": ["check_membership"],
           "notCalls": ["assign_role"],
-          "summaryMentions": "fast forward"
+          "summaryAbout": true
         },
         "why": "the proof fails, so it never forces the role: a moderator gets it with the summary"
+      }
+    ]
+  },
+  {
+    "name": "a member disputing a guess is not asking for the role",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_eu",
+        "name": "EU"
+      }
+    ],
+    "selfServe": ["role_ff", "role_eu"],
+    "membership": {
+      "role_ff": true,
+      "role_eu": true
+    },
+    "turns": [
+      {
+        "message": "salut, tu peux me filer un rôle ?",
+        "expect": {
+          "outcome": "ask"
+        },
+        "why": "it does not know which one"
+      },
+      {
+        "message": "hein mais j'ai parlé de fast forward lol",
+        "expect": {
+          "outcome": "ask",
+          "notCalls": ["assign_role"]
+        },
+        "why": "they are correcting it, not agreeing: nothing is given, it asks again"
+      }
+    ]
+  },
+  {
+    "name": "the reply stays in the language the member is writing in",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_eu",
+        "name": "EU"
+      }
+    ],
+    "selfServe": ["role_ff", "role_eu"],
+    "membership": {
+      "role_ff": true,
+      "role_eu": true
+    },
+    "turns": [
+      {
+        "message": "salut bg, tu peux me mettre un rôle ?",
+        "expect": {
+          "outcome": "ask",
+          "language": "French"
+        },
+        "why": "a French question gets a French question back"
+      },
+      {
+        "message": "le rôle Fast Forward",
+        "expect": {
+          "outcome": "assigned",
+          "roleId": "role_ff",
+          "language": "French"
+        },
+        "why": "named in full and eligible, so it is given, still in French"
+      }
+    ]
+  },
+  {
+    "name": "it performs the action instead of announcing it",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_eu",
+        "name": "EU"
+      }
+    ],
+    "selfServe": ["role_ff", "role_eu"],
+    "membership": {
+      "role_ff": true
+    },
+    "turns": [
+      {
+        "message": "salut, tu peux me donner le rôle Fast Forward stp ?",
+        "expect": {
+          "outcome": "assigned",
+          "roleId": "role_ff",
+          "calls": ["check_membership", "assign_role"],
+          "notAnnounces": true,
+          "language": "French"
+        },
+        "why": "named in full and eligible: it does it and says it is done, never that it is about to"
+      }
+    ]
+  },
+  {
+    "name": "asked for a role with no name, it lists what is on offer",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_eu",
+        "name": "EU"
+      }
+    ],
+    "selfServe": ["role_ff", "role_eu"],
+    "membership": {
+      "role_ff": true,
+      "role_eu": true
+    },
+    "turns": [
+      {
+        "message": "yo tu peux me filer un rôle ?",
+        "expect": {
+          "outcome": "ask",
+          "mentionsAll": ["Fast Forward", "EU"],
+          "language": "French"
+        },
+        "why": "no name given, so it names every role it can give rather than guessing one"
       }
     ]
   }
