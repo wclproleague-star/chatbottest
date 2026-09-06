@@ -22,6 +22,12 @@ const KINDS: { kind: string; label: string; needsAddress: boolean; hint: string 
     hint: 'The base address of the JSON endpoint. Use fixture:rift-legends to try it against sample data.',
   },
   { kind: 'open_meteo', label: 'The weather, anywhere', needsAddress: false, hint: '' },
+  {
+    kind: 'http_json',
+    label: 'Any JSON address',
+    needsAddress: true,
+    hint: 'The full address. Put {question} in it and Sentry fills in what was asked.',
+  },
 ];
 
 export function SourcesPanel({ guildId, sources }: { guildId: string; sources: Listed[] }) {

@@ -37,6 +37,7 @@ const SHAPE: GuildShape = {
     { id: 'r3', name: 'Modérateur' },
   ],
   allowedActions: [...COMMAND_ACTIONS],
+  modRole: { id: 'r3', name: 'Modérateur' },
 };
 
 const MOD = { id: '1002', name: 'PPG', isStaff: true, isOwner: false };
@@ -215,7 +216,7 @@ console.log(['', 'who can see a new channel'].join(String.fromCharCode(10)));
     shape: SHAPE,
   });
   const said = lines(withRoles);
-  check('naming roles makes it private', said.includes('Only Joueur and Caster'), said);
+  check('naming roles makes it private', said.includes('Only Joueur, Caster'), said);
   check(
     'and says everyone else cannot see it',
     /nobody else|everyone else cannot/i.test(said),
@@ -246,6 +247,55 @@ console.log(['', 'who can see a new channel'].join(String.fromCharCode(10)));
   });
   const asked = lines(explicit);
   check('asking for public wins over the guess', /everyone who can see/i.test(asked), asked);
+}
+
+console.log(['', 'the moderators are never shut out'].join(String.fromCharCode(10)));
+{
+  const plan = await planCommand({
+    guildId: '900000000000000001',
+    request:
+      'crée un channel #finale-wcl dans Compétition et mets les rôles Joueur et Caster dedans',
+    by: MOD,
+    shape: SHAPE,
+  });
+  const said = lines(plan);
+  check('the mod role is in the sentence', said.includes('Modérateur'), said);
+  check(
+    'named after the roles that were asked for',
+    /Joueur, Caster and Modérateur|Joueur and Caster and Modérateur/.test(said),
+    said,
+  );
+  check(
+    'and it is part of the creation, not added after',
+    plan.kind === 'plan' && (plan.steps[0]?.args.roles ?? '').includes('Modérateur'),
+    JSON.stringify(plan.kind === 'plan' ? plan.steps[0] : plan),
+  );
+
+  const noMods = await planCommand({
+    guildId: '900000000000000001',
+    request:
+      'crée un channel #finale-wcl dans Compétition et mets les rôles Joueur et Caster dedans',
+    by: MOD,
+    shape: { ...SHAPE, modRole: undefined },
+  });
+  const quiet = lines(noMods);
+  check(
+    'a server with no mod role reads as before',
+    quiet.includes('Only Joueur and Caster'),
+    quiet,
+  );
+
+  const open = await planCommand({
+    guildId: '900000000000000001',
+    request: 'crée un channel #annonces dans Communauté',
+    by: MOD,
+    shape: SHAPE,
+  });
+  check(
+    'a public channel says nothing about the mod role',
+    !lines(open).includes('Modérateur'),
+    lines(open),
+  );
 }
 
 console.log(failed === 0 ? '\ncommand mode plans as written.' : `\n${failed} check(s) failed.`);

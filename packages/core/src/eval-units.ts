@@ -19,6 +19,7 @@ import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
 import { applyAnswer, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
+import { summarise } from './fetchers/http-json';
 import { fetchFrom } from './sources';
 import { findPersonal, personalSummary } from './personal';
 import { clockIn, inZone, pastRetention } from './times';
@@ -265,6 +266,27 @@ console.log(['', 'the league fixture'].join(String.fromCharCode(10)));
   check(
     'and no Discord id ever reaches a member',
     !said.includes('2001') && !quiet.includes('2001'),
+  );
+}
+
+console.log(['', 'any JSON address'].join(String.fromCharCode(10)));
+{
+  const lines = summarise({
+    league: { name: 'Rift Legends', season: 3 },
+    matches: [
+      { id: 'm1', time: '19:00', teams: ['FF', 'BAG'] },
+      { id: 'm2', time: '21:00', teams: ['CN', 'KITE'] },
+    ],
+    nothing: null,
+  });
+  const said = lines.join(String.fromCharCode(10));
+  check('a nested value keeps its path', said.includes('league.name: Rift Legends'), said);
+  check('array items keep their index', said.includes('matches.0.time: 19:00'), said);
+  check('and are never merged', said.includes('matches.1.time: 21:00'), said);
+  check('nothing is left as nothing', !said.includes('nothing'), said);
+  check(
+    'a long list says how long it is',
+    summarise({ xs: Array.from({ length: 30 }, (_, i) => i) }).some((l) => l.includes('30 items')),
   );
 }
 

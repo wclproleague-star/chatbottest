@@ -107,12 +107,19 @@ async function shapeOf(guildId: string): Promise<GuildShape> {
       .select('channels, categories, roles')
       .eq('guild_id', guildId)
       .maybeSingle(),
-    db.from('guild_settings').select('allowed_actions').eq('guild_id', guildId).maybeSingle(),
+    db
+      .from('guild_settings')
+      .select('allowed_actions, mod_role_id')
+      .eq('guild_id', guildId)
+      .maybeSingle(),
   ]);
+  const roles = (meta?.roles ?? []) as { id: string; name: string }[];
+  const modRole = roles.find((r) => r.id === settings?.mod_role_id);
   return {
     channels: (meta?.channels ?? []) as { id: string; name: string }[],
     categories: (meta?.categories ?? []) as { id: string; name: string }[],
-    roles: (meta?.roles ?? []) as { id: string; name: string }[],
+    roles,
     allowedActions: settings?.allowed_actions ?? [],
+    modRole,
   };
 }

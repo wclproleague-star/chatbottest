@@ -196,9 +196,10 @@ export function watchDashboardCommands(client: Client): NodeJS.Timeout {
 export async function shapeOf(guild: Guild): Promise<GuildShape> {
   const { data } = await serviceClient()
     .from('guild_settings')
-    .select('allowed_actions')
+    .select('allowed_actions, mod_role_id')
     .eq('guild_id', guild.id)
     .maybeSingle();
+  const modRole = data?.mod_role_id ? guild.roles.cache.get(data.mod_role_id) : undefined;
   return {
     channels: guild.channels.cache
       .filter((c) => c.type === ChannelType.GuildText)
@@ -210,6 +211,7 @@ export async function shapeOf(guild: Guild): Promise<GuildShape> {
       .filter((r) => r.name !== '@everyone')
       .map((r) => ({ id: r.id, name: r.name })),
     allowedActions: data?.allowed_actions ?? [],
+    modRole: modRole ? { id: modRole.id, name: modRole.name } : undefined,
   };
 }
 

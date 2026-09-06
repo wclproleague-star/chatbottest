@@ -50,6 +50,8 @@ export type GuildShape = {
   roles: { id: string; name: string }[];
   /** The actions this guild has switched on. */
   allowedActions: string[];
+  /** The role Sentry wakes. It is let into every private channel it makes. */
+  modRole?: { id: string; name: string };
 };
 
 /** Who is asking. Only the owner and the mod role may command. */
@@ -110,6 +112,17 @@ export async function planCommand(input: {
       };
     }
 
+    // A step with nothing to act on is not a step. The model proposes an empty
+    // one now and again, and a plan that reads "create  in Compétition" is
+    // worse than no plan at all.
+    if (action === 'create_channel' && !clean(step.name ?? '')) continue;
+    if (
+      (action === 'allow_roles' || action === 'set_private' || action === 'archive_channel') &&
+      !clean(step.channel ?? '')
+    ) {
+      continue;
+    }
+
     // Names are checked against what the server has, not taken on trust.
     if (action === 'create_channel' && step.category) {
       const category = find(input.shape.categories, step.category);
@@ -140,6 +153,8 @@ export async function planCommand(input: {
         };
       }
       step.roles = wanted.map((r) => find(input.shape.roles, r)!.name);
+      const mods = input.shape.modRole?.name;
+      if (action === 'set_private' && mods && !step.roles.includes(mods)) step.roles.push(mods);
     }
 
     steps.push({ action, args: argsOf(step), sentence: sentenceFor(action, step) });
@@ -148,7 +163,7 @@ export async function planCommand(input: {
   // Who can see a new channel is not left to the model, and not left to
   // Discord's default either. Naming roles is how somebody says "these people";
   // a channel that comes out public because nobody asked is the whole problem.
-  settleVisibility(steps, input.request);
+  settleVisibility(steps, input.request, input.shape.modRole?.name);
 
   if (steps.length === 0) {
     return { kind: 'refused', because: 'Nothing in that is something Sentry can do.' };
@@ -162,7 +177,7 @@ export async function planCommand(input: {
  * A request that names none is an announcement, and stays as open as the
  * category it sits in. Saying "public" or "privé" outright beats both.
  */
-function settleVisibility(steps: PlannedStep[], request: string): void {
+function settleVisibility(steps: PlannedStep[], request: string, modRole?: string): void {
   const saidPublic = /public|publique|tout le monde|everyone can see/i.test(request);
   const saidPrivate = /priv[eé]e?|private|only these|only them/i.test(request);
 
@@ -177,10 +192,13 @@ function settleVisibility(steps: PlannedStep[], request: string): void {
     const isPrivate = saidPrivate || (!saidPublic && roles.length > 0);
     step.args.visibility = isPrivate ? 'private' : 'public';
     if (isPrivate) {
+      // The moderators are never shut out of a room in their own server, and
+      // they are let in as it is made rather than added to it afterwards.
+      const withMods = modRole && !roles.includes(modRole) ? [...roles, modRole] : roles;
       // The roles travel with the creation, so the channel is never public for
       // the moment between being made and being locked.
-      step.args.roles = roles.join(', ');
-      step.sentence = `Create the text channel ${hash(name)}${step.args.category ? ` in ${step.args.category}` : ''}. Only ${roles.join(' and ')} can see it; nobody else can.`;
+      step.args.roles = withMods.join(', ');
+      step.sentence = `Create the text channel ${hash(name)}${step.args.category ? ` in ${step.args.category}` : ''}. Only ${list(withMods)} can see it; nobody else can.`;
     } else {
       step.sentence = `Create the text channel ${hash(name)}${step.args.category ? ` in ${step.args.category}` : ''}. Everyone who can see the category can see it.`;
     }
@@ -423,6 +441,12 @@ function sentenceFor(action: CommandAction, step: RawStep): string {
   }
 }
 
+/** "a, b and c", which is how a person reads a list. */
+function list(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 function label(action: CommandAction): string {
   return action.replace(/_/g, ' ');
 }
@@ -434,7 +458,13 @@ function find<T extends { name: string }>(list: T[], name: string): T | undefine
 }
 
 function clean(name: string): string {
-  return name.trim().replace(/^#/, '').toLowerCase();
+  // Models sometimes hand back "Comp&#233;tition" for "Compétition", and a
+  // category that exists must not look missing over an encoding.
+  const decoded = name
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&amp;/g, '&');
+  return decoded.trim().replace(/^#/, '').toLowerCase().normalize('NFC');
 }
 
 function hash(name: string): string {

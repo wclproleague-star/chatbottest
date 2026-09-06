@@ -23,6 +23,7 @@ import { Type } from './gemini';
 // cannot be called, so this import is the whole enabling of a source.
 import './fetchers/weather';
 import './fetchers/rift-legends';
+import './fetchers/http-json';
 import { detectLanguage, inLanguage } from './language';
 import { fetchFrom, parseSources, runnable } from './sources';
 import type { DataSource } from './sources';

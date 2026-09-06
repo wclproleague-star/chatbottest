@@ -18,6 +18,7 @@ export type SourceState = { ok?: string; sample?: string; error?: string; id: nu
 export const SOURCE_KINDS: { kind: string; label: string; needsAddress: boolean }[] = [
   { kind: 'rift_legends', label: 'Rift Legends (matches and rosters)', needsAddress: true },
   { kind: 'open_meteo', label: 'The weather, anywhere', needsAddress: false },
+  { kind: 'http_json', label: 'Any JSON address', needsAddress: true },
 ];
 
 export async function addSource(_prev: SourceState, form: FormData): Promise<SourceState> {
@@ -92,6 +93,8 @@ function fromForm(form: FormData): DataSource {
     kind: String(form.get('kind') ?? '').trim(),
     config: {
       baseUrl: String(form.get('base_url') ?? '').trim(),
+      // The generic kind reads `url`; the named kinds read `baseUrl`.
+      url: String(form.get('base_url') ?? '').trim(),
       apiKey: String(form.get('api_key') ?? '').trim() || undefined,
     } as DataSource['config'],
   };
