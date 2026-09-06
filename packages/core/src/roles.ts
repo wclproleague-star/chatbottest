@@ -41,6 +41,24 @@ export function asksForRole(message: string): boolean {
 }
 
 /**
+ * Whether this conversation is about getting a role at all.
+ *
+ * The message itself, or anything the member said earlier in the same
+ * conversation: "yes please" is an answer to the question before it, not a new
+ * subject. Everything that only makes sense while somebody is trying to get a
+ * role hangs off this — without it, a question about registering for a
+ * tournament comes back as a menu of roles.
+ */
+export function aboutARole(message: string, earlier: unknown[]): boolean {
+  if (asksForRole(message)) return true;
+  return earlier.some((turn) => {
+    if (!turn || typeof turn !== 'object') return false;
+    const said = turn as { role?: unknown; text?: unknown };
+    return said.role === 'user' && typeof said.text === 'string' && asksForRole(said.text);
+  });
+}
+
+/**
  * The verbs a request is put in, in both languages, matched as whole words.
  *
  * A set of words rather than one long pattern: the word boundaries in a

@@ -13,6 +13,7 @@
 
 import type { Json } from './database.types';
 import { generateJson, Type } from './gemini';
+import { recordVouch } from './vouch-store';
 import { serviceClient } from './supabase';
 
 /** What a command may do. Anything else is refused before it reaches a plan. */
@@ -326,6 +327,8 @@ export async function runPlan(input: {
   plan: PlannedStep[];
   shape: GuildShape;
   effects: CommandEffects;
+  /** Who confirmed it, so a vouch says whose word it was. */
+  by?: { name: string };
 }): Promise<ExecutedStep[]> {
   const done: ExecutedStep[] = [];
   // A channel this plan just made, so a later step can point at it by name.
@@ -358,7 +361,7 @@ export async function runPlan(input: {
 
 async function carryOut(
   step: PlannedStep,
-  input: { shape: GuildShape; effects: CommandEffects },
+  input: { guildId: string; shape: GuildShape; effects: CommandEffects; by?: { name: string } },
   made: Map<string, string>,
 ): Promise<{ detail: string; link?: string }> {
   const channelId = (name: string): string => {
@@ -418,8 +421,19 @@ async function carryOut(
     case 'assign_role': {
       const role = find(input.shape.roles, (step.args.roles ?? '').split(',')[0] ?? '');
       if (!role) throw new Error('That role is gone.');
-      await input.effects.assignRole({ userId: step.args.member ?? '', roleId: role.id });
-      return { detail: `Gave ${step.args.member} the ${role.name} role` };
+      const member = step.args.member ?? '';
+      await input.effects.assignRole({ userId: member, roleId: role.id });
+
+      // A moderator who hands somebody a role has just vouched for them, and
+      // that is an answer like any other: it is written down as knowledge, so
+      // the next time somebody asks, nobody has to be asked again.
+      await recordVouch(input.guildId, {
+        memberName: step.args.memberName?.trim() || member,
+        roleName: role.name,
+        byName: input.by?.name ?? 'a moderator',
+      }).catch(() => undefined);
+
+      return { detail: `Gave ${step.args.memberName ?? member} the ${role.name} role` };
     }
   }
 }

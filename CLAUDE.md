@@ -365,6 +365,7 @@ Eval (`pnpm --filter @kalvard/core eval:command`): "crée un channel #finale-wcl
 ## 8. Working rules
 
 * Read this file first every session, then only the files needed for the current line.
+* **Code for how people actually write, never for the happy path.** Members type "ttk" for Train to kill, "saphire" for Sapphire, "donne moi le role" with no accent and no capital. A feature that only works when somebody spells a name the way the database stores it is not finished, it is a demo. The same holds for what a model returns: it writes a fresh sentence every time, in whichever language, and it will put two hundred words of its own reasoning in a field meant for a name. Check the invariant in code rather than matching the words, and write the eval cases from real inputs — the server's own roles and channels — before the fix, not from examples invented alongside it.
 * Every incident or defect becomes an eval case before it is fixed. The case is written first, it fails, and only then is the code changed.
 * An eval expectation is never widened twice for the same case. The first widening is allowed when both outcomes are genuinely right for the member; a case that flakes again is fixed in code, not in the expectation, and the eval file records why any widening happened.
 * Small commits, one per working feature, imperative messages.

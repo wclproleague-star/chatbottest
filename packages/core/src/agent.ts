@@ -25,7 +25,8 @@ import './fetchers/weather';
 import './fetchers/rift-legends';
 import './fetchers/http-json';
 import { detectLanguage, inLanguage } from './language';
-import { asksForRole, whichRole } from './roles';
+import { aboutARole, asksForRole, whichRole } from './roles';
+import { isVouched } from './vouch-store';
 import { fetchFrom, parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
 import { serviceClient } from './supabase';
@@ -351,6 +352,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           guildId,
           userId,
           roleId: wanted.id,
+          roleName: wanted.name,
           proof,
           effects,
           dryRun: input.dryRun,
@@ -533,7 +535,14 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       case 'ask_user': {
         const question = String(call.args.question ?? '').trim();
         const offered = selfServe;
-        if (!guessed && guessesOneRole(question, turns, offered)) {
+        // Only while somebody is actually trying to get a role. This guard
+        // was firing on every conversation, so "how do I register for the
+        // tournament" came back as a menu of the two roles Kalvard can give.
+        if (
+          !guessed &&
+          aboutARole(input.message, turns) &&
+          guessesOneRole(question, turns, offered)
+        ) {
           guessed = true;
           turns.push({
             role: 'tool',
@@ -606,6 +615,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           guildId,
           userId,
           roleId,
+          roleName: allRoles.find((r) => r.id === roleId)?.name,
           proof,
           effects,
           dryRun: input.dryRun,
@@ -936,12 +946,23 @@ async function checkMembership(input: {
   guildId: string;
   userId: string;
   roleId: string;
+  /** The role's name, for the roster a moderator may already have written. */
+  roleName?: string;
   proof: RoleProof | undefined;
   effects: Effects;
   /** A rehearsal on the web, where Discord itself is out of reach. */
   dryRun?: boolean;
 }): Promise<{ ok: boolean; reason: string; onlyInDiscord?: boolean }> {
   const { proof, effects, userId } = input;
+
+  // A moderator has already said this person belongs. That answer was written
+  // down as a roster document, and it counts before anything else is checked:
+  // nobody should have to vouch for the same member twice.
+  const who = await memberName(input.guildId, userId);
+  if (who && input.roleName && (await isVouched(input.guildId, who, input.roleName))) {
+    return { ok: true, reason: 'a moderator has already confirmed they are part of it' };
+  }
+
   if (!proof) {
     return { ok: false, reason: 'no proof is configured for that role, so I cannot verify it' };
   }

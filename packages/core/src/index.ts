@@ -43,7 +43,10 @@ export {
 export { authorWorkflow, checkStep, readBack, whatChanged } from './workflow-author';
 export { isDue, lastDue, readSchedule } from './schedule';
 export { answersHere } from './answers-here';
-export { whichRole } from './roles';
+export { aboutARole, asksForRole, whichRole } from './roles';
+export { appendVouch, onRoster, rosterTitle, vouchDocument } from './vouch';
+export { isVouched, recordVouch } from './vouch-store';
+export type { Vouch } from './vouch';
 export type { RoleMatch } from './roles';
 export { findRepeat, offer } from './repeats';
 export type { CommandRecord, Repeat } from './repeats';

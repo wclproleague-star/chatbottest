@@ -20,7 +20,8 @@ import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { answersHere } from './answers-here';
-import { asksForRole, whichRole } from './roles';
+import { aboutARole, asksForRole, whichRole } from './roles';
+import { appendVouch, onRoster, vouchDocument } from './vouch';
 import { findRepeat, offer } from './repeats';
 import { runWorkflow } from './workflows';
 import { isDue, lastDue, readSchedule } from './schedule';
@@ -787,6 +788,63 @@ console.log(['', 'the nearest role, when nothing matches exactly'].join(String.f
     plain.kind === 'not_mine' && plain.role.name === 'Streamer 📺',
     JSON.stringify(plain),
   );
+}
+
+console.log(['', "a moderator's word, kept"].join(String.fromCharCode(10)));
+{
+  // What a moderator vouched for is written down the way every other answer
+  // is: as a document, in the member's and the moderator's own terms.
+  const doc = vouchDocument({ memberName: 'PPG', roleName: 'Train to kill', byName: 'Legosi' });
+  check('the title says which roster it is', doc.title === 'Roster: Train to kill', doc.title);
+  check(
+    'the line reads as a sentence',
+    doc.text.includes('PPG is part of Train to kill'),
+    doc.text,
+  );
+  check('and it says who said so', doc.text.includes('Legosi'), doc.text);
+
+  // Reading it back: the name is found however the roster is punctuated.
+  check('the vouched member is on it', onRoster('PPG', doc.text));
+  check('and somebody else is not', !onRoster('kestrel', doc.text));
+  // A name inside another name is not the same member.
+  check('a name is a whole name', !onRoster('PP', doc.text));
+
+  // Adding a second vouch keeps the first: a roster grows, it is not replaced.
+  const second = appendVouch(doc.text, {
+    memberName: 'kestrel',
+    roleName: 'Train to kill',
+    byName: 'PPG',
+  });
+  check('the first vouch survives', onRoster('PPG', second), second);
+  check('and the second is there too', onRoster('kestrel', second), second);
+  // Vouching twice for the same person does not write them down twice.
+  const again = appendVouch(second, {
+    memberName: 'PPG',
+    roleName: 'Train to kill',
+    byName: 'Legosi',
+  });
+  check('vouching twice writes one line', again.split('PPG is part of').length === 2, again);
+}
+
+console.log(
+  ['', 'a question about the server is not a question about roles'].join(String.fromCharCode(10)),
+);
+{
+  // Live: "how do i regsiter to tournament" came back as "Which tournament
+  // role do you want, Fast Forward Test or Chromanova Test?". The guard that
+  // stops Kalvard putting one role to somebody who named none was firing on
+  // conversations that were never about roles at all.
+  check(
+    'asking how to register is not asking for a role',
+    !aboutARole('how do i regsiter to tournament', []),
+  );
+  check('nor is asking when a match is', !aboutARole('when do we play next', []));
+  check('asking for one is', aboutARole('give me the ttk role', []));
+
+  // A conversation already about roles stays about roles: "yes please" is an
+  // answer to the question before it, not a new subject.
+  const asked = [{ role: 'user' as const, text: 'can i have a role?' }];
+  check('a conversation that started on roles stays on them', aboutARole('yes please', asked));
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);
