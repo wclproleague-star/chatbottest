@@ -1,4 +1,4 @@
-// What a playbook may do in Discord, and what happens when somebody clicks.
+// What a workflow may do in Discord, and what happens when somebody clicks.
 //
 // Four actions beyond what the answer loop has: post a message, ask with
 // buttons, react, pin. Each is still checked against the guild's allowlist by
@@ -16,7 +16,7 @@ import {
   MessageFlags,
 } from 'discord.js';
 import type { ButtonInteraction, Guild, TextChannel } from 'discord.js';
-import type { PlaybookEffects } from '@kalvard/core';
+import type { WorkflowEffects } from '@kalvard/core';
 import { serviceClient } from '@kalvard/core/supabase';
 import { logEvent } from './guild';
 import { claim } from './once';
@@ -25,7 +25,7 @@ import { claim } from './once';
 type Pending = { guildId: string; whoMayAnswer: string[]; question: string };
 const pending = new Map<string, Pending>();
 
-export function playbookEffects(guild: Guild): PlaybookEffects {
+export function workflowEffects(guild: Guild): WorkflowEffects {
   const textChannel = (id: string): TextChannel | null => {
     const channel = guild.channels.cache.get(id);
     return channel?.type === ChannelType.GuildText ? (channel as TextChannel) : null;
@@ -109,7 +109,7 @@ export async function onButton(interaction: ButtonInteraction): Promise<void> {
 
   pending.delete(key);
   await serviceClient()
-    .from('playbook_runs')
+    .from('workflow_runs')
     .insert({
       guild_id: waiting.guildId,
       mode: 'live',

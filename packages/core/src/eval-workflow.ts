@@ -1,4 +1,4 @@
-// The match-day playbook, run against the fixture, on a Thursday.
+// The match-day workflow, run against the fixture, on a Thursday.
 //
 // This needs no model and no Discord: the league is the fixture, the effects
 // are refused, and the run is a dry run, so what is checked is the flow itself.
@@ -6,12 +6,12 @@
 // the day this runs; the Sunday after it has nothing, and a run on that day
 // must do nothing rather than announce something it made up.
 //
-//   pnpm --filter @kalvard/core eval:playbook
+//   pnpm --filter @kalvard/core eval:workflow
 
 import process from 'node:process';
-import { MATCH_DAY, matchDayContext } from './playbooks/match-day';
-import { PLAYBOOK_ACTIONS, runPlaybook } from './playbooks';
-import type { PlaybookEffects, RunResult } from './playbooks';
+import { MATCH_DAY, matchDayContext } from './workflows/match-day';
+import { WORKFLOW_ACTIONS, runWorkflow } from './workflows';
+import type { WorkflowEffects, RunResult } from './workflows';
 
 const THURSDAY = new Date('2026-09-10T17:00:00.000Z');
 const SUNDAY = new Date('2026-09-13T17:00:00.000Z');
@@ -31,7 +31,7 @@ function check(what: string, ok: boolean, detail = ''): void {
 }
 
 /** Effects that refuse to do anything, which is the point of a dry run. */
-function refusing(calls: string[]): PlaybookEffects {
+function refusing(calls: string[]): WorkflowEffects {
   return {
     async postMessage() {
       calls.push('postMessage');
@@ -65,12 +65,12 @@ check(
   JSON.stringify(context.matches[0]?.captainHandles),
 );
 
-const thursday = await runPlaybook({
+const thursday = await runWorkflow({
   guildId: '900000000000000001',
-  playbook: MATCH_DAY,
+  workflow: MATCH_DAY,
   context: context as unknown as Record<string, unknown>,
   effects: refusing(calls),
-  allowedActions: [...PLAYBOOK_ACTIONS],
+  allowedActions: [...WORKFLOW_ACTIONS],
   dryRun: true,
   now: THURSDAY,
 });
@@ -113,12 +113,12 @@ check(
 
 console.log(['', 'a day with no matches'].join(String.fromCharCode(10)));
 const quiet = await matchDayContext(SOURCE, SUNDAY, 'Europe/Paris');
-const sunday = await runPlaybook({
+const sunday = await runWorkflow({
   guildId: '900000000000000001',
-  playbook: MATCH_DAY,
+  workflow: MATCH_DAY,
   context: quiet as unknown as Record<string, unknown>,
   effects: refusing(calls),
-  allowedActions: [...PLAYBOOK_ACTIONS],
+  allowedActions: [...WORKFLOW_ACTIONS],
   dryRun: true,
   now: SUNDAY,
 });
@@ -126,9 +126,9 @@ check('it finds nothing on', quiet.matches.length === 0);
 check('and says nothing at all', sunday.entries.length === 0, said(sunday));
 
 console.log(['', 'what an owner has not allowed'].join(String.fromCharCode(10)));
-const locked = await runPlaybook({
+const locked = await runWorkflow({
   guildId: '900000000000000001',
-  playbook: MATCH_DAY,
+  workflow: MATCH_DAY,
   context: context as unknown as Record<string, unknown>,
   effects: refusing(calls),
   // The owner switched posting off.
@@ -144,9 +144,9 @@ check(
 );
 
 console.log(['', 'a channel that is gone'].join(String.fromCharCode(10)));
-const noChannel = await runPlaybook({
+const noChannel = await runWorkflow({
   guildId: '900000000000000001',
-  playbook: MATCH_DAY,
+  workflow: MATCH_DAY,
   context: context as unknown as Record<string, unknown>,
   effects: {
     ...refusing(calls),
@@ -154,7 +154,7 @@ const noChannel = await runPlaybook({
       return null;
     },
   },
-  allowedActions: [...PLAYBOOK_ACTIONS],
+  allowedActions: [...WORKFLOW_ACTIONS],
   now: THURSDAY,
 });
 check('a live run stops rather than guessing a channel', Boolean(noChannel.stoppedBecause));
@@ -165,6 +165,6 @@ check(
 );
 
 console.log(
-  failed === 0 ? '\nthe playbook ran as written.' : `\n${failed} playbook check(s) failed.`,
+  failed === 0 ? '\nthe workflow ran as written.' : `\n${failed} workflow check(s) failed.`,
 );
 if (failed > 0) process.exitCode = 1;

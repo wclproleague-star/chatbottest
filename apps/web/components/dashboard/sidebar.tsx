@@ -10,42 +10,62 @@ import { Beacon } from '../beacon/beacon';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
-const PAGES = [
+/**
+ * The pages, and the one group among them. A playbook is everything Kalvard
+ * knows about how this community runs — its voice, its knowledge, its limits
+ * and its workflows — so the pages that write it sit under that word. The
+ * workflows page joins them at line 12c.
+ */
+const PAGES: ([string, string] | { group: string; pages: [string, string][] })[] = [
   ['overview', 'Overview'],
-  ['knowledge', 'Knowledge'],
-  ['personality', 'Personality'],
+  {
+    group: 'Playbook',
+    pages: [
+      ['knowledge', 'Knowledge'],
+      ['personality', 'Personality'],
+    ],
+  },
   ['inbox', 'Inbox'],
   ['commands', 'Commands'],
   ['settings', 'Settings'],
   ['test', 'Test'],
-] as const;
+];
 
 export function Sidebar({ guildId, guildName }: { guildId: string; guildName: string }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const current = pathname.split('/')[3] ?? '';
 
+  const item = ([slug, label]: [string, string]) => {
+    const active = slug === current;
+    return (
+      <li key={slug}>
+        <a
+          href={`/g/${guildId}/${slug}`}
+          aria-current={active ? 'page' : undefined}
+          className={cx(
+            'text-ui block border-l-2 py-1.5 pl-3 transition-colors',
+            active ? 'border-green text-ink' : 'text-ink-soft hover:text-ink border-transparent',
+          )}
+        >
+          {label}
+        </a>
+      </li>
+    );
+  };
+
   const list = (
     <ul className="space-y-1">
-      {PAGES.map(([slug, label]) => {
-        const active = slug === current;
-        return (
-          <li key={slug}>
-            <a
-              href={`/g/${guildId}/${slug}`}
-              aria-current={active ? 'page' : undefined}
-              className={cx(
-                'text-ui block border-l-2 py-1.5 pl-3 transition-colors',
-                active
-                  ? 'border-green text-ink'
-                  : 'text-ink-soft hover:text-ink border-transparent',
-              )}
-            >
-              {label}
-            </a>
+      {PAGES.map((entry) =>
+        Array.isArray(entry) ? (
+          item(entry)
+        ) : (
+          <li key={entry.group} className="pt-3 first:pt-0">
+            <p className="text-ui-sm text-ink-soft/70 pb-1 pl-3">{entry.group}</p>
+            <ul className="space-y-1">{entry.pages.map(item)}</ul>
           </li>
-        );
-      })}
+        ),
+      )}
     </ul>
   );
 

@@ -281,7 +281,7 @@ export type Database = {
         Update: { kind?: string };
         Relationships: [];
       };
-      playbooks: {
+      workflows: {
         Row: {
           id: string;
           guild_id: string;
@@ -319,11 +319,11 @@ export type Database = {
         };
         Relationships: [];
       };
-      playbook_runs: {
+      workflow_runs: {
         Row: {
           id: string;
           guild_id: string;
-          playbook_id: string | null;
+          workflow_id: string | null;
           started_at: string;
           finished_at: string | null;
           mode: 'live' | 'dry_run';
@@ -333,7 +333,7 @@ export type Database = {
         Insert: {
           id?: string;
           guild_id: string;
-          playbook_id?: string | null;
+          workflow_id?: string | null;
           started_at?: string;
           finished_at?: string | null;
           mode?: 'live' | 'dry_run';

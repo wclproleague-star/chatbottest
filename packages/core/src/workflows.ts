@@ -1,4 +1,4 @@
-// Playbooks: a routine a server runs, stored as data.
+// Workflows: a routine a server runs, stored as data.
 //
 // A flow, not a list of actions. Five kinds of step, and steps read variables
 // that earlier ones set, so a run can fan out over this week's matches, ask
@@ -7,7 +7,7 @@
 // Two rules shape the whole engine. Nothing unmapped is ever guessed at: a
 // step that cannot resolve what it needs stops the run and says what is
 // missing. And every write goes through the same allowlist the answer loop
-// uses, so a playbook can never do something an owner did not switch on.
+// uses, so a workflow can never do something an owner did not switch on.
 //
 // A dry run is the same code with the writes described instead of made. That
 // is what the eval runs, and what an owner sees before they let one loose.
@@ -40,7 +40,7 @@ export type Step =
   | { type: 'pick'; from: string[]; announce?: string; as: string }
   | { type: 'for_each'; items: string; as: string; steps: Step[] };
 
-export type Playbook = {
+export type Workflow = {
   id?: string;
   name: string;
   trigger: { kind: 'schedule' | 'request' | 'event'; when?: string; on?: string };
@@ -67,8 +67,8 @@ export type RunResult = {
   stoppedBecause?: string;
 };
 
-/** What a playbook may do in Discord. The same allowlist the answer loop uses. */
-export type PlaybookEffects = {
+/** What a workflow may do in Discord. The same allowlist the answer loop uses. */
+export type WorkflowEffects = {
   postMessage(channelId: string, text: string): Promise<void>;
   askButtons(input: {
     channelId: string;
@@ -84,27 +84,27 @@ export type PlaybookEffects = {
 
 export type RunInput = {
   guildId: string;
-  playbook: Playbook;
+  workflow: Workflow;
   /** Everything the trigger knows: the day, the matches, whatever it fetched. */
   context: Record<string, unknown>;
-  effects: PlaybookEffects;
+  effects: WorkflowEffects;
   allowedActions: string[];
   /** Describe the writes rather than make them. */
   dryRun?: boolean;
   now?: Date;
 };
 
-/** The actions a playbook step may name, beyond what the answer loop does. */
-export const PLAYBOOK_ACTIONS = [
+/** The actions a workflow step may name, beyond what the answer loop does. */
+export const WORKFLOW_ACTIONS = [
   'post_message',
   'ask_buttons',
   'add_reaction',
   'pin_message',
 ] as const;
 
-export async function runPlaybook(input: RunInput): Promise<RunResult> {
+export async function runWorkflow(input: RunInput): Promise<RunResult> {
   const result: RunResult = { entries: [], variables: { ...input.context }, waiting: [] };
-  await runSteps(input.playbook.steps, input, result);
+  await runSteps(input.workflow.steps, input, result);
   return result;
 }
 
@@ -315,16 +315,16 @@ function describe(step: Step): string {
 /** Records what a run did, so the dashboard can show it and an owner can audit it. */
 export async function recordRun(input: {
   guildId: string;
-  playbookId?: string;
+  workflowId?: string;
   mode: 'live' | 'dry_run';
   result: RunResult;
 }): Promise<void> {
   const status = input.result.stoppedBecause ? 'stopped' : 'done';
   const { error } = await serviceClient()
-    .from('playbook_runs')
+    .from('workflow_runs')
     .insert({
       guild_id: input.guildId,
-      playbook_id: input.playbookId ?? null,
+      workflow_id: input.workflowId ?? null,
       mode: input.mode,
       status,
       finished_at: new Date().toISOString(),

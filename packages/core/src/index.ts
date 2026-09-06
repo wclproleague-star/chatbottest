@@ -19,10 +19,10 @@ export type {
   GuildShape,
 } from './command';
 
-export { runPlaybook, recordRun, PLAYBOOK_ACTIONS } from './playbooks';
-export type { Playbook, PlaybookEffects, RunResult, Step } from './playbooks';
+export { runWorkflow, recordRun, WORKFLOW_ACTIONS } from './workflows';
+export type { Workflow, WorkflowEffects, RunResult, Step } from './workflows';
 
-export { MATCH_DAY, matchDayContext } from './playbooks/match-day';
+export { MATCH_DAY, matchDayContext } from './workflows/match-day';
 
 export {
   onboard,

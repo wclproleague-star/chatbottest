@@ -22,7 +22,7 @@ import {
 import { handleMention } from './mention';
 import { claim, sweepClaims } from './once';
 import { onCommandButton, watchDashboardCommands } from './command';
-import { onButton } from './playbook';
+import { onButton } from './workflow';
 
 const client = new Client({
   intents: [
@@ -162,7 +162,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (!interaction.isButton() || !interaction.guildId) return;
     if (!(await isClaimed(interaction.guildId))) return;
-    // A command's own buttons first; anything else belongs to a playbook.
+    // A command's own buttons first; anything else belongs to a workflow.
     if (await onCommandButton(interaction)) return;
     await onButton(interaction);
   } catch (err) {

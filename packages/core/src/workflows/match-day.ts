@@ -1,8 +1,8 @@
-// Match day: the routine a league runs every week, written as a playbook.
+// Match day: the routine a league runs every week, written as a workflow.
 //
 // The shape is the point. Nothing here knows about Rift Legends: the trigger
 // builds a context out of whatever the guild's source returned, and the steps
-// read it by name. Point the source somewhere else and the same playbook runs.
+// read it by name. Point the source somewhere else and the same workflow runs.
 //
 // What it does on the day: announce each match, ask both captains whether they
 // are ready, flip a coin for side and say what it landed on, then wait for the
@@ -13,7 +13,7 @@
 import { describeMatch, riftMatches, riftRoster } from '../fetchers/rift-legends';
 import type { RiftMatch } from '../fetchers/rift-legends';
 import type { DataSource } from '../sources';
-import type { Playbook } from '../playbooks';
+import type { Workflow } from '../workflows';
 
 /** One match, flattened into the names the steps use. */
 export type MatchDayMatch = {
@@ -79,7 +79,7 @@ export async function matchDayContext(
 }
 
 /** The shipped template. An owner adopts it and edits it in their own words. */
-export const MATCH_DAY: Playbook = {
+export const MATCH_DAY: Workflow = {
   name: 'Match day',
   trigger: { kind: 'schedule', when: 'every match day, two hours before the first match' },
   autoRun: false,

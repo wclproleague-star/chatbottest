@@ -1,5 +1,5 @@
 {
-  "_comment": "The shape Kalvard expects from a Rift Legends JSON endpoint. Point a source at the real base URL and it reads the same fields; point it at fixture:rift-legends and it reads this file, which is what the evals and the match-day playbook run against.",
+  "_comment": "The shape Kalvard expects from a Rift Legends JSON endpoint. Point a source at the real base URL and it reads the same fields; point it at fixture:rift-legends and it reads this file, which is what the evals and the match-day workflow run against.",
   "matches": [
     {
       "id": "m-401",

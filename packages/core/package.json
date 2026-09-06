@@ -20,7 +20,7 @@
     "eval:units": "tsx src/eval-units.ts",
     "purge": "tsx src/purge.ts",
     "eval:db": "tsx src/eval-db.ts",
-    "eval:playbook": "tsx src/eval-playbook.ts",
+    "eval:workflow": "tsx src/eval-workflow.ts",
     "eval:command": "tsx src/eval-command.ts"
   },
   "devDependencies": {

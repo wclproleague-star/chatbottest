@@ -2,7 +2,7 @@
 //
 // The shape below is the contract. Point a source at the real base URL and it
 // reads these fields; point it at `fixture:rift-legends` and it reads the file
-// in evals/fixtures, which is what the evals and the match-day playbook run
+// in evals/fixtures, which is what the evals and the match-day workflow run
 // against, so neither needs the league to be up.
 //
 //   GET {base}/matches?from=<iso>&to=<iso>   -> { matches: Match[] }
@@ -45,7 +45,7 @@ export type RiftRoster = { team: RiftTeam; players: RiftPlayer[] };
 /** How far ahead a question about "the next matches" looks. */
 const WINDOW_DAYS = 14;
 
-/** The fixture, read once: the evals and the playbook run off it. */
+/** The fixture, read once: the evals and the workflow run off it. */
 function fixture(): { matches: RiftMatch[]; rosters: Record<string, RiftRoster> } {
   const path = fileURLToPath(new URL('../../evals/fixtures/rift-legends.json', import.meta.url));
   return JSON.parse(readFileSync(path, 'utf8')) as {
