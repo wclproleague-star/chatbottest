@@ -88,7 +88,7 @@ const scripted = new Map<string, { session: DraftSession; looks: number }>();
 let sessions = 0;
 
 /** How many looks a scripted draft takes to finish. The eval leans on this. */
-export const FIXTURE_LOOKS_TO_DONE = 3;
+export const FIXTURE_LOOKS_TO_DONE = 4;
 
 function scriptedCreate(input: { blueTeam: string; redTeam: string }): DraftSession {
   const f = fixture();
@@ -154,7 +154,7 @@ function scriptedState(id: string): DraftSession {
       picks: f.done.picks,
       bans: f.done.bans,
     };
-  } else if (entry.looks >= 2) {
+  } else if (entry.looks >= 3) {
     entry.session = {
       ...entry.session,
       status: 'drafting',

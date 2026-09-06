@@ -263,7 +263,26 @@ export async function resumeWorkflow(
   const now = input.now ?? new Date();
 
   if (event.kind === 'tick' || event.kind === 'poll') {
-    // Nudges first, then the deadline, then (for a poll) a look.
+    // A look first, so a nudge speaks from the site as it is now and not as
+    // it was a minute ago. Live, "the draft has not started" was posted in
+    // the same breath as the finished draft.
+    let looked = false;
+    if (wait.kind === 'poll' && (!wait.pollAt || new Date(wait.pollAt) <= now)) {
+      const frame = state.frames.at(-1)!;
+      const step = frame.steps[frame.index]!;
+      if (step.type !== 'wait_until') return { taken: false };
+      const found = await look(step, state, input);
+      if (found === 'stopped') return { taken: true, state };
+      if (found) {
+        state.wait = undefined;
+        frame.index++;
+        await advance(state, input);
+        return { taken: true, state };
+      }
+      wait.pollAt = new Date(now.getTime() + (step.everyMinutes ?? 1) * 60_000).toISOString();
+      looked = true;
+    }
+    // Then the nudges, then the deadline.
     const due = (wait.nudgesAt ?? []).filter((n) => new Date(n.at) <= now);
     if (due.length > 0) {
       wait.nudgesAt = (wait.nudgesAt ?? []).filter((n) => new Date(n.at) > now);
@@ -315,22 +334,7 @@ export async function resumeWorkflow(
       await advance(state, input);
       return { taken: true, state };
     }
-    if (wait.kind === 'poll' && (!wait.pollAt || new Date(wait.pollAt) <= now)) {
-      const frame = state.frames.at(-1)!;
-      const step = frame.steps[frame.index]!;
-      if (step.type !== 'wait_until') return { taken: false };
-      const looked = await look(step, state, input);
-      if (looked === 'stopped') return { taken: true, state };
-      if (looked) {
-        state.wait = undefined;
-        frame.index++;
-        await advance(state, input);
-      } else {
-        wait.pollAt = new Date(now.getTime() + (step.everyMinutes ?? 1) * 60_000).toISOString();
-      }
-      return { taken: true, state };
-    }
-    return { taken: false };
+    return { taken: looked, state };
   }
 
   if (wait.kind !== 'event') return { taken: false };

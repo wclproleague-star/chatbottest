@@ -275,20 +275,24 @@ async function keepChannel(
     const mods = modRoleId ? `<@&${modRoleId}>` : 'the moderators';
     reply = reply.includes(mods) ? reply : `${reply} ${mods}`;
   }
+  // The clock may have moved the run while the model was thinking. What the
+  // keeper changes is written onto the run as it is now, never onto the copy
+  // it loaded: saving that copy is how a nudge got posted twice.
+  const fresh = (await pausedRuns(guild.id)).find((r) => r.id === run.id)?.state ?? run.state;
   if (decision.decision === 'act') {
     // Only a moderator gets here (the guard saw to that): time granted moves
     // the deadline, a fact is kept for the rest of the run.
-    if (decision.extendDeadlineMinutes > 0 && run.state.wait) {
-      const deadline = new Date(run.state.wait.deadline);
-      run.state.wait.deadline = new Date(
+    if (decision.extendDeadlineMinutes > 0 && fresh.wait) {
+      const deadline = new Date(fresh.wait.deadline);
+      fresh.wait.deadline = new Date(
         deadline.getTime() + decision.extendDeadlineMinutes * 60_000,
       ).toISOString();
     }
     if (decision.remember) {
-      const notes = Array.isArray(run.state.variables._notes)
-        ? (run.state.variables._notes as unknown[])
+      const notes = Array.isArray(fresh.variables._notes)
+        ? (fresh.variables._notes as unknown[])
         : [];
-      run.state.variables._notes = [...notes, decision.remember].slice(-10);
+      fresh.variables._notes = [...notes, decision.remember].slice(-10);
     }
   }
   if (reply) {
@@ -298,9 +302,9 @@ async function keepChannel(
         allowedMentions: { parse: [], roles: modRoleId ? [modRoleId] : [], repliedUser: false },
       })
       .catch(() => undefined);
-    run.state.variables._keeper = { lastSaid: { text: reply, at: new Date().toISOString() } };
+    fresh.variables._keeper = { lastSaid: { text: reply, at: new Date().toISOString() } };
   }
-  await saveRun(run.id, run.state);
+  if (!fresh.done) await saveRun(run.id, fresh);
   await logEvent(guild.id, 'action', {
     action: { type: 'keeper', decision: decision.decision },
     runId: run.id,
