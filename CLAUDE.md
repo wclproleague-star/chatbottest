@@ -185,6 +185,22 @@ A kalvard is the one awake while everyone else sleeps. The site tells that in on
 
 If something moves and it isn't in one of these five, delete it.
 
+**Brand story**
+
+Long version, for the About page and the launch film, verbatim:
+
+> On the headlands of Norway there are stacks of stone called varder. For a thousand years they marked the path, and at night a fire beside them told the next headland, and the next, that someone was keeping watch. The word comes from vǫrðr, the Old Norse for watchman, the same root that gave us ward and guard. Kalvard is built on that word and that object: a stone that stands still, stays lit, and wakes the right person when something matters.
+
+Short version, for the footer, verbatim:
+
+> Named after the vard, the stone beacons that kept watch on Norway's coast. Stand still, stay lit, wake the right person.
+
+It appears in exactly three places: the About page, the footer, and the launch film. Never in a headline, never in hero copy. It is told once.
+
+**Product vocabulary**
+
+In the dashboard the beacon is **the vard**. Its states read "Your vard is lit" (watching), "Your vard is dark" (not set up) and "Your vard is working" (carrying something out); the servers page counts them, "3 vards watching". Marketing keeps plain English and never uses the word as jargon.
+
 **Palette**
 
 Night `#070A10`, dusk `#1A2030` (transition band only), paper `#EDEFF1` (cool, not cream), panel `#FFFFFF` (thread and inbox rows only), ink `#111418`, ink soft `#5B636E`, star white `#F2EEE6`, answered green `#23A55A`, waiting amber `#D9A21B`. Green and amber appear only as states. No gradients except the dawn band. No third colour.

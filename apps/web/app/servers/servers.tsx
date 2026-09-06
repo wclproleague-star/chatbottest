@@ -43,7 +43,7 @@ export function Servers({
 }) {
   return (
     <Shell>
-      <Head lede="Every one you can manage, and what its vard is doing right now." />
+      <Head lede={lit(manageable)} />
       {notice && <p className="text-body text-star/80 mt-6">{notice}</p>}
 
       {manageable.length === 0 ? (
@@ -64,6 +64,14 @@ export function Servers({
       {others.length > 0 && <Others others={others} />}
     </Shell>
   );
+}
+
+/** How many are actually keeping watch, said before anything else. */
+function lit(servers: ServerCard[]): string {
+  const watching = servers.filter((s) => s.light !== 'off').length;
+  if (servers.length === 0) return 'Nothing to keep watch over yet.';
+  if (watching === 0) return 'No vards lit yet. Set one up and it starts watching.';
+  return `${watching} ${watching === 1 ? 'vard' : 'vards'} watching.`;
 }
 
 function Card({ server }: { server: ServerCard }) {
