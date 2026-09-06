@@ -257,8 +257,15 @@ export function Setup({
           <div className="mt-10">
             <TestChat guildId={guildId} botName={config.botName ?? 'Kalvard'} />
           </div>
-          <div className="mt-12">
-            <Button onClick={() => setStep('bring')}>Bring it to Discord</Button>
+          <div className="mt-12 flex items-center gap-6">
+            <Button onClick={() => setStep(installed ? 'finish' : 'bring')}>
+              {installed ? 'Continue' : 'Bring it to Discord'}
+            </Button>
+            {installed && (
+              <p className="text-ui-sm text-ink-soft">
+                Kalvard is already in your server, so the invite is skipped.
+              </p>
+            )}
           </div>
         </div>
       )}
