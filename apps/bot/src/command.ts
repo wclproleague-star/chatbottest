@@ -15,7 +15,16 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import type { ButtonInteraction, Client, Guild, Message, TextChannel } from 'discord.js';
-import { ITEMISE_ABOVE, cancelCommand, planCommand, recordCommand, runPlan } from '@kalvard/core';
+import {
+  ITEMISE_ABOVE,
+  answerCommandQuestion,
+  cancelCommand,
+  pendingCommandQuestion,
+  planCommand,
+  recordCommand,
+  runPlan,
+  withAnswer,
+} from '@kalvard/core';
 import type { CommandEffects, GuildShape, PlannedStep } from '@kalvard/core';
 import { serviceClient } from '@kalvard/core/supabase';
 import type { GuildSettings } from './guild';
@@ -34,6 +43,8 @@ export async function handleCommand(
   message: Message,
   settings: GuildSettings,
   request: string,
+  /** Only an answer to the planner's own question is taken, nothing new. */
+  mode: 'any' | 'answering' = 'any',
 ): Promise<boolean> {
   const guild = message.guild;
   if (!guild) return false;
@@ -45,14 +56,30 @@ export async function handleCommand(
 
   const shape = await shapeOf(guild);
   const by = { id: message.author.id, name: message.author.displayName, isStaff, isOwner };
-  const plan = await planCommand({ guildId: guild.id, request, by, shape, whoIs: whoIsIn(guild) });
+
+  // The planner asked something ("which category?") and this is the reply:
+  // it is folded into the request that was asked about, and that is planned
+  // again whole. Without this the answer lands in the conversation loop,
+  // which reads "staff wcl" as somebody asking for a role.
+  const asked = await pendingCommandQuestion(guild.id, message.author.id);
+  if (mode === 'answering' && !asked) return false;
+  const whole = asked ? withAnswer(asked.request, request, shape) : request;
+  if (asked) await answerCommandQuestion(asked.id);
+
+  const plan = await planCommand({
+    guildId: guild.id,
+    request: whole,
+    by,
+    shape,
+    whoIs: whoIsIn(guild),
+  });
 
   // Not a request to change anything, so it was a question or a greeting: the
   // answer loop has it, and nothing is written down. A moderator is a member
   // who can also give orders, not a member who has stopped being one.
   if (plan.kind === 'not_a_command') return false;
 
-  const commandId = await recordCommand({ guildId: guild.id, by, request, plan });
+  const commandId = await recordCommand({ guildId: guild.id, by, request: whole, plan });
   await logEvent(guild.id, 'action', {
     action: { type: 'command_planned' },
     userId: by.id,

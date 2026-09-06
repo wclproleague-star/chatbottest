@@ -356,7 +356,7 @@ export type Database = {
           request: string;
           plan: Json;
           question: string | null;
-          status: 'planned' | 'asked' | 'cancelled' | 'ran' | 'failed';
+          status: 'planned' | 'asked' | 'answered' | 'cancelled' | 'ran' | 'failed';
           ran: Json;
           created_at: string;
           ran_at: string | null;
@@ -369,13 +369,13 @@ export type Database = {
           request: string;
           plan?: Json;
           question?: string | null;
-          status?: 'planned' | 'asked' | 'cancelled' | 'ran' | 'failed';
+          status?: 'planned' | 'asked' | 'answered' | 'cancelled' | 'ran' | 'failed';
           ran?: Json;
           created_at?: string;
           ran_at?: string | null;
         };
         Update: {
-          status?: 'planned' | 'asked' | 'cancelled' | 'ran' | 'failed';
+          status?: 'planned' | 'asked' | 'answered' | 'cancelled' | 'ran' | 'failed';
           ran?: Json;
           ran_at?: string | null;
         };

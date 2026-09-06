@@ -550,6 +550,81 @@ export async function recordCommand(input: {
   return data?.id ?? '';
 }
 
+/**
+ * The question the planner last put to this person, still waiting: their
+ * next message is the answer to it, not a new request.
+ */
+export async function pendingCommandQuestion(
+  guildId: string,
+  userId: string,
+): Promise<{ id: string; request: string; question: string } | null> {
+  const since = new Date(Date.now() - ANSWER_WINDOW_MS).toISOString();
+  const { data } = await serviceClient()
+    .from('commands')
+    .select('id, request, question')
+    .eq('guild_id', guildId)
+    .eq('asked_by', userId)
+    .eq('status', 'asked')
+    .gt('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.question ? { id: data.id, request: data.request, question: data.question } : null;
+}
+
+/** The question has its answer; the row stays as the record of it. */
+export async function answerCommandQuestion(commandId: string): Promise<void> {
+  await serviceClient().from('commands').update({ status: 'answered' }).eq('id', commandId);
+}
+
+/** How long an answer to the planner's question is waited for. */
+const ANSWER_WINDOW_MS = 30 * 60 * 1000;
+
+/**
+ * The request with its answer folded in, so it can be planned again whole.
+ *
+ * A category, channel or role written loosely ("staff wcl" for "WCL | Staff")
+ * is put in as the exact name when it names exactly one, so the planner is
+ * handed a name that exists rather than asked to guess at spelling.
+ */
+export function withAnswer(request: string, answer: string, shape: GuildShape): string {
+  const exact =
+    nameOf(answer, shape.categories) ??
+    nameOf(answer, shape.channels) ??
+    nameOf(answer, shape.roles);
+  return `${request.trim()} (${exact ? `"${exact}"` : answer.trim()})`;
+}
+
+/**
+ * The one name in the list that every word of the text is part of, or null:
+ * "staff wcl" is "WCL | Staff", "wcl" alone is two categories and so none.
+ */
+export function nameOf(text: string, list: { id?: string; name: string }[]): string | null {
+  // Accents off as well: "competition" is "Compétition" to anyone typing fast.
+  const fold = (value: string): string =>
+    clean(value)
+      .normalize('NFD')
+      .replace(
+        new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g'),
+        '',
+      );
+  const words = fold(text)
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+  if (words.length === 0) return null;
+  const exact = list.find((item) => fold(item.name) === fold(text));
+  if (exact) return exact.name;
+  const fits = list.filter((item) => {
+    const parts = new Set(
+      fold(item.name)
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean),
+    );
+    return words.every((word) => parts.has(word));
+  });
+  return fits.length === 1 ? fits[0]!.name : null;
+}
+
 /** Somebody said no. Nothing ran, and that is worth recording too. */
 export async function cancelCommand(commandId: string): Promise<void> {
   await serviceClient().from('commands').update({ status: 'cancelled' }).eq('id', commandId);

@@ -60,6 +60,7 @@ export async function handleMention(message: Message, settings: GuildSettings): 
   const conversationId = `${message.channelId}:${message.author.id}`;
   const midConversation = await hasOpenConversation(guild.id, conversationId);
   if (!midConversation && (await handleCommand(message, settings, question))) return;
+  if (midConversation && (await handleCommand(message, settings, question, 'answering'))) return;
 
   const history = await recentHistory(message);
   const channel = message.channel;

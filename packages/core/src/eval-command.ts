@@ -18,7 +18,8 @@ for (const f of ['.env.local', '.env']) {
   }
 }
 
-const { COMMAND_ACTIONS, describePlan, planCommand } = await import('./command');
+const { COMMAND_ACTIONS, describePlan, nameOf, planCommand, withAnswer } =
+  await import('./command');
 const { runPlan } = await import('./command');
 import type { CommandEffects, GuildShape, Plan } from './command';
 
@@ -454,6 +455,43 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
     'a name in the reply beats the member who asked',
     named.kind === 'plan' && named.steps[0]?.args.member === '4242',
     named.kind,
+  );
+
+  // The planner asked which category; the answer is the next message. Live,
+  // "staff wcl" went to the answer loop instead and came back as a question
+  // about a role called Tournaments Staff. The answer is folded into the
+  // request, and a category written loosely is the category it names.
+  const asked = await planCommand({
+    guildId: '900000000000000001',
+    request: 'create a channel called gros-pd that only Joueur can access',
+    by: MOD,
+    shape: SHAPE,
+  });
+  check('with no category it asks which', asked.kind === 'question', asked.kind);
+  const answered = await planCommand({
+    guildId: '900000000000000001',
+    request: withAnswer(
+      'create a channel called gros-pd that only Joueur can access',
+      'competition',
+      SHAPE,
+    ),
+    by: MOD,
+    shape: SHAPE,
+  });
+  check(
+    'the answer to the question completes the plan',
+    answered.kind === 'plan' && answered.steps[0]?.args.category === 'Compétition',
+    `${answered.kind}: ${'question' in answered ? answered.question : answered.kind === 'plan' ? JSON.stringify(answered.steps[0]?.args) : ''}`,
+  );
+  check(
+    'a category written loosely is the one it names',
+    nameOf('competition', SHAPE.categories) === 'Compétition' &&
+      nameOf('staff wcl', [{ id: 'k9', name: 'WCL | Staff' }]) === 'WCL | Staff' &&
+      nameOf('wcl', [
+        { id: 'k9', name: 'WCL | Staff' },
+        { id: 'k8', name: 'WCL | Logs' },
+      ]) === null,
+    `${nameOf('competition', SHAPE.categories)} / ${nameOf('staff wcl', [{ id: 'k9', name: 'WCL | Staff' }])}`,
   );
 
   // A real request that this server has switched off is still a refusal: the

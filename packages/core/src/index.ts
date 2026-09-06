@@ -8,6 +8,10 @@ export {
   cancelCommand,
   COMMAND_ACTIONS,
   ITEMISE_ABOVE,
+  pendingCommandQuestion,
+  answerCommandQuestion,
+  withAnswer,
+  nameOf,
 } from './command';
 export type {
   Plan,
