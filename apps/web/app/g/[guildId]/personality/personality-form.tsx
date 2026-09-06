@@ -32,10 +32,20 @@ import type { SaveState } from './actions';
 
 type Named = { id: string; name: string };
 
+// Everything Kalvard may do, in the answer loop, in a command, or in a
+// workflow. What is not ticked here is refused by name wherever it is tried.
 const ACTIONS: [string, string][] = [
   ['point_to_channel', 'Point people at a channel'],
   ['assign_role', 'Give out a self-serve role'],
   ['escalate', 'Bring in a moderator'],
+  ['post_message', 'Post a message (workflows)'],
+  ['ask_buttons', 'Ask with buttons (workflows)'],
+  ['add_reaction', 'React to a message (workflows)'],
+  ['pin_message', 'Pin a message'],
+  ['create_channel', 'Create a channel (commands)'],
+  ['allow_roles', 'Let roles into a channel (commands)'],
+  ['set_private', 'Make a channel private (commands)'],
+  ['archive_channel', 'Archive a channel (commands)'],
 ];
 
 export function PersonalityForm({

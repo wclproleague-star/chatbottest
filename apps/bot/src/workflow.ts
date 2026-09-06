@@ -223,6 +223,26 @@ export async function onButton(interaction: ButtonInteraction): Promise<void> {
   }
 }
 
+/**
+ * A run that stopped says so where it was running. A routine that dies
+ * quietly looks like a bot that forgot; one that says "I stopped: ask_buttons
+ * is not something this server lets me do" is one an owner can fix.
+ */
+async function sayIfStopped(guild: Guild, state: RunState): Promise<void> {
+  if (!state.stoppedBecause) return;
+  const channelId =
+    (typeof state.variables.channel === 'string' && state.variables.channel) ||
+    state.wait?.channelId ||
+    null;
+  if (!channelId) return;
+  const channel = guild.channels.cache.get(channelId);
+  if (channel?.type !== ChannelType.GuildText) return;
+  const mods = typeof state.variables.mods === 'string' ? ` ${state.variables.mods}` : '';
+  await (channel as TextChannel)
+    .send(`I stopped here: ${state.stoppedBecause}.${mods}`)
+    .catch(() => undefined);
+}
+
 /** Hands one event to the paused runs, saves whichever moved. */
 async function deliver(
   guild: Guild,
@@ -239,6 +259,7 @@ async function deliver(
     });
     if (out.taken) {
       await saveRun(run.id, out.state);
+      await sayIfStopped(guild, out.state);
       await logEvent(guild.id, 'action', {
         action: { type: 'workflow_event', kind: event.kind },
         runId: run.id,
@@ -271,7 +292,10 @@ export function startRunTicker(client: Client): NodeJS.Timeout {
                 allowedActions,
               },
             );
-            if (out.taken) await saveRun(run.id, out.state);
+            if (out.taken) {
+              await saveRun(run.id, out.state);
+              await sayIfStopped(guild, out.state);
+            }
           } catch (err) {
             console.error(`kalvard: a paused run could not be ticked: ${String(err)}`);
           }
@@ -348,6 +372,17 @@ export async function startSeries(input: {
     });
   } else {
     await recordRun({ guildId: guild.id, mode: 'live', result, channelId: input.channelId });
+  }
+  if (result.stoppedBecause) {
+    await sayIfStopped(guild, {
+      guildId: guild.id,
+      variables: result.variables,
+      entries: result.entries,
+      frames: [],
+      done: true,
+      waiting: result.waiting,
+      stoppedBecause: result.stoppedBecause,
+    });
   }
   await logEvent(guild.id, 'action', {
     action: { type: 'series_started' },
