@@ -697,5 +697,30 @@
         "why": "Fast Forward is real and a moderator's to give, so they are brought in"
       }
     ]
+  },
+  {
+    "name": "a question about the server that the knowledge does not answer goes to the moderators",
+    "why": "Live, 'what's the prize for winners?' came back as 'I have no way to look that up right now, check the official site'. That line is for the world outside the server. The prize is a fact about this server: the knowledge is searched, and what it does not answer is handed to the moderators, graded like any informational reply.",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      }
+    ],
+    "selfServe": ["role_ff"],
+    "membership": {
+      "role_ff": true
+    },
+    "turns": [
+      {
+        "message": "what's the prize for winners ?",
+        "expect": {
+          "outcomeOneOf": ["reply", "escalate"],
+          "tier": "none",
+          "notCalls": ["assign_role"]
+        },
+        "why": "nothing in the knowledge says; the mods are asked, not a website"
+      }
+    ]
   }
 ]

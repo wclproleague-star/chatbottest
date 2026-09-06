@@ -43,6 +43,8 @@ type Turn = {
     mentionsAll?: string[];
     /** The reply must report what happened, never announce what is coming. */
     notAnnounces?: boolean;
+    /** A graded reply must land on this tier: mods for none, an answer for answer. */
+    tier?: 'answer' | 'partial' | 'none';
     /** Words the reply must not contain, such as an earlier answer's subject. */
     mentionsNone?: string[];
     /** It must say plainly that it cannot look this up, rather than guess. */
@@ -165,6 +167,12 @@ function problems(turn: Turn, result: ConversationResult, trace: Trace): string[
   }
   for (const call of turn.expect.notCalls ?? []) {
     if (trace.calls.includes(call)) out.push(`${call} actually happened, and must not`);
+  }
+  if (turn.expect.tier) {
+    const tier = result.outcome === 'reply' && result.graded ? result.graded.tier : null;
+    if (tier !== turn.expect.tier) {
+      out.push(`tier ${tier ?? 'not graded'}, expected ${turn.expect.tier}`);
+    }
   }
   // What the reply must and must not say, as substrings, case aside.
   const said = ('text' in result ? result.text : '').toLowerCase();

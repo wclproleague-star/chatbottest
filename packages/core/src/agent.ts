@@ -576,7 +576,13 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       // A plain informational reply to a fresh question goes through the
       // grading contract rather than being posted as the model wrote it. Mid
       // conversation it does not: the context is here, not in one message.
-      if (steps.length === 0 && earlier.length === 0) {
+      // Only reads happened: a search, a look at the roles. What the model
+      // then writes is an informational answer, and it is graded like one —
+      // otherwise a fact the knowledge does not hold comes back as "I have no
+      // way to look that up", which is the line for the world outside the
+      // server, when the funnel says the moderators.
+      const onlyRead = called.every((c) => c === 'search_knowledge' || c === 'list_roles');
+      if (onlyRead && earlier.length === 0) {
         const graded: AnswerResult = await answer({
           guildId,
           question: input.message,
