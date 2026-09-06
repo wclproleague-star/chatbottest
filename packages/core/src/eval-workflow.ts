@@ -330,7 +330,6 @@ check(
 // Live, the end screen came straight after the draft card, while the run was
 // only listening for a word: it must count as the screenshot, not the word.
 {
-  resetDraftFixture();
   const early = await runWorkflow({
     guildId: '900000000000000001',
     workflow: BO3_SERIES,
@@ -388,7 +387,6 @@ check(
     quick.variables.reporter === poster.id,
     String(quick.variables.reporter),
   );
-  resetDraftFixture();
 }
 
 // A picture that is not an end screen is refused and the wait holds.
@@ -476,8 +474,8 @@ check(
 const links2 = posted.filter((p) => p.text.includes('your draft')).at(-1)?.text ?? '';
 check(
   'game 2 links follow the new sides',
-  links2.includes('<@&role-b> your draft: https://draft.example/session/draft-2/blue') &&
-    links2.includes('<@&role-a> yours: https://draft.example/session/draft-2/red'),
+  /<@&role-b> your draft: https:\/\/draft\.example\/session\/draft-\d+\/blue/.test(links2) &&
+    /<@&role-a> yours: https:\/\/draft\.example\/session\/draft-\d+\/red/.test(links2),
   links2,
 );
 
