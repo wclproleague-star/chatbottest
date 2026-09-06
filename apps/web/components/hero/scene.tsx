@@ -152,8 +152,14 @@ export function Scene({
       )}
 
       <div className="absolute inset-0" style={{ opacity: fade }}>
-        <div aria-hidden className="bg-night absolute inset-0" style={{ opacity: dark }} />
-        {children}
+        {/* Decoration, and positioned, so without this it would paint over the
+            page's own content and swallow every click on it. */}
+        <div
+          aria-hidden
+          className="bg-night pointer-events-none absolute inset-0"
+          style={{ opacity: dark }}
+        />
+        <div className="relative h-full">{children}</div>
       </div>
     </div>
   );

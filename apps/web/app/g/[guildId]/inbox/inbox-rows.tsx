@@ -14,6 +14,7 @@
 // line that grows, because most answers are one sentence.
 
 import { Button, ExpandingRow, GrowingInput, Panel, RowBlock, cx } from '@sentrybot/ui';
+import { Beacon } from '@/components/beacon/beacon';
 import { useActionState, useState } from 'react';
 import { answerQuestion, dismissQuestion } from './actions';
 import type { InboxState } from './actions';
@@ -109,6 +110,7 @@ export function Inbox({
               meta={`${row.asker} · answered by ${row.answeredBy} · ${row.answeredAt}`}
               preview={row.answer}
               state="answered"
+              mark={<Mark light="green" />}
               open={openId === row.id}
               onToggle={() => setOpenId((id) => (id === row.id ? null : row.id))}
               aside={<InDiscord link={row.link} />}
@@ -157,6 +159,7 @@ function WaitingRow({
       meta={`${row.asker} · ${row.channel} · ${row.askedAt}`}
       preview={row.draft ? `Sentry said: ${row.draft}` : undefined}
       state="waiting"
+      mark={<Mark light="amber" />}
       open={open}
       onToggle={onToggle}
       aside={<InDiscord link={row.link} />}
@@ -208,6 +211,21 @@ function WaitingRow({
         </form>
       </div>
     </ExpandingRow>
+  );
+}
+
+/**
+ * The sentry that handed this row over, at the size of a mark. Below 64px the
+ * component draws itself in vector, so it is sharp at a size where the object
+ * would only be edges.
+ */
+function Mark({ light }: { light: 'amber' | 'green' }) {
+  return (
+    <Beacon
+      light={light}
+      className="h-7 w-[19px]"
+      label={light === 'amber' ? 'Waiting on you' : 'Answered'}
+    />
   );
 }
 

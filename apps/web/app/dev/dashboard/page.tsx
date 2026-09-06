@@ -69,6 +69,7 @@ function OverviewPreview() {
           word: 'Decent',
           line: 'It answers the common questions and asks about the rest.',
         },
+        light: 'amber',
         bot: {
           name: 'Sentry',
           tone: 'Sunday 18:00 CET, in #announcements. Check-in closes an hour before.',
@@ -193,6 +194,8 @@ function PersonalityPreview() {
       <PageTitle
         title="Personality"
         lede="How it talks, and how sure it has to be before it answers."
+        light="amber"
+        standing="Watching. Nothing is waiting on you."
       />
       <PersonalityForm
         guildId="900000000000000001"
@@ -237,7 +240,12 @@ function CommandsPreview() {
 function SettingsPreview() {
   return (
     <div>
-      <PageTitle title="Settings" lede="Where it answers, who it wakes, and what it may look up." />
+      <PageTitle
+        title="Settings"
+        lede="Where it answers, who it wakes, and what it may look up."
+        light="amber"
+        standing="Watching, and 2 waiting on you."
+      />
       <SettingsForm
         guildId="900000000000000001"
         guildName="Wild Champions League"

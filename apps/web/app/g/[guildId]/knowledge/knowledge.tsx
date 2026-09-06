@@ -45,7 +45,9 @@ export function Knowledge({
       <div className="mt-10">
         <Sections>
           <Section heading="How much it knows">
-            <p className="text-[20px] font-medium">{score.word}</p>
+            <p className="display text-ink" style={{ ['--display-size' as string]: '48px' }}>
+              {score.word}
+            </p>
             <p className="text-ink-soft">{score.sentence}</p>
           </Section>
 

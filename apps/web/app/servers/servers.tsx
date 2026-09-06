@@ -96,11 +96,16 @@ function Card({ server }: { server: ServerCard }) {
         <p className="text-ui text-ink-soft mt-1.5">{server.line}</p>
       </div>
 
-      {/* On a phone the action takes its own line rather than squeezing the
-          name into three characters. */}
-      <div className="flex shrink-0 justify-end max-sm:w-full">
+      {/* On a phone the action takes its own line, full width, rather than
+          squeezing the name into three characters. */}
+      <div className="shrink-0 max-sm:w-full">
         {server.claimed ? (
-          <ButtonLink href={`/g/${server.guildId}/overview`}>Open</ButtonLink>
+          <ButtonLink
+            href={`/g/${server.guildId}/overview`}
+            className="max-sm:w-full max-sm:justify-center"
+          >
+            Open
+          </ButtonLink>
         ) : (
           <ClaimButton guildId={server.guildId} />
         )}

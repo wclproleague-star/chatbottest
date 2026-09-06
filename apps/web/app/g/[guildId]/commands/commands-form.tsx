@@ -7,8 +7,11 @@
 // numbered rather than run together, because that is the point at which people
 // stop reading a paragraph.
 
-import { Button, GrowingInput, Panel, Section } from '@sentrybot/ui';
-import { useActionState, useState } from 'react';
+import { Button, GrowingInput, Panel, Section, cx } from '@sentrybot/ui';
+
+/** How long each line of the plan takes to arrive. */
+const LINE_MS = 420;
+import { useActionState, useEffect, useState } from 'react';
 import { Beacon } from '@/components/beacon/beacon';
 import { cancelIt, confirmIt, planIt } from './actions';
 import type { CommandState } from './actions';
@@ -18,12 +21,30 @@ export function Commands({ guildId, examples }: { guildId: string; examples: str
   const [answer, decide, deciding] = useActionState<CommandState, FormData>(confirmIt, null);
   const [cancelled, cancel, cancelling] = useActionState<CommandState, FormData>(cancelIt, null);
   const [request, setRequest] = useState('');
+  // The plan is repeated back a line at a time, at reading speed, so it is
+  // read rather than skipped: this is the moment before something changes.
+  const [said, setSaid] = useState(0);
+  const sentences = state?.kind === 'plan' ? state.sentences : null;
+  useEffect(() => {
+    setSaid(0);
+  }, [state?.id]);
+  useEffect(() => {
+    if (!sentences || said >= sentences.length) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setSaid(sentences.length);
+      return;
+    }
+    const timer = window.setTimeout(() => setSaid((n) => n + 1), LINE_MS);
+    return () => window.clearTimeout(timer);
+  }, [sentences, said]);
 
   const decided = answer ?? cancelled;
 
   // The beacon says what Sentry is doing: steady while you think, breathing
   // while it works something out, green once it has done it.
-  const light = planning || deciding ? 'working' : decided?.kind === 'sent' ? 'green' : 'amber';
+  const reading = state?.kind === 'plan' && said < state.sentences.length;
+  const light =
+    planning || deciding || reading ? 'working' : decided?.kind === 'sent' ? 'green' : 'amber';
 
   return (
     <div className="mt-10">
@@ -98,7 +119,12 @@ export function Commands({ guildId, examples }: { guildId: string; examples: str
                     ))}
                   </ul>
                 )}
-                <div className="mt-5 flex items-center gap-4">
+                <div
+                  className={cx(
+                    'mt-5 flex items-center gap-4',
+                    said < state.sentences.length && 'invisible',
+                  )}
+                >
                   <form action={decide}>
                     <input type="hidden" name="guild_id" value={guildId} />
                     <input type="hidden" name="command_id" value={state.commandId} />

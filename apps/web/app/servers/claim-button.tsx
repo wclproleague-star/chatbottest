@@ -1,5 +1,6 @@
 'use client';
 
+import { Button } from '@sentrybot/ui';
 import { useActionState } from 'react';
 import { claimGuild } from './actions';
 import type { ClaimState } from './actions';
@@ -8,15 +9,11 @@ import type { ClaimState } from './actions';
 export function ClaimButton({ guildId }: { guildId: string }) {
   const [state, action, pending] = useActionState<ClaimState, FormData>(claimGuild, null);
   return (
-    <form action={action} className="flex flex-col items-end gap-1">
+    <form action={action} className="flex flex-col items-end gap-1 max-sm:w-full">
       <input type="hidden" name="guild_id" value={guildId} />
-      <button
-        type="submit"
-        disabled={pending}
-        className="text-ui text-ink decoration-ink/40 hover:decoration-ink underline underline-offset-[3px] transition-colors disabled:opacity-40"
-      >
+      <Button type="submit" disabled={pending} className="max-sm:w-full max-sm:justify-center">
         {pending ? 'Setting up' : 'Set up'}
-      </button>
+      </Button>
       {state?.error && <p className="text-ui-sm text-ink text-right">{state.error}</p>}
     </form>
   );

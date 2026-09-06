@@ -17,6 +17,7 @@ import type { DraftConfig } from '@sentrybot/core';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { Beacon } from '@/components/beacon/beacon';
 import { Live, NightScene } from './night-scene';
+import { Travel } from './travel';
 import { TestChat } from '@/app/g/[guildId]/test/test-chat';
 import {
   applyDraft,
@@ -67,6 +68,15 @@ export function Setup({
   const [config, setConfig] = useState<DraftConfig>(preview ? PREVIEW_CONFIG : {});
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
+  // The scene-to-console move, and where on the console the beacon lands.
+  const [travel, setTravel] = useState<'in' | 'out' | null>(null);
+  const slot = useRef<HTMLDivElement>(null);
+  const [slotBox, setSlotBox] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const done = AREAS.filter((area) => filled(config, area.key)).length;
   const night = step === 'entry' || step === 'live';
@@ -75,6 +85,7 @@ export function Setup({
     if (preview) {
       setSessionId('preview');
       setStep(mode);
+      startTravel('in');
       return;
     }
     const started = await startSession(guildId, mode);
@@ -84,6 +95,30 @@ export function Setup({
     }
     setSessionId(started.sessionId);
     setStep(mode);
+    startTravel('in');
+  }
+
+  /**
+   * The console is put on screen first and the scene is laid over it, so what
+   * the beacon travels to is a slot that exists and has been measured rather
+   * than a guess at where it will end up.
+   */
+  function startTravel(direction: 'in' | 'out') {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    requestAnimationFrame(() => {
+      const rect = slot.current?.getBoundingClientRect();
+      setSlotBox(
+        rect
+          ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
+          : {
+              left: window.innerWidth / 2 - 48,
+              top: window.innerHeight / 2 - 130,
+              width: 96,
+              height: 260,
+            },
+      );
+      setTravel(direction);
+    });
   }
 
   async function finishDraft(draft: DraftConfig) {
@@ -175,12 +210,14 @@ export function Setup({
           {/* The card is the beacon: what is decided is what is lit. */}
           <aside className="min-w-0 lg:sticky lg:top-16 lg:self-start">
             <div className="flex min-w-0 gap-6">
-              <Beacon
-                light={done === 0 ? 'off' : 'amber'}
-                progress={done / AREAS.length}
-                className="h-[260px] w-[96px] shrink-0"
-                label={`${done} of ${AREAS.length} decided`}
-              />
+              <div ref={slot} className="h-[260px] w-[96px] shrink-0">
+                <Beacon
+                  light={done === 0 ? 'off' : 'amber'}
+                  progress={done / AREAS.length}
+                  className={cx('h-full w-full', travel === 'in' && 'opacity-0')}
+                  label={`${done} of ${AREAS.length} decided`}
+                />
+              </div>
               <dl className="min-w-0 flex-1 space-y-4">
                 {AREAS.map((area) => (
                   <div key={String(area.key)}>
@@ -247,12 +284,24 @@ export function Setup({
             guildId={guildId}
             channels={channels}
             roles={roles}
-            onDone={() => setStep('live')}
+            onDone={() => {
+              setStep('live');
+              startTravel('out');
+            }}
           />
         </div>
       )}
 
-      {step === 'live' && <Live guildId={guildId} guildName={guildName} />}
+      {step === 'live' && travel !== 'out' && <Live guildId={guildId} guildName={guildName} />}
+
+      {travel && (
+        <Travel
+          direction={travel}
+          light={travel === 'in' ? (done === 0 ? 'off' : 'amber') : 'amber'}
+          slot={slotBox}
+          onDone={() => setTravel(null)}
+        />
+      )}
     </main>
   );
 }

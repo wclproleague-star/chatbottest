@@ -22,6 +22,7 @@ export function ExpandingRow({
   state,
   open,
   onToggle,
+  mark,
   aside,
   children,
 }: {
@@ -33,6 +34,8 @@ export function ExpandingRow({
   state: 'waiting' | 'answered';
   open: boolean;
   onToggle: () => void;
+  /** Left of the title: on the inbox, the light this row was handed over under. */
+  mark?: ReactNode;
   /** A link or two, right of the title. Not part of the toggle. */
   aside?: ReactNode;
   children?: ReactNode;
@@ -40,6 +43,7 @@ export function ExpandingRow({
   return (
     <div className={cx('border-l-2 p-5', state === 'waiting' ? 'border-amber' : 'border-green')}>
       <div className="flex items-start gap-4">
+        {mark && <div className="shrink-0 pt-0.5">{mark}</div>}
         <button
           type="button"
           onClick={onToggle}

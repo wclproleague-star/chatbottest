@@ -1,5 +1,7 @@
 import { Panel, Section, Sections } from '@sentrybot/ui';
+import { Beacon } from '@/components/beacon/beacon';
 import { PageTitle } from '@/components/dashboard/page-title';
+import type { Light } from '@/components/sky/beacon';
 import { OwnerBotCard } from './bot-card';
 
 // The week, in four numbers and one nudge. Nothing here is a chart: an owner
@@ -21,6 +23,8 @@ export type OverviewData = {
   /** The nudge, when there is one: what happened and where to go. */
   nudge: { line: string; href: string; label: string } | null;
   knowledge: { word: string; line: string };
+  /** What the sentry is doing this morning, from what is actually waiting. */
+  light: Light;
   bot: {
     name: string;
     tone: string;
@@ -33,7 +37,19 @@ export type OverviewData = {
 export function Overview({ data }: { data: OverviewData }) {
   return (
     <div>
-      <PageTitle title="Overview" lede={`How ${data.guildName} used Sentry this week.`} />
+      {/* The report starts with the one who wrote it. */}
+      <div className="flex items-start gap-6">
+        <Beacon
+          light={data.light}
+          className="h-24 w-14 shrink-0"
+          height={0.95}
+          label={STANDING[data.light]}
+        />
+        <div className="min-w-0">
+          <PageTitle title="Overview" lede={`How ${data.guildName} used Sentry this week.`} />
+          <p className="text-ui-sm text-ink-soft mt-2">{STANDING[data.light]}</p>
+        </div>
+      </div>
 
       {data.nudge && (
         <Panel className="border-amber mt-10 border-l-2 shadow-none">
@@ -75,7 +91,7 @@ export function Overview({ data }: { data: OverviewData }) {
           </Section>
 
           <Section heading="What it knows">
-            <p className="display text-ink" style={{ ['--display-size' as string]: '32px' }}>
+            <p className="display text-ink" style={{ ['--display-size' as string]: '48px' }}>
               {data.knowledge.word}
             </p>
             <p className="text-body text-ink-soft">{data.knowledge.line}</p>
@@ -99,13 +115,21 @@ export function Overview({ data }: { data: OverviewData }) {
   );
 }
 
+/** What the light means this morning, said in words as well. */
+const STANDING: Record<Light, string> = {
+  off: 'Not answering yet',
+  amber: 'Watching, and something is waiting on you',
+  working: 'Carrying something out right now',
+  green: 'Everything it was asked, it answered',
+};
+
 function Count({ label, value }: { label: string; value: number }) {
   return (
     <div>
       <dt className="text-ui-sm text-ink-soft">{label}</dt>
       <dd
         className="display text-ink mt-1 tabular-nums"
-        style={{ ['--display-size' as string]: '32px' }}
+        style={{ ['--display-size' as string]: '48px' }}
       >
         {value}
       </dd>
