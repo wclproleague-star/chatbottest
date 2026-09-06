@@ -40,6 +40,19 @@ import { serviceClient } from '@kalvard/core/supabase';
 import { logEvent } from './guild';
 import { claim } from './once';
 
+/** Words a text about the match format contains; a text with none is not the rules. */
+const FORMAT_WORDS = [
+  'bo3',
+  'best of',
+  'draft',
+  'side',
+  'game 1',
+  'game one',
+  'fearless',
+  'match rules',
+  'règles',
+];
+
 /** Where the final score of a series goes: the first of these that exists. */
 const RESULTS_CHANNELS = ['résultats', 'results'];
 
@@ -466,8 +479,7 @@ export async function startSeries(input: {
     () => [],
   );
   const aboutTheFormat = (text: string): boolean =>
-    /(bo3|best of|draft|side|sides|game 1|game one|fearless|match rules|règles)/i.test(text) &&
-    !/^Q:/m.test(text);
+    FORMAT_WORDS.some((word) => text.toLowerCase().includes(word)) && !/^Q:/m.test(text);
   const rules =
     found
       .map((c) => c.content.trim())
