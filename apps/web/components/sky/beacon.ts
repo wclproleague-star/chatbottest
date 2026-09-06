@@ -342,17 +342,26 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   let currentAmount = 1;
   let changedAt = -1;
   let changeMs = LIGHT_MS;
+  /**
+   * The first state a caller asks for is not a change of state: it is what
+   * this beacon is. It lands at once, so an instance that is green from the
+   * moment it appears is green rather than crossfading out of the amber the
+   * object happens to be built with.
+   */
+  let first = true;
   let fade = 1;
 
   function setLight(next: Light, nextProgress: number, now: number, ms: number) {
+    const settle = first;
+    first = false;
     if (next === lightNow && nextProgress === progressNow) return;
     lightNow = next;
     progressNow = nextProgress;
-    fromColor.copy(current);
-    fromShown.copy(currentShown);
-    fromAmount = currentAmount;
-    fromProgress = currentProgress;
-    changedAt = now;
+    fromColor.copy(settle ? colors[next] : current);
+    fromShown.copy(settle ? shown[next] : currentShown);
+    fromAmount = settle ? amount[next] : currentAmount;
+    fromProgress = settle ? nextProgress : currentProgress;
+    changedAt = settle ? -1 : now;
     changeMs = ms;
   }
 

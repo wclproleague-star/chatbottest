@@ -1,17 +1,21 @@
-import { ButtonLink, Display, Panel, Surface, TextLink } from '@sentrybot/ui';
-import { TopBar } from '@/components/dashboard/top-bar';
+import { serviceClient } from '@sentrybot/core';
 import { guildIconUrl } from '@/lib/discord';
 import { supabaseServer } from '@/lib/supabase/server';
-import { ClaimButton } from './claim-button';
+import { Servers, SignedOut } from './servers';
+import type { ServerCard } from './servers';
+import type { Light } from '@/components/sky/beacon';
 
-// Your servers. Signed out: one sentence and the Discord sign-in. Signed in:
-// the servers Discord lists for you, the ones you can manage first, each with
-// "Set up" (claim) or "Open" once claimed.
+// Your servers, and what each one's sentry is doing. The state on a card is
+// read from what actually happened, never from a setting: green means it
+// answered somebody in the last hour, and if it did not, it is not green.
 
 const ERRORS: Record<string, string> = {
   login: "Sign-in didn't finish. Try again.",
   guilds: "Signed in, but Discord's server list didn't load. Sign in again to refresh it.",
 };
+
+const HOUR = 60 * 60 * 1000;
+const WEEK = 7 * 24 * HOUR;
 
 export default async function Page({
   searchParams,
@@ -25,95 +29,107 @@ export default async function Page({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  if (!user) {
-    return (
-      <Shell signedIn={false}>
-        <Title lede="Sign in with Discord to see the servers you can set up." />
-        {notice && <p className="mt-6 max-w-[60ch]">{notice}</p>}
-        <div className="mt-8">
-          <ButtonLink href="/auth/login">Sign in with Discord</ButtonLink>
-        </div>
-      </Shell>
-    );
-  }
+  if (!user) return <SignedOut notice={notice} />;
 
   const [{ data: userGuilds }, { data: memberships }] = await Promise.all([
     supabase
       .from('user_guilds')
       .select('guild_id, guild_name, guild_icon, can_manage')
       .eq('user_id', user.id)
-      .order('can_manage', { ascending: false })
       .order('guild_name'),
     supabase.from('guild_members').select('guild_id').eq('user_id', user.id),
   ]);
-  const mine = new Set((memberships ?? []).map((m) => m.guild_id));
-  const guilds = userGuilds ?? [];
 
-  return (
-    <Shell signedIn>
-      <Title lede="Servers where you can manage settings come first." />
-      {notice && <p className="mt-6 max-w-[60ch]">{notice}</p>}
+  const claimed = new Set((memberships ?? []).map((m) => m.guild_id));
+  const all = userGuilds ?? [];
+  const mine = all.filter((g) => g.can_manage || claimed.has(g.guild_id));
+  const others = all
+    .filter((g) => !g.can_manage && !claimed.has(g.guild_id))
+    .map((g) => ({ guildId: g.guild_id, name: g.guild_name ?? g.guild_id }));
 
-      {guilds.length === 0 ? (
-        <p className="mt-8 max-w-[60ch]">
-          No servers here yet. Join one on Discord, then{' '}
-          <TextLink href="/auth/login">sign in again</TextLink>.
-        </p>
-      ) : (
-        <Panel className="divide-hairline mt-10 divide-y p-0 px-6">
-          {guilds.map((g) => {
-            const icon = guildIconUrl(g.guild_id, g.guild_icon, 64);
-            const claimed = mine.has(g.guild_id);
-            return (
-              <div key={g.guild_id} className="flex items-center gap-4 py-4">
-                {icon ? (
-                  // Discord's own guild icon, as content.
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={icon} alt="" width={32} height={32} className="size-8 rounded-full" />
-                ) : (
-                  <span aria-hidden className="bg-ink/8 size-8 rounded-full" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="truncate">{g.guild_name ?? g.guild_id}</p>
-                  <p className="text-ui-sm text-ink-soft">
-                    {claimed
-                      ? 'Set up'
-                      : g.can_manage
-                        ? 'Not set up yet'
-                        : "You can't manage this server"}
-                  </p>
-                </div>
-                <div className="shrink-0">
-                  {claimed ? (
-                    <TextLink href={`/setup/${g.guild_id}`}>Open</TextLink>
-                  ) : g.can_manage ? (
-                    <ClaimButton guildId={g.guild_id} />
-                  ) : null}
-                </div>
-              </div>
-            );
-          })}
-        </Panel>
-      )}
-    </Shell>
-  );
+  const state = await stateOf(mine.filter((g) => claimed.has(g.guild_id)).map((g) => g.guild_id));
+
+  const manageable: ServerCard[] = mine.map((g) => {
+    const s = state.get(g.guild_id);
+    return {
+      guildId: g.guild_id,
+      name: g.guild_name ?? g.guild_id,
+      icon: guildIconUrl(g.guild_id, g.guild_icon, 64),
+      claimed: claimed.has(g.guild_id),
+      light: s?.light ?? 'off',
+      line: s?.line ?? 'Not set up yet',
+    };
+  });
+
+  return <Servers manageable={manageable} others={others} notice={notice} />;
 }
 
-function Shell({ signedIn, children }: { signedIn: boolean; children: React.ReactNode }) {
-  return (
-    <Surface surface="paper" className="min-h-screen">
-      <TopBar signedIn={signedIn} />
-      <main className="max-w-page mx-auto px-6 pb-24 pt-12">{children}</main>
-    </Surface>
-  );
+type State = { light: Light; line: string };
+
+/**
+ * What each sentry is doing, from what it has actually done. One query per
+ * kind of fact across every guild at once, rather than one round trip per
+ * card: this page is a list, and a list must not scale badly.
+ */
+async function stateOf(guildIds: string[]): Promise<Map<string, State>> {
+  const out = new Map<string, State>();
+  if (guildIds.length === 0) return out;
+
+  const db = serviceClient();
+  const weekAgo = new Date(Date.now() - WEEK).toISOString();
+
+  const [{ data: guilds }, { data: answers }, { data: waiting }, { data: running }] =
+    await Promise.all([
+      db.from('guilds').select('guild_id, setup_completed, bot_installed').in('guild_id', guildIds),
+      db
+        .from('bot_events')
+        .select('guild_id, created_at')
+        .in('guild_id', guildIds)
+        .eq('type', 'answered')
+        .gte('created_at', weekAgo),
+      db.from('questions').select('guild_id').in('guild_id', guildIds).eq('status', 'pending'),
+      // Confirmed and not yet carried out: the bot is holding it right now.
+      db.from('commands').select('guild_id').in('guild_id', guildIds).eq('status', 'planned'),
+    ]);
+
+  const week = new Map<string, number>();
+  const lastAnswer = new Map<string, number>();
+  for (const row of answers ?? []) {
+    week.set(row.guild_id, (week.get(row.guild_id) ?? 0) + 1);
+    const at = new Date(row.created_at).getTime();
+    if (at > (lastAnswer.get(row.guild_id) ?? 0)) lastAnswer.set(row.guild_id, at);
+  }
+  const pending = new Map<string, number>();
+  for (const row of waiting ?? []) pending.set(row.guild_id, (pending.get(row.guild_id) ?? 0) + 1);
+  const busy = new Set((running ?? []).map((r) => r.guild_id));
+
+  for (const g of guilds ?? []) {
+    const ready = g.setup_completed && g.bot_installed;
+    if (!ready) {
+      out.set(g.guild_id, {
+        light: 'off',
+        line: g.bot_installed ? 'Set up, not finished' : 'Not set up yet',
+      });
+      continue;
+    }
+    const answered = week.get(g.guild_id) ?? 0;
+    const wait = pending.get(g.guild_id) ?? 0;
+    const recent = Date.now() - (lastAnswer.get(g.guild_id) ?? 0) < HOUR;
+    out.set(g.guild_id, {
+      light: busy.has(g.guild_id) ? 'working' : recent ? 'green' : 'amber',
+      line: sentence(answered, wait, busy.has(g.guild_id)),
+    });
+  }
+  return out;
 }
 
-function Title({ lede }: { lede: string }) {
-  return (
-    <>
-      <Display className="[--display-size:32px]">Your servers</Display>
-      <p className="text-ink-soft mt-3 max-w-[60ch]">{lede}</p>
-    </>
-  );
+/** The state again, in words, because a colour is a thing you have to be taught. */
+function sentence(answered: number, waiting: number, busy: boolean): string {
+  if (busy) return 'Carrying something out right now';
+  const first =
+    answered === 0
+      ? 'Nothing asked this week'
+      : `${answered} ${answered === 1 ? 'answer' : 'answers'} this week`;
+  if (waiting === 0) return `${first}, nothing waiting on you`;
+  return `${first}, ${waiting} waiting on you`;
 }
