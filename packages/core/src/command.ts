@@ -106,7 +106,7 @@ export async function planCommand(input: {
    * The member this request is about when it names nobody: a moderator
    * answering "give him the role" means the member who asked.
    */
-  about?: { id: string; name: string };
+  about?: { id: string; name: string; role?: { id: string; name: string } };
 }): Promise<Plan> {
   if (!input.by.isOwner && !input.by.isStaff) {
     return {
@@ -121,6 +121,39 @@ export async function planCommand(input: {
   // the model is asked, because the model reads "give me" as an instruction.
   if (forThemselves(input.request)) {
     return { kind: 'not_a_command', because: 'They are asking for themselves.' };
+  }
+
+  // A moderator answering an escalation about one role, for one member, does
+  // not have to spell either out: "yes give it to him", "ok pour lui", "i
+  // confirm, give him that role" all mean the same thing, and it is decided
+  // here rather than asked of a model that reads "that role" as no role. A
+  // refusal, or a reply that names some other role or person, goes the long
+  // way round like any other request.
+  if (input.about?.role && goesAhead(input.request)) {
+    const others = input.shape.roles.filter(
+      (r) => r.id !== input.about!.role!.id && clean(input.request).includes(clean(r.name)),
+    );
+    if (others.length === 0 && mentionsIn(input.request).length === 0) {
+      const step: RawStep = {
+        action: 'assign_role',
+        roles: [input.about.role.name],
+        member: input.about.id,
+        memberName: input.about.name,
+      };
+      if (!input.shape.allowedActions.includes('assign_role')) {
+        return {
+          kind: 'refused',
+          because: `${label('assign_role')} is switched off for this server. Turn it on in Personality first.`,
+        };
+      }
+      return {
+        kind: 'plan',
+        steps: [
+          { action: 'assign_role', args: argsOf(step), sentence: sentenceFor('assign_role', step) },
+        ],
+        touches: 1,
+      };
+    }
   }
 
   const raw = await propose(input.request, input.shape);
@@ -215,6 +248,7 @@ export async function planCommand(input: {
           clean(input.request).includes(clean(role.name)),
         );
         if (inText.length === 1) step.roles = [inText[0]!.name];
+        else if (inText.length === 0 && input.about?.role) step.roles = [input.about.role.name];
         else {
           return {
             kind: 'question',
@@ -532,6 +566,38 @@ function argsOf(step: RawStep): Record<string, string> {
   if (step.memberName) args.memberName = step.memberName;
   return args;
 }
+
+/**
+ * Whether a reply is a go-ahead rather than a refusal or a question.
+ *
+ * A yes, a give-verb or a confirmation, and no refusal anywhere in it: "no,
+ * he's not on the roster" is not one, and neither is "which team is he on?".
+ */
+function goesAhead(request: string): boolean {
+  const text = request
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(
+      new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g'),
+      '',
+    );
+  const words = new Set(text.split(/[^a-z0-9']+/).filter(Boolean));
+  for (const word of REFUSING) if (words.has(word)) return false;
+  if (text.includes('?')) return false;
+  for (const word of AGREEING) if (words.has(word)) return true;
+  return false;
+}
+
+const AGREEING = new Set(
+  (
+    'yes yeah yep ok okay sure confirm confirmed confirme confirmé approved go give gives assign add grant ' +
+    'oui ouais dacc daccord donne donnes mets met ajoute valide validé fine done right correct exact exactement'
+  ).split(' '),
+);
+
+const REFUSING = new Set(
+  "no nope not non pas jamais never dont don't cant can't refuse refused refuse nah".split(' '),
+);
 
 /** Words in a request that could be a member's name, at most a handful. */
 function memberCandidates(request: string, roles: { id: string; name: string }[]): string[] {

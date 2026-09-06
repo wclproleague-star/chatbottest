@@ -405,6 +405,43 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
     him.kind === 'plan' && him.steps[0]?.args.member === '7777',
     `${him.kind}: ${'question' in him ? him.question : him.kind === 'plan' ? JSON.stringify(him.steps[0]?.args) : ''}`,
   );
+  // "that role" is the role the escalation was about. Live, this reply was
+  // filed as knowledge because nothing in it named a role.
+  for (const reply of [
+    "i confirm he's a part of the team, give him that role",
+    'yes give it to him',
+    'ok pour lui',
+  ]) {
+    const that = await planCommand({
+      guildId: '900000000000000001',
+      request: reply,
+      by: MOD,
+      shape: SHAPE,
+      whoIs,
+      about: { id: '7777', name: 'kestrel', role: { id: 'r2', name: 'Caster' } },
+    });
+    check(
+      `"${reply}" gives the role the escalation was about`,
+      that.kind === 'plan' &&
+        that.steps.length === 1 &&
+        that.steps[0]?.args.member === '7777' &&
+        that.steps[0]?.args.roles === 'Caster',
+      `${that.kind}: ${'question' in that ? that.question : 'because' in that ? that.because : JSON.stringify(that.steps)}`,
+    );
+  }
+  const refusal = await planCommand({
+    guildId: '900000000000000001',
+    request: "no, he's not on the roster",
+    by: MOD,
+    shape: SHAPE,
+    whoIs,
+    about: { id: '7777', name: 'kestrel', role: { id: 'r2', name: 'Caster' } },
+  });
+  check(
+    'a refusal gives nothing',
+    refusal.kind !== 'plan',
+    refusal.kind === 'plan' ? JSON.stringify(refusal.steps) : refusal.kind,
+  );
   const named = await planCommand({
     guildId: '900000000000000001',
     request: 'give Craig the Caster role',

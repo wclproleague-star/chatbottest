@@ -17,7 +17,7 @@ import type { GuildSettings } from './guild';
 import { logEvent } from './guild';
 import { recordAnswer, settleQuestion } from './knowledge';
 import { commandEffects, shapeOf, whoIsIn } from './command';
-import { planCommand, recordCommand, runPlan } from '@kalvard/core';
+import { namedRoles, planCommand, recordCommand, runPlan } from '@kalvard/core';
 
 const TICK = '✅';
 const UNSURE = '❓';
@@ -111,13 +111,16 @@ export async function onTick(
     const asker = await guild.members.fetch(pending.asker_discord_id).catch(() => null);
     const by = { id: user.id, name: member.displayName, isStaff: true, isOwner: false };
     const shape = await shapeOf(guild);
+    // The escalation's summary names the role it was about, when it was
+    // about one: "PPG asked for Fast Forward, which is not self-serve".
+    const aboutRole = namedRoles(pending.bot_draft ?? '', shape.roles)[0];
     const plan = await planCommand({
       guildId: guild.id,
       request: answer,
       by,
       shape,
       whoIs: whoIsIn(guild),
-      about: asker ? { id: asker.id, name: asker.displayName } : undefined,
+      about: asker ? { id: asker.id, name: asker.displayName, role: aboutRole } : undefined,
     });
     if (plan.kind === 'plan' && plan.steps.every((step) => step.action === 'assign_role')) {
       const commandId = await recordCommand({ guildId: guild.id, by, request: answer, plan });

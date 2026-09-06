@@ -44,7 +44,7 @@ export { authorWorkflow, checkStep, readBack, whatChanged } from './workflow-aut
 export { isDue, lastDue, readSchedule } from './schedule';
 export { answersHere } from './answers-here';
 export { answersTheQuestion } from './conversation';
-export { aboutARole, asksForRole, whichRole } from './roles';
+export { aboutARole, asksForRole, namedRoles, whichRole } from './roles';
 export { appendVouch, onRoster, rosterTitle, vouchDocument } from './vouch';
 export { isVouched, recordVouch } from './vouch-store';
 export type { Vouch } from './vouch';
