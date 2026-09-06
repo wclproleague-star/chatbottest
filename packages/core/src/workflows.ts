@@ -47,6 +47,8 @@ export type Workflow = {
   steps: Step[];
   checks?: { must: string; otherwise: string }[];
   autoRun?: boolean;
+  /** Switched off rather than deleted. */
+  enabled?: boolean;
 };
 
 /** What a run did, or would have done, one line each. */
@@ -335,4 +337,153 @@ export async function recordRun(input: {
       } as unknown as Json,
     });
   if (error) console.error(`kalvard: could not record the run: ${error.message}`);
+}
+
+// The store ---------------------------------------------------------------
+// A workflow is data, so reading and writing one is the boring part on
+// purpose: no logic lives here that the engine or the author does not own.
+
+/** Every workflow this guild has, newest first. */
+export async function listWorkflows(guildId: string): Promise<Workflow[]> {
+  const { data, error } = await serviceClient()
+    .from('workflows')
+    .select('id, name, trigger, steps, checks, enabled, auto_run')
+    .eq('guild_id', guildId)
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.error(`kalvard: could not read the workflows: ${error.message}`);
+    return [];
+  }
+  return (data ?? []).map(fromRow);
+}
+
+export async function getWorkflow(guildId: string, id: string): Promise<Workflow | null> {
+  const { data } = await serviceClient()
+    .from('workflows')
+    .select('id, name, trigger, steps, checks, enabled, auto_run')
+    .eq('guild_id', guildId)
+    .eq('id', id)
+    .maybeSingle();
+  return data ? fromRow(data) : null;
+}
+
+/**
+ * Writes one. A workflow is keyed by its name inside a guild, so saving a
+ * routine that already exists updates it rather than leaving two behind.
+ */
+export async function saveWorkflow(input: {
+  guildId: string;
+  workflow: Workflow;
+  createdBy?: string;
+}): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
+  const row = {
+    guild_id: input.guildId,
+    name: input.workflow.name,
+    trigger: input.workflow.trigger as unknown as Json,
+    steps: input.workflow.steps as unknown as Json,
+    checks: (input.workflow.checks ?? []) as unknown as Json,
+    auto_run: input.workflow.autoRun ?? false,
+    created_by: input.createdBy ?? null,
+  };
+  const { data, error } = await serviceClient()
+    .from('workflows')
+    .upsert(row, { onConflict: 'guild_id,name' })
+    .select('id')
+    .single();
+  if (error || !data) {
+    return { ok: false, message: 'Could not save that workflow. Try again.' };
+  }
+  return { ok: true, id: data.id };
+}
+
+/** Switched off rather than deleted: a routine somebody wrote is kept. */
+export async function setWorkflowEnabled(
+  guildId: string,
+  id: string,
+  enabled: boolean,
+): Promise<void> {
+  const { error } = await serviceClient()
+    .from('workflows')
+    .update({ enabled })
+    .eq('guild_id', guildId)
+    .eq('id', id);
+  if (error) console.error(`kalvard: could not switch the workflow: ${error.message}`);
+}
+
+/** What the runs did, newest first, for the dashboard. */
+export async function listRuns(
+  guildId: string,
+  limit = 20,
+): Promise<
+  {
+    id: string;
+    workflowId: string | null;
+    mode: 'live' | 'dry_run';
+    status: string;
+    startedAt: string;
+    entries: RunEntry[];
+    stoppedBecause: string | null;
+  }[]
+> {
+  const { data } = await serviceClient()
+    .from('workflow_runs')
+    .select('id, workflow_id, mode, status, started_at, summary')
+    .eq('guild_id', guildId)
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  return (data ?? []).map((row) => {
+    const summary = (row.summary ?? {}) as {
+      entries?: RunEntry[];
+      stoppedBecause?: string | null;
+    };
+    return {
+      id: row.id,
+      workflowId: row.workflow_id,
+      mode: row.mode as 'live' | 'dry_run',
+      status: row.status,
+      startedAt: row.started_at,
+      entries: summary.entries ?? [],
+      stoppedBecause: summary.stoppedBecause ?? null,
+    };
+  });
+}
+
+function fromRow(row: {
+  id: string;
+  name: string;
+  trigger: unknown;
+  steps: unknown;
+  checks: unknown;
+  enabled?: boolean;
+  auto_run?: boolean;
+}): Workflow {
+  return {
+    id: row.id,
+    name: row.name,
+    trigger: (row.trigger ?? { kind: 'request' }) as Workflow['trigger'],
+    steps: (row.steps ?? []) as Step[],
+    checks: (row.checks ?? []) as Workflow['checks'],
+    autoRun: Boolean(row.auto_run),
+    enabled: row.enabled !== false,
+  };
+}
+
+/**
+ * Effects that do nothing, for a rehearsal on the web.
+ *
+ * The web has no Discord connection, and a dry run does not need one: every
+ * write is described rather than made, so what these return is never used.
+ * The one read a rehearsal does need is the channel, and without a connection
+ * it says so rather than pretending the channel is there.
+ */
+export function runDryEffects(): WorkflowEffects {
+  return {
+    async postMessage() {},
+    async askButtons() {},
+    async addReaction() {},
+    async pinMessage() {},
+    async channelId(name: string) {
+      return name;
+    },
+  };
 }

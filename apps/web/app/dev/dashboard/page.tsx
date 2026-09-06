@@ -8,6 +8,7 @@ import { Commands } from '@/app/g/[guildId]/commands/commands-form';
 import { Overview } from '@/app/g/[guildId]/overview/overview';
 import { Knowledge } from '@/app/g/[guildId]/knowledge/knowledge';
 import { TestPanels } from '@/app/g/[guildId]/test/test-panels';
+import { Workflows } from '@/app/g/[guildId]/workflows/workflows-page';
 
 // The dashboard screens with fixed data, so they can be looked at and checked
 // against the design without a Discord session. The forms post to the real
@@ -43,6 +44,7 @@ export default async function Page({
           {p === 'overview' && <OverviewPreview />}
           {p === 'knowledge' && <KnowledgePreview />}
           {p === 'test' && <TestPreview />}
+          {p === 'workflows' && <WorkflowsPreview />}
           {p === 'inbox' && <InboxPreview openAt={open} />}
           {p === 'personality' && <PersonalityPreview />}
           {p === 'settings' && <SettingsPreview />}
@@ -134,6 +136,70 @@ function TestPreview() {
       <div className="mt-10">
         <TestPanels guildId="900000000000000001" botName="Kalvard" />
       </div>
+    </div>
+  );
+}
+
+function WorkflowsPreview() {
+  return (
+    <div>
+      <PageTitle
+        title="Workflows"
+        lede="Routines this server runs. Describe one in your own words; Kalvard reads it back before it keeps it."
+      />
+      <Workflows
+        guildId="900000000000000001"
+        workflows={[
+          {
+            id: 'w1',
+            name: 'Match day',
+            trigger: 'Runs every Thursday at 18:00',
+            steps: 6,
+            enabled: true,
+            readBack: [
+              'Post (channel #match-info, text Two matches tonight)',
+              'Ask either captain: "Ready?" — Ready or Not yet',
+              'Pick one of Blue, Red and say so in #match-info',
+              'Wait for a attachment from either captain in #match-info, and after 30 minutes:',
+              '  Post (channel #match-info, text Screenshot when you can)',
+              'Post (channel #match-info, text Result recorded)',
+            ],
+          },
+          {
+            id: 'w2',
+            name: 'Weekly announcement',
+            trigger: 'Runs every Monday at 09:00',
+            steps: 2,
+            enabled: false,
+            readBack: ['Post (channel #announcements, text This week)'],
+          },
+        ]}
+        runs={[
+          {
+            id: 'r1',
+            name: 'Match day',
+            mode: 'live',
+            status: 'done',
+            when: 'Thu 4 Sep',
+            lines: [
+              'Posted in #match-info: two matches tonight',
+              'Asked both captains, by Discord id',
+              'Coin flip landed on Blue, announced in #match-info',
+              'Waiting on a screenshot from either captain',
+            ],
+            stoppedBecause: null,
+          },
+          {
+            id: 'r2',
+            name: 'Match day',
+            mode: 'dry_run',
+            status: 'stopped',
+            when: 'Wed 3 Sep',
+            lines: ['Would have: posted in #match-info'],
+            stoppedBecause: 'There is no channel called #resultats.',
+          },
+        ]}
+      />
     </div>
   );
 }

@@ -19,7 +19,17 @@ export type {
   GuildShape,
 } from './command';
 
-export { runWorkflow, recordRun, WORKFLOW_ACTIONS } from './workflows';
+export {
+  runWorkflow,
+  recordRun,
+  listWorkflows,
+  getWorkflow,
+  saveWorkflow,
+  setWorkflowEnabled,
+  listRuns,
+  runDryEffects,
+  WORKFLOW_ACTIONS,
+} from './workflows';
 export type { Workflow, WorkflowEffects, RunResult, Step } from './workflows';
 
 export { MATCH_DAY, matchDayContext } from './workflows/match-day';

@@ -14,8 +14,7 @@ import { useState } from 'react';
 /**
  * The pages, and the one group among them. A playbook is everything Kalvard
  * knows about how this community runs — its voice, its knowledge, its limits
- * and its workflows — so the pages that write it sit under that word. The
- * workflows page joins them at line 12c.
+ * and its workflows — so the pages that write it sit under that word.
  */
 const PAGES: ([string, string] | { group: string; pages: [string, string][] })[] = [
   ['overview', 'Overview'],
@@ -24,6 +23,7 @@ const PAGES: ([string, string] | { group: string; pages: [string, string][] })[]
     pages: [
       ['knowledge', 'Knowledge'],
       ['personality', 'Personality'],
+      ['workflows', 'Workflows'],
     ],
   },
   ['inbox', 'Inbox'],
