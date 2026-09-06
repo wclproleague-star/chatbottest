@@ -26,7 +26,7 @@ import './fetchers/rift-legends';
 import './fetchers/http-json';
 import { detectLanguage, inLanguage } from './language';
 import { answersTheQuestion } from './conversation';
-import { aboutARole, asksForRole, nearest, whichRole } from './roles';
+import { aboutARole, namedRoles, nearest, whichRole } from './roles';
 import { isVouched } from './vouch-store';
 import { fetchFrom, parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
@@ -269,9 +269,25 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     };
   };
 
+  // The same, before an act rather than a question: checking, giving or
+  // escalating over one reading of "ff" when the member has not said which
+  // one they meant. Nothing they wrote in full settles it, so it is asked.
+  const actsOnOneReading = (roleId?: string): string | null => {
+    const readings = nearest(saidByMember(turns), allRoles);
+    if (readings.length < 2) return null;
+    if (roleId && !readings.some((r) => r.id === roleId)) return null;
+    const settled = namedRoles(saidByMember(turns), allRoles);
+    if (roleId ? settled.some((r) => r.id === roleId) : settled.length > 0) return null;
+    return (
+      'They have not said which role they mean. What they wrote reads as ' +
+      readings.map((r) => r.name).join(' or ') +
+      '. Ask which, in one question that names them all, before you check, give or escalate anything.'
+    );
+  };
+
   const guessAmongReadings = (question: string): string | null => {
     const readings = nearest(saidByMember(turns), allRoles);
-    const named = allRoles.filter((r) => mentions(question, r.name));
+    const named = namedRoles(question, allRoles);
     const left = readings.filter((r) => !named.some((n) => n.id === r.id));
     if (readings.length < 2 || left.length === 0) return null;
     return (
@@ -344,7 +360,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   // their own consent, and the proof the owner configured for that role.
   const allRoles = await effects.listRoles();
   const selfServe = allRoles.filter((r) => settings.selfServeRoleIds.includes(r.id));
-  const wanted = await roleTheyAskedFor(input.message, turns, selfServe);
+  const wanted = await roleTheyAskedFor(input.message, turns, selfServe, allRoles);
 
   // A role this server really has, named in full, that the owner has not put
   // on the list. Saying "that is not something I do" would be false: it is
@@ -356,7 +372,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   if (!wanted) {
     const match = whichRole(input.message, selfServe, allRoles);
 
-    if (match.kind === 'not_mine' && asksForRole(input.message)) {
+    if (match.kind === 'not_mine' && aboutARole(input.message, turns)) {
       // The name is written in full inside a request. That is the member
       // asking for it; a second judgement of whether they "really" meant it is
       // how "no, fast forward role" came back as a question about Fast
@@ -516,7 +532,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
 
       // A question, or a list of things to choose from, keeps the conversation
       // open: the member's next message is the answer to it, not a new request.
-      const offersChoice = allRoles.filter((r) => mentions(step.text, r.name));
+      const offersChoice = namedRoles(step.text, allRoles);
       if (step.text.includes('?') || offersChoice.length > 1) {
         // The same guard as ask_user: a question written straight out is
         // still a question, and one that names one role where the words read
@@ -658,6 +674,17 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
 
       case 'escalate_to_mod': {
         const summary = String(call.args.summary ?? '').trim();
+        // Waking a moderator over one reading of an abbreviation is the wrong
+        // stage of the funnel: the clarifying question comes first.
+        const unsettled = aboutARole(input.message, turns)
+          ? actsOnOneReading(namedRoles(summary, allRoles)[0]?.id)
+          : null;
+        if (unsettled && !guessed) {
+          guessed = true;
+          turns.push({ role: 'tool', name: call.name, result: { ok: false, reason: unsettled } });
+          break;
+        }
+        if (unsettled) return askAmongReadings();
         await closeConversation(guildId, conversationId);
         const text = String(call.args.message ?? '').trim() || `I can't do that one. ${MODS}`;
         const withMods = text.includes(MODS) ? text : `${text} ${MODS}`;
@@ -705,6 +732,13 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
 
       case 'check_membership': {
         const roleId = String(call.args.roleId ?? '');
+        const oneReading = aboutARole(input.message, turns) && actsOnOneReading(roleId);
+        if (oneReading && !guessed) {
+          guessed = true;
+          turns.push({ role: 'tool', name: call.name, result: { ok: false, reason: oneReading } });
+          break;
+        }
+        if (oneReading) return askAmongReadings();
         const proof = settings.roleProofs[roleId];
         const result = await checkMembership({
           guildId,
@@ -861,12 +895,19 @@ async function roleTheyAskedFor(
   message: string,
   turns: ToolTurn[],
   offered: { id: string; name: string }[],
+  /** Every role the server has, so naming one of the others is seen. */
+  everything: { id: string; name: string }[],
 ): Promise<{ id: string; name: string } | null> {
-  const named = offered.filter((r) => mentions(message, r.name));
+  const named = namedRoles(message, offered);
   const lastAsked = questionsAsked(turns).at(-1) ?? '';
-  const put = offered.filter((r) => mentions(lastAsked, r.name));
+  const put = namedRoles(lastAsked, offered);
   const candidate = named.length === 1 ? named[0]! : put.length === 1 ? put[0]! : null;
   if (!candidate) return null;
+  // "no, fast forward" after "you mean Fast Forward Test?" names a different
+  // role in full. That is an answer, and it is not yes: decided here, because
+  // the model has read it as agreement.
+  const elsewhere = namedRoles(message, everything).filter((r) => r.id !== candidate.id);
+  if (elsewhere.length > 0) return null;
   return (await memberAgreed(message, lastAsked, candidate.name)) ? candidate : null;
 }
 

@@ -258,8 +258,8 @@ export function PersonalityForm({
               </Field>
 
               <Field
-                label="Which roles may it hand out?"
-                help="Only these, and only after the proof you set for each one."
+                label="Which roles may it hand out on its own?"
+                help="These it gives after the proof you set for each one. Any other role a member asks for goes to the moderators, who can give it through Kalvard by telling it to."
               >
                 {roles.length === 0 ? (
                   <p className="text-ui-sm text-ink-soft">

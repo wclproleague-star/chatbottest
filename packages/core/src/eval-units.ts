@@ -21,7 +21,7 @@ import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends'
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { answersHere } from './answers-here';
 import { answersTheQuestion } from './conversation';
-import { aboutARole, asksForRole, nearest, whichRole } from './roles';
+import { aboutARole, asksForRole, namedRoles, nearest, whichRole } from './roles';
 import { appendVouch, onRoster, vouchDocument } from './vouch';
 import { findRepeat, offer } from './repeats';
 import { runWorkflow } from './workflows';
@@ -859,6 +859,18 @@ console.log(
   check('ff reads as Fast Forward', both.includes('Fast Forward'), both.join(', '));
   check('and as Fast Forward Test', both.includes('Fast Forward Test'), both.join(', '));
   check('and as nothing else', both.length === 2, both.join(', '));
+  // The question that got through live named the longer role, and the
+  // shorter one was read as named too because it sits inside it.
+  const put = namedRoles('Do you want Fast Forward Test?', roles).map((r) => r.name);
+  check('a question naming Fast Forward Test names one role', put.length === 1, put.join(', '));
+  check('and it is that one', put[0] === 'Fast Forward Test', put.join(', '));
+  check(
+    'naming both is both',
+    namedRoles('Fast Forward or Fast Forward Test?', roles).length === 2,
+    namedRoles('Fast Forward or Fast Forward Test?', roles)
+      .map((r) => r.name)
+      .join(', '),
+  );
   check(
     'give me ff role, the same',
     nearest('give me ff role', roles).length === 2,

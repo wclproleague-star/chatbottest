@@ -116,6 +116,38 @@ export function whichRole(
 }
 
 /**
+ * The roles a text names, as whole words, longest first and nothing twice.
+ *
+ * "Do you want Fast Forward Test?" names Fast Forward Test and not Fast
+ * Forward, even though the shorter name sits inside the longer one. Live,
+ * reading it as both is what let a question about the wrong role through: it
+ * looked as though every reading had been named.
+ */
+export function namedRoles(
+  text: string,
+  roles: { id: string; name: string }[],
+): { id: string; name: string }[] {
+  // Longest names first, and each one found is struck out of the text
+  // before the shorter ones are looked for, so a name only counts where it
+  // stands on its own.
+  let left = fold(text);
+  const out: { id: string; name: string }[] = [];
+  for (const role of [...named(text, roles)].sort((a, b) => b.name.length - a.name.length)) {
+    let seen = false;
+    for (const form of new Set([fold(role.name), plain(role.name)].filter(Boolean))) {
+      const pattern = new RegExp(`(^|[^a-z0-9])(${escape(form)})([^a-z0-9]|$)`, 'g');
+      if (!pattern.test(left)) continue;
+      seen = true;
+      left = left.replace(pattern, (_, before: string, hit: string, after: string) => {
+        return before + ' '.repeat(hit.length) + after;
+      });
+    }
+    if (seen) out.push(role);
+  }
+  return out;
+}
+
+/**
  * Of several exact matches, the ones whose names nothing else contains.
  *
  * A server with both "Fast Forward" and "Fast Forward Test" is ordinary, and

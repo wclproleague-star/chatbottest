@@ -645,5 +645,57 @@
         "why": "Fast Forward is written in full, in a request; it is real and not self-serve, so the moderators are brought in at once"
       }
     ]
+  },
+  {
+    "name": "the ff role, asked after a list of what it gives",
+    "why": "Live, verbatim: after listing Fast Forward Test and Chromanova Test, 'give me another role, the ff role' came back as 'Do you want Fast Forward Test?', and 'no, fast forward' as 'That is not something I do'. Both readings of ff are named, and a real role named in full inside a role conversation is the role they mean.",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_fft",
+        "name": "Fast Forward Test"
+      },
+      {
+        "id": "role_ct",
+        "name": "Chromanova Test"
+      }
+    ],
+    "selfServe": ["role_fft", "role_ct"],
+    "membership": {
+      "role_fft": true,
+      "role_ct": true
+    },
+    "turns": [
+      {
+        "message": "now what roles can you give me ?",
+        "expect": {
+          "outcomeOneOf": ["reply", "ask"],
+          "textHas": ["Fast Forward Test", "Chromanova Test"],
+          "textNot": ["Fast Forward,", "Fast Forward and", "Fast Forward or"]
+        },
+        "why": "the two it can give, and not the one it cannot"
+      },
+      {
+        "message": "give me another role , the ff role",
+        "expect": {
+          "outcome": "ask",
+          "notCalls": ["assign_role"],
+          "textHas": ["Fast Forward", "Fast Forward Test"]
+        },
+        "why": "ff is both; it asks which"
+      },
+      {
+        "message": "no, fast forward",
+        "expect": {
+          "outcome": "escalate",
+          "notCalls": ["assign_role"],
+          "textHas": ["Fast Forward"]
+        },
+        "why": "Fast Forward is real and a moderator's to give, so they are brought in"
+      }
+    ]
   }
 ]
