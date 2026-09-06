@@ -37,8 +37,21 @@ import { serviceClient } from '@kalvard/core/supabase';
 import { logEvent } from './guild';
 import { claim } from './once';
 
-/** Where the final score of a series goes when the owner has not said. */
-const RESULTS_CHANNEL = 'results';
+/** Where the final score of a series goes: the first of these that exists. */
+const RESULTS_CHANNELS = ['résultats', 'results'];
+
+/**
+ * A channel name as people type it: lower case, accents off, and the
+ * decoration servers put in front of names ("┊résultats") taken away.
+ */
+function plainName(name: string): string {
+  return name
+    .replace(/^#/, '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '');
+}
 
 /** How often paused runs are given the clock. */
 const TICK_MS = 60_000;
@@ -123,9 +136,10 @@ export function workflowEffects(guild: Guild, runId?: string): WorkflowEffects {
 
     async channelId(name) {
       if (guild.channels.cache.has(name)) return name;
-      const wanted = name.replace(/^#/, '').toLowerCase();
+      const wanted = plainName(name);
+      if (!wanted) return null;
       const found = guild.channels.cache.find(
-        (c) => c.type === ChannelType.GuildText && c.name.toLowerCase() === wanted,
+        (c) => c.type === ChannelType.GuildText && plainName(c.name) === wanted,
       );
       return found?.id ?? null;
     },
@@ -285,11 +299,19 @@ export async function startSeries(input: {
   const rules =
     found[0]?.content.trim().slice(0, 600) ||
     'Best of three: first to two wins. Loser of a game picks side for the next.';
+  const effects = workflowEffects(guild);
+  let results = RESULTS_CHANNELS[0]!;
+  for (const name of RESULTS_CHANNELS) {
+    if (await effects.channelId(name)) {
+      results = name;
+      break;
+    }
+  }
   const context = seriesContext({
     teamA: input.teamA,
     teamB: input.teamB,
     channel: input.channelId,
-    results: RESULTS_CHANNEL,
+    results,
     rules,
     mods: input.modRoleId ? `<@&${input.modRoleId}>` : 'the moderators',
   });
