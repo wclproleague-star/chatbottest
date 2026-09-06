@@ -221,7 +221,7 @@ export function commandEffects(guild: Guild): CommandEffects {
   };
 
   return {
-    async createChannel({ name, category }) {
+    async createChannel({ name, category, privateForRoleIds }) {
       const parent = category
         ? guild.channels.cache.find(
             (c) =>
@@ -229,10 +229,35 @@ export function commandEffects(guild: Guild): CommandEffects {
               c.name.toLowerCase() === category.toLowerCase(),
           )
         : undefined;
+      // A private channel is created private. Making it and then locking it
+      // would leave a moment where the whole server could read it.
+      const overwrites = privateForRoleIds?.length
+        ? [
+            { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
+            ...privateForRoleIds.map((roleId) => ({
+              id: roleId,
+              allow: [
+                PermissionFlagsBits.ViewChannel,
+                PermissionFlagsBits.SendMessages,
+                PermissionFlagsBits.ReadMessageHistory,
+              ],
+            })),
+            // Sentry keeps its own way in, or it cannot post there afterwards.
+            ...(guild.members.me
+              ? [
+                  {
+                    id: guild.members.me.id,
+                    allow: [PermissionFlagsBits.ViewChannel, PermissionFlagsBits.SendMessages],
+                  },
+                ]
+              : []),
+          ]
+        : undefined;
       const created = await guild.channels.create({
         name,
         type: ChannelType.GuildText,
         parent: parent?.id,
+        permissionOverwrites: overwrites,
       });
       return { id: created.id, url: created.url };
     },
@@ -246,6 +271,26 @@ export function commandEffects(guild: Guild): CommandEffects {
           ViewChannel: true,
           SendMessages: true,
           ReadMessageHistory: true,
+        });
+      }
+    },
+
+    async setPrivate({ channelId, roleIds }) {
+      const channel = text(channelId);
+      if (!channel) throw new Error('That channel is gone.');
+      await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: false });
+      for (const roleId of roleIds) {
+        await channel.permissionOverwrites.edit(roleId, {
+          ViewChannel: true,
+          SendMessages: true,
+          ReadMessageHistory: true,
+        });
+      }
+      // Sentry keeps its own way in, or it cannot post there afterwards.
+      if (guild.members.me) {
+        await channel.permissionOverwrites.edit(guild.members.me.id, {
+          ViewChannel: true,
+          SendMessages: true,
         });
       }
     },

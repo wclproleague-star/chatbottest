@@ -20,6 +20,7 @@ export const COMMAND_ACTIONS = [
   'create_channel',
   'allow_roles',
   'archive_channel',
+  'set_private',
   'post_message',
   'pin_message',
   'assign_role',
@@ -58,9 +59,16 @@ export type ExecutedStep = { sentence: string; ok: boolean; detail: string; link
 
 /** What a command may do in Discord. The bot supplies these; the web does not. */
 export type CommandEffects = {
-  createChannel(input: { name: string; category?: string }): Promise<{ id: string; url: string }>;
+  createChannel(input: {
+    name: string;
+    category?: string;
+    /** When set, @everyone cannot see it and only these roles can. */
+    privateForRoleIds?: string[];
+  }): Promise<{ id: string; url: string }>;
   allowRoles(input: { channelId: string; roleIds: string[] }): Promise<void>;
   archiveChannel(input: { channelId: string }): Promise<void>;
+  /** Shuts everyone out of a channel that already exists, except these roles. */
+  setPrivate(input: { channelId: string; roleIds: string[] }): Promise<void>;
   postMessage(input: { channelId: string; text: string }): Promise<{ url: string }>;
   pinMessage(input: { channelId: string; messageId: string }): Promise<void>;
   assignRole(input: { userId: string; roleId: string }): Promise<void>;
@@ -121,7 +129,7 @@ export async function planCommand(input: {
         question: `Which category should ${hash(step.name ?? '')} go in? This server has: ${names(input.shape.categories)}.`,
       };
     }
-    if (action === 'allow_roles' || action === 'assign_role') {
+    if (action === 'allow_roles' || action === 'assign_role' || action === 'set_private') {
       const wanted = (step.roles ?? []).map((r) => r.trim()).filter(Boolean);
       const missing = wanted.filter((r) => !find(input.shape.roles, r));
       if (missing.length > 0) {
@@ -137,10 +145,55 @@ export async function planCommand(input: {
     steps.push({ action, args: argsOf(step), sentence: sentenceFor(action, step) });
   }
 
+  // Who can see a new channel is not left to the model, and not left to
+  // Discord's default either. Naming roles is how somebody says "these people";
+  // a channel that comes out public because nobody asked is the whole problem.
+  settleVisibility(steps, input.request);
+
   if (steps.length === 0) {
     return { kind: 'refused', because: 'Nothing in that is something Sentry can do.' };
   }
   return { kind: 'plan', steps, touches: steps.length };
+}
+
+/**
+ * Decides, and rewrites the sentences to say it. A request that names roles
+ * for a channel it is creating means private: those roles and nobody else.
+ * A request that names none is an announcement, and stays as open as the
+ * category it sits in. Saying "public" or "privé" outright beats both.
+ */
+function settleVisibility(steps: PlannedStep[], request: string): void {
+  const saidPublic = /public|publique|tout le monde|everyone can see/i.test(request);
+  const saidPrivate = /priv[eé]e?|private|only these|only them/i.test(request);
+
+  for (const step of steps) {
+    if (step.action !== 'create_channel') continue;
+    const name = step.args.name ?? '';
+    const roles = steps
+      .filter((s) => s.action === 'allow_roles' && clean(s.args.channel ?? '') === clean(name))
+      .flatMap((s) => (s.args.roles ?? '').split(',').map((r) => r.trim()))
+      .filter(Boolean);
+
+    const isPrivate = saidPrivate || (!saidPublic && roles.length > 0);
+    step.args.visibility = isPrivate ? 'private' : 'public';
+    if (isPrivate) {
+      // The roles travel with the creation, so the channel is never public for
+      // the moment between being made and being locked.
+      step.args.roles = roles.join(', ');
+      step.sentence = `Create the text channel ${hash(name)}${step.args.category ? ` in ${step.args.category}` : ''}. Only ${roles.join(' and ')} can see it; nobody else can.`;
+    } else {
+      step.sentence = `Create the text channel ${hash(name)}${step.args.category ? ` in ${step.args.category}` : ''}. Everyone who can see the category can see it.`;
+    }
+
+    // The follow-up reads differently once the channel is already private.
+    for (const other of steps) {
+      if (other.action !== 'allow_roles') continue;
+      if (clean(other.args.channel ?? '') !== clean(name)) continue;
+      other.sentence = isPrivate
+        ? `Let ${roles.join(' and ')} write in ${hash(name)}.`
+        : `Let ${roles.join(' and ')} see and write in ${hash(name)}. Everyone else keeps what they have.`;
+    }
+  }
 }
 
 type RawStep = {
@@ -161,7 +214,8 @@ async function propose(
   const out = await generateJson<{ steps: RawStep[]; impossible: string }>({
     system: [
       'You turn a moderator request into a plan for a Discord bot. You never carry anything out.',
-      `The only actions are: create_channel (name, category), allow_roles (channel, roles), archive_channel (channel), post_message (channel, text), pin_message (channel), assign_role (member, roles).`,
+      `The only actions are: create_channel (name, category), allow_roles (channel, roles), set_private (channel, roles: who keeps access), archive_channel (channel), post_message (channel, text), pin_message (channel), assign_role (member, roles).`,
+      'Making an existing channel private, or hiding it from everyone but some roles, is set_private.',
       'Sentry never deletes anything. A request to delete or remove a channel becomes archive_channel, and say so in impossible if that is not what they meant.',
       'Use the exact names the request uses. Do not invent a category, a role or a channel that was not asked for; leave the field empty and let the caller ask.',
       'impossible is one sentence, and only when nothing in the request is one of those actions. Otherwise it is empty.',
@@ -254,12 +308,21 @@ async function carryOut(
 
   switch (step.action) {
     case 'create_channel': {
+      const roleIds =
+        step.args.visibility === 'private'
+          ? (step.args.roles ?? '')
+              .split(',')
+              .map((r) => find(input.shape.roles, r.trim())?.id)
+              .filter((id): id is string => Boolean(id))
+          : undefined;
       const created = await input.effects.createChannel({
         name: clean(step.args.name ?? ''),
         category: step.args.category,
+        privateForRoleIds: roleIds,
       });
       made.set(clean(step.args.name ?? ''), created.id);
-      return { detail: `Created ${hash(step.args.name ?? '')}`, link: created.url };
+      const who = roleIds ? `, visible only to ${step.args.roles}` : ', visible to the category';
+      return { detail: `Created ${hash(step.args.name ?? '')}${who}`, link: created.url };
     }
     case 'allow_roles': {
       const roleIds = (step.args.roles ?? '')
@@ -268,6 +331,16 @@ async function carryOut(
         .filter((id): id is string => Boolean(id));
       await input.effects.allowRoles({ channelId: channelId(step.args.channel ?? ''), roleIds });
       return { detail: `${step.args.roles} can see ${hash(step.args.channel ?? '')}` };
+    }
+    case 'set_private': {
+      const roleIds = (step.args.roles ?? '')
+        .split(',')
+        .map((r) => find(input.shape.roles, r.trim())?.id)
+        .filter((id): id is string => Boolean(id));
+      await input.effects.setPrivate({ channelId: channelId(step.args.channel ?? ''), roleIds });
+      return {
+        detail: `${hash(step.args.channel ?? '')} is now visible only to ${step.args.roles}`,
+      };
     }
     case 'archive_channel':
       await input.effects.archiveChannel({ channelId: channelId(step.args.channel ?? '') });
@@ -337,6 +410,8 @@ function sentenceFor(action: CommandAction, step: RawStep): string {
       return `Create the text channel ${hash(step.name ?? '')}${step.category ? ` in ${step.category}` : ''}.`;
     case 'allow_roles':
       return `Let ${(step.roles ?? []).join(' and ')} see and write in ${channel}. Everyone else keeps what they have.`;
+    case 'set_private':
+      return `Make ${channel} private: only ${(step.roles ?? []).join(' and ')} can see it, and nobody else.`;
     case 'archive_channel':
       return `Archive ${channel}: nobody can write in it, and nothing is deleted.`;
     case 'post_message':

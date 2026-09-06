@@ -69,7 +69,7 @@ console.log(['', 'the request, with the category named'].join(String.fromCharCod
       plan.steps.some((s) => s.action === 'allow_roles'),
     );
     check('naming them exactly', said.includes('Joueur') && said.includes('Caster'), said);
-    check('it says what happens to everyone else', said.includes('Everyone else keeps'), said);
+    check('it says who cannot see it', /nobody else can|Everyone else keeps/i.test(said), said);
     check('and nothing else', plan.steps.length === 2, String(plan.steps.length));
   }
 }
@@ -168,6 +168,9 @@ console.log(['', 'confirming, against effects that only record'].join(String.fro
       async archiveChannel() {
         calls.push('archive');
       },
+      async setPrivate({ roleIds }) {
+        calls.push(`private for ${roleIds.join('+')}`);
+      },
       async postMessage() {
         return { url: '' };
       },
@@ -198,6 +201,51 @@ console.log(['', 'confirming, against effects that only record'].join(String.fro
     );
     check('the report carries a link', Boolean(done[0]?.link), JSON.stringify(done[0]));
   }
+}
+
+console.log(['', 'who can see a new channel'].join(String.fromCharCode(10)));
+{
+  // Naming roles is how somebody says "these people, not everyone". A channel
+  // made public because nobody asked the question is the failure that matters.
+  const withRoles = await planCommand({
+    guildId: '900000000000000001',
+    request:
+      'crée un channel #finale-wcl dans Compétition et mets les rôles Joueur et Caster dedans',
+    by: MOD,
+    shape: SHAPE,
+  });
+  const said = lines(withRoles);
+  check('naming roles makes it private', said.includes('Only Joueur and Caster'), said);
+  check(
+    'and says everyone else cannot see it',
+    /nobody else|everyone else cannot/i.test(said),
+    said,
+  );
+  check(
+    'the create step carries the roles, so it is never public for a moment',
+    withRoles.kind === 'plan' && Boolean(withRoles.steps[0]?.args.roles),
+    JSON.stringify(withRoles.kind === 'plan' ? withRoles.steps[0] : withRoles),
+  );
+
+  const noRoles = await planCommand({
+    guildId: '900000000000000001',
+    request: 'crée un channel #annonces-finale dans Communauté',
+    by: MOD,
+    shape: SHAPE,
+  });
+  const open = lines(noRoles);
+  check('no roles named leaves it open', /everyone who can see/i.test(open), open);
+  check('and it says so plainly', !open.includes('Only '), open);
+
+  const explicit = await planCommand({
+    guildId: '900000000000000001',
+    request:
+      'crée un channel public #finale-wcl dans Compétition, visible par tout le monde, et donne aux rôles Joueur et Caster le droit d écrire',
+    by: MOD,
+    shape: SHAPE,
+  });
+  const asked = lines(explicit);
+  check('asking for public wins over the guess', /everyone who can see/i.test(asked), asked);
 }
 
 console.log(failed === 0 ? '\ncommand mode plans as written.' : `\n${failed} check(s) failed.`);
