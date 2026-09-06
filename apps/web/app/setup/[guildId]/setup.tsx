@@ -16,6 +16,7 @@ import { Button, ButtonLink, Field, Input, Panel, Textarea, cx } from '@sentrybo
 import type { DraftConfig } from '@sentrybot/core';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { Beacon } from '@/components/beacon/beacon';
+import { Live, NightScene } from './night-scene';
 import { TestChat } from '@/app/g/[guildId]/test/test-chat';
 import {
   applyDraft,
@@ -116,9 +117,8 @@ export function Setup({
       </div>
 
       {step === 'entry' && (
-        <Screen>
-          <Beacon light="off" progress={0} className="h-[46vh] w-[220px]" label="Sentry, unlit" />
-          <p className="text-body text-star/80 mt-10 max-w-[40ch] text-center">
+        <NightScene light="off" label="Sentry, unlit">
+          <p className="text-body text-star/80 max-w-[40ch] text-center">
             Your sentry isn&apos;t configured yet.
           </p>
           <div className="mt-8">
@@ -133,7 +133,7 @@ export function Setup({
             Fill it in instead
           </button>
           {error && <p className="text-ui text-star/80 mt-6">{error}</p>}
-        </Screen>
+        </NightScene>
       )}
 
       {(step === 'chat' || step === 'form') && (
@@ -251,27 +251,8 @@ export function Setup({
         </div>
       )}
 
-      {step === 'live' && (
-        <Screen>
-          <Beacon light="green" className="h-[46vh] w-[240px]" label="Sentry, live" />
-          <p className="text-body text-star/80 mt-10 text-center">Sentry is live on {guildName}.</p>
-          <div className="mt-8">
-            <ButtonLink href={`/g/${guildId}/overview`} className="bg-star text-night">
-              Open the dashboard
-            </ButtonLink>
-          </div>
-        </Screen>
-      )}
+      {step === 'live' && <Live guildId={guildId} guildName={guildName} />}
     </main>
-  );
-}
-
-/** A full screen with one thing in the middle of it. */
-function Screen({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flex min-h-[calc(100vh-2px)] flex-col items-center justify-center px-6">
-      {children}
-    </div>
   );
 }
 

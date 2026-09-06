@@ -76,6 +76,8 @@ export function Sky({
   contrast = SKY.contrast,
   horizon = null,
   beacon = null,
+  density = 1,
+  parallax = true,
   onReady,
 }: {
   dawn?: number;
@@ -85,6 +87,13 @@ export function Sky({
   /** Where the sky ends, CSS px from the top of the canvas. Null paints the whole canvas. */
   horizon?: number | null;
   beacon?: BeaconPlacement | null;
+  /**
+   * How many stars, against the hero's. Half of them behind a screen with one
+   * sentence on it, where the sky is the room rather than the subject.
+   */
+  density?: number;
+  /** Whether the stars follow the cursor. Off where nothing else moves. */
+  parallax?: boolean;
   onReady?: () => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -97,7 +106,7 @@ export function Sky({
   useEffect(() => {
     const canvas = ref.current;
     if (!canvas) return;
-    const h = mount(canvas, () => readyRef.current?.());
+    const h = mount(canvas, () => readyRef.current?.(), { density, parallax });
     const i = initial.current;
     h.setContrast(i.contrast);
     h.setHorizon(i.horizon);
@@ -109,6 +118,7 @@ export function Sky({
       h.dispose();
       handle.current = null;
     };
+    // density and parallax are read once: both are how the sky is built.
   }, []);
 
   useEffect(() => {
@@ -136,7 +146,11 @@ export function Sky({
   );
 }
 
-function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
+function mount(
+  canvas: HTMLCanvasElement,
+  onReady: () => void,
+  options: { density: number; parallax: boolean } = { density: 1, parallax: true },
+): Handle {
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
 
@@ -215,7 +229,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
 
   // Stars.
   const camera = new THREE.PerspectiveCamera(FOV, 1, 1, FAR + 100);
-  const stars = buildStars(SKY.stars);
+  const stars = buildStars(Math.round(SKY.stars * options.density));
   const starMaterial = new THREE.ShaderMaterial({
     uniforms: {
       uParallax: { value: parallax },
@@ -400,7 +414,7 @@ function mount(canvas: HTMLCanvasElement, onReady: () => void): Handle {
   start();
   window.addEventListener('resize', resize);
   document.addEventListener('visibilitychange', onVisibility);
-  if (!reduced) {
+  if (!reduced && options.parallax) {
     window.addEventListener('pointermove', onPointer, { passive: true });
     if (coarse) window.addEventListener('deviceorientation', onOrientation, { passive: true });
   }

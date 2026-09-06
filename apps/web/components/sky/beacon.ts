@@ -48,6 +48,11 @@ export type BeaconPlacement = {
   progress?: number;
   /** Opacity, driven by dawn. */
   fade: number;
+  /**
+   * How long a change of state takes, ms. 240 on the hero, where the thread
+   * is still playing; longer where the change is the whole event on screen.
+   */
+  changeMs?: number;
 };
 
 /** The photograph's geometry, as fractions of its frame, measured on the still. */
@@ -336,9 +341,10 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   const current = colors.amber.clone();
   let currentAmount = 1;
   let changedAt = -1;
+  let changeMs = LIGHT_MS;
   let fade = 1;
 
-  function setLight(next: Light, nextProgress: number, now: number) {
+  function setLight(next: Light, nextProgress: number, now: number, ms: number) {
     if (next === lightNow && nextProgress === progressNow) return;
     lightNow = next;
     progressNow = nextProgress;
@@ -347,11 +353,12 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     fromAmount = currentAmount;
     fromProgress = currentProgress;
     changedAt = now;
+    changeMs = ms;
   }
 
   /** Advance the colour change and push it into the strip, the light and the spill. */
   function tick(now: number) {
-    const k = changedAt < 0 ? 1 : Math.min(1, (now - changedAt) / LIGHT_MS);
+    const k = changedAt < 0 ? 1 : Math.min(1, (now - changedAt) / changeMs);
     current.lerpColors(fromColor, colors[lightNow], k);
     currentShown.lerpColors(fromShown, shown[lightNow], k);
     currentAmount = fromAmount + (amount[lightNow] - fromAmount) * k;
@@ -392,7 +399,7 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     // The one liberty: a fraction of a degree of turn, which the shadow follows.
     const turn = Math.max(-1, Math.min(1, parallax.x / MAX_PARALLAX_PX));
     group.rotation.y = THREE.MathUtils.degToRad(BEACON_YAW_DEG) * turn;
-    setLight(p.light, p.progress ?? 1, performance.now());
+    setLight(p.light, p.progress ?? 1, performance.now(), p.changeMs ?? LIGHT_MS);
     fade = p.fade;
   }
 

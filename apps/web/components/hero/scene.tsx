@@ -41,7 +41,11 @@ export function Scene({
   light,
   dark = 0,
   dawn = 0,
+  changeMs,
   boost = null,
+  photo = null,
+  density = 1,
+  parallax = true,
   onReady,
   behind,
   children,
@@ -51,7 +55,19 @@ export function Scene({
   dark?: number;
   /** Dawn progress, 0 to 1. */
   dawn?: number;
+  /** How long the slit takes to change colour, ms. */
+  changeMs?: number;
   boost?: SkyRect | null;
+  /**
+   * How the photograph is treated behind a screen that is about one sentence
+   * rather than about the view: darker, and defocused further, so it is the
+   * room the beacon stands in and never the thing being read.
+   */
+  photo?: { brightness: number; blur: number } | null;
+  /** How many stars, against the hero's. */
+  density?: number;
+  /** Whether the stars follow the cursor. */
+  parallax?: boolean;
   onReady?: () => void;
   /** Rendered between the sky and the beacon: the wordmark. */
   behind?: ReactNode;
@@ -74,6 +90,11 @@ export function Scene({
   const fade = 1 - Math.min(1, dawn / HERO_FADE_END);
 
   const horizon = rect ? rect.top + meta.horizon * rect.height : null;
+  // The grass at the footing is part of the photograph, so it takes the same
+  // treatment: a lit blade in front of a darkened cliff would give it away.
+  const treatment = photo
+    ? { filter: `brightness(${photo.brightness}) blur(${photo.blur}px)` }
+    : undefined;
 
   return (
     <div ref={ref} className="bg-night absolute inset-0 overflow-hidden">
@@ -91,6 +112,7 @@ export function Scene({
             width: rect.width,
             height: rect.height,
             opacity: fade,
+            ...treatment,
           }}
         />
       )}
@@ -102,8 +124,10 @@ export function Scene({
           dawn={dawn}
           boost={boost}
           contrast={CONTRAST}
+          density={density}
+          parallax={parallax}
           horizon={horizon}
-          beacon={rect ? { frame: rect, x: meta.focusX, light, fade } : null}
+          beacon={rect ? { frame: rect, x: meta.focusX, light, fade, changeMs } : null}
           onReady={onReady}
         />
       </div>
@@ -122,6 +146,7 @@ export function Scene({
             width: meta.grass.w * rect.width,
             height: meta.grass.h * rect.height,
             opacity: fade,
+            ...treatment,
           }}
         />
       )}
