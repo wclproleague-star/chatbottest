@@ -25,6 +25,8 @@ import { aboutARole, asksForRole, namedRoles, nearest, whichRole } from './roles
 import { appendVouch, onRoster, vouchDocument } from './vouch';
 import { findRepeat, offer } from './repeats';
 import { channelNameFor, dueToPrepare, teamRole } from './matches';
+import { defaultBrief, memoryOf } from './keeper';
+import { TEMPLATES } from './workflows/templates';
 import type { RiftMatch } from './fetchers/rift-legends';
 import { runWorkflow } from './workflows';
 import { isDue, lastDue, readSchedule } from './schedule';
@@ -861,6 +863,40 @@ console.log(
   );
   check('nor is asking when a match is', !aboutARole('when do we play next', []));
   check('asking for one is', aboutARole('give me the ttk role', []));
+}
+
+console.log(['', 'a memory for any routine'].join(String.fromCharCode(10)));
+{
+  const plain = memoryOf({
+    dueAt: '2026-09-07T09:00:00Z',
+    posted: true,
+    count: 3,
+    _channel: '1546291187013521533',
+    channel: '1546291187013521533',
+    someId: 'abc',
+    mods: '<@&1>',
+  });
+  check(
+    'plain variables become facts',
+    plain.some((m) => m === 'count: 3') && plain.some((m) => m === 'posted: true'),
+    plain.join(' | '),
+  );
+  check(
+    'and nothing private or an id is among them',
+    !plain.some((m) => /channel|someId|mods|1546291187013521533/.test(m)),
+    plain.join(' | '),
+  );
+  check(
+    'a brief names the routine',
+    defaultBrief('Weekly announcement').includes('"Weekly announcement"'),
+  );
+  check(
+    'every shipped template says what Kalvard is while it runs',
+    TEMPLATES.every((t) => Boolean(t.brief)),
+    TEMPLATES.filter((t) => !t.brief)
+      .map((t) => t.name)
+      .join(', '),
+  );
 }
 
 console.log(

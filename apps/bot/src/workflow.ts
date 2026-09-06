@@ -21,6 +21,8 @@ import {
 import type { ButtonInteraction, Client, Guild, Message, TextChannel } from 'discord.js';
 import {
   BO3_SERIES,
+  TEMPLATES,
+  defaultBrief,
   getWorkflow,
   keep,
   memoryOf,
@@ -242,8 +244,11 @@ async function keepChannel(
   const workflow = run.state.workflowId
     ? await getWorkflow(guild.id, run.state.workflowId).catch(() => null)
     : null;
-  const brief = workflow?.brief ?? BO3_SERIES.brief ?? '';
-  const rules = workflow?.rules?.length ? workflow.rules : (BO3_SERIES.rules ?? []);
+  // The saved workflow's own words when it has them; the shipped template of
+  // the same name otherwise; a plain brief for anything else.
+  const template = TEMPLATES.find((t) => t.name === run.state.workflowName);
+  const brief = workflow?.brief ?? template?.brief ?? defaultBrief(run.state.workflowName);
+  const rules = workflow?.rules?.length ? workflow.rules : (template?.rules ?? []);
 
   const { data: settingsRow } = await serviceClient()
     .from('guild_settings')

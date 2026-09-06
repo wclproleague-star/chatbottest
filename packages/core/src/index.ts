@@ -164,7 +164,7 @@ export type { ServiceClient } from './supabase';
 
 export type * from './database.types';
 export { searchKnowledge } from './agent';
-export { keep, guard, memoryOf, QUIET_MS } from './keeper';
+export { keep, guard, memoryOf, defaultBrief, QUIET_MS } from './keeper';
 export type { KeeperInput, KeeperDecision } from './keeper';
 export {
   dueToPrepare,

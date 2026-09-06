@@ -152,6 +152,8 @@ type Frame = {
 export type RunState = {
   guildId: string;
   workflowId?: string;
+  /** The workflow's name, so the keeper can say what it is even for an unsaved template. */
+  workflowName?: string;
   variables: Record<string, unknown>;
   entries: RunEntry[];
   frames: Frame[];
@@ -242,6 +244,7 @@ export async function runWorkflow(input: RunInput): Promise<RunResult> {
   const state: RunState = {
     guildId: input.guildId,
     workflowId: input.workflow.id,
+    workflowName: input.workflow.name,
     variables: { ...input.context },
     entries: [],
     frames: [{ steps: input.workflow.steps, index: 0 }],
@@ -843,7 +846,12 @@ async function where(
   if (!name) return '';
   const filled = fill(name, state.variables) ?? name;
   const id = await input.effects.channelId(filled);
-  if (id) return id;
+  if (id) {
+    // The first room a run speaks in is the room it lives in: whoever talks
+    // there while it is alive is talking to it, whatever it waits on.
+    if (typeof state.variables._channel !== 'string') state.variables._channel = id;
+    return id;
+  }
   stop(state, `there is no channel called ${filled} any more`);
   return null;
 }
@@ -1028,8 +1036,10 @@ export async function saveRun(runId: string, state: RunState): Promise<void> {
 function channelOf(state: RunState | undefined): string | null {
   if (!state) return null;
   if (state.wait?.channelId) return state.wait.channelId;
-  const named = state.variables.channel;
-  return typeof named === 'string' && /^\d{15,22}$/.test(named) ? named : null;
+  for (const candidate of [state.variables.channel, state.variables._channel]) {
+    if (typeof candidate === 'string' && /^\d{15,22}$/.test(candidate)) return candidate;
+  }
+  return null;
 }
 
 /** Every run in this guild that is paused on a wait. */

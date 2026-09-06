@@ -656,6 +656,50 @@ console.log(['', 'a series from the calendar waits for its hour'].join(String.fr
   fetched.splice(0, fetched.length, ...kept);
 }
 
+console.log(['', 'a run keeps the room it spoke in'].join(String.fromCharCode(10)));
+{
+  resetDraftFixture();
+  const kept = fetched.splice(0);
+  const rooming = await runWorkflow({
+    guildId: '900000000000000001',
+    workflow: {
+      name: 'Rooming',
+      trigger: { kind: 'request' },
+      steps: [
+        { type: 'do', action: 'post_message', with: { channel: 'channel-room', text: 'hello' } },
+        {
+          type: 'fetch',
+          source: 'draft_flow',
+          op: 'create',
+          with: { blueTeam: 'A', redTeam: 'B', label: 'x' },
+          as: 'draft',
+        },
+        {
+          type: 'wait_until',
+          source: 'draft_flow',
+          op: 'state',
+          with: { id: '{draft.id}' },
+          as: 'draft',
+          when: '{draft.status} == done',
+          timeoutMinutes: 10,
+          onTimeout: [],
+        },
+      ],
+    },
+    context: {},
+    effects,
+    allowedActions: [...WORKFLOW_ACTIONS],
+    now: clock,
+  });
+  check(
+    'while it polls a site it still knows its room',
+    rooming.state?.variables._channel === 'channel-room',
+    JSON.stringify(rooming.state?.variables._channel),
+  );
+  check('and its name', rooming.state?.workflowName === 'Rooming');
+  fetched.splice(0, fetched.length, ...kept);
+}
+
 console.log(['', 'a series with what it needs missing'].join(String.fromCharCode(10)));
 resetDraftFixture();
 const plainContext = () =>

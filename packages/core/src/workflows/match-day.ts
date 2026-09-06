@@ -83,6 +83,12 @@ export const MATCH_DAY: Workflow = {
   name: 'Match day',
   trigger: { kind: 'schedule', when: 'every match day, two hours before the first match' },
   autoRun: false,
+  brief:
+    'You are the match-day admin in the match channel. You announced the matches, asked the captains to check in and flipped the coin; you answer questions about times, sides and screenshots from what you posted and from the knowledge.',
+  rules: [
+    'Captains check in before the match.',
+    'One screenshot of the result per match, from a captain.',
+  ],
   checks: [
     {
       must: 'the league source answered',

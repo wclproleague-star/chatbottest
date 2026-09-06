@@ -205,9 +205,15 @@ function systemPrompt(input: KeeperInput): string {
   ].join('\n');
 }
 
+/** What Kalvard is in a channel when the workflow did not say. */
+export function defaultBrief(workflowName: string | undefined): string {
+  return `You are the admin of the routine "${workflowName ?? 'this routine'}" running in this channel. You know what it has done and what it is waiting for; players talk to each other here, and you speak when it helps.`;
+}
+
 /**
  * The run's variables as short facts a model can read. Only what a member of
  * the channel could see anyway: names, sides, states, the score. Never ids.
+ * A series has its own sentences; any other routine gets its plain values.
  */
 export function memoryOf(variables: Record<string, unknown>): string[] {
   const v = variables;
@@ -251,5 +257,17 @@ export function memoryOf(variables: Record<string, unknown>): string[] {
   const notes = Array.isArray(v._notes) ? (v._notes as unknown[]).map(String) : [];
   for (const note of notes.slice(-5)) out.push(`Staff noted: ${note}`);
   if (typeof v.rules === 'string' && v.rules) out.push(`Rules read at the start: ${v.rules}`);
+  if (out.length === 0) {
+    // Not a series: the plain values, minus anything that is an id or private.
+    for (const [key, value] of Object.entries(v)) {
+      if (key.startsWith('_') || /id$/i.test(key) || key === 'channel' || key === 'mods') continue;
+      if (typeof value === 'string' && value && !/^\d{15,22}$/.test(value) && value.length <= 200) {
+        out.push(`${key}: ${value}`);
+      } else if (typeof value === 'number' || typeof value === 'boolean') {
+        out.push(`${key}: ${String(value)}`);
+      }
+      if (out.length >= 12) break;
+    }
+  }
   return out;
 }

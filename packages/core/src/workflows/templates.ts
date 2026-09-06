@@ -23,6 +23,9 @@ export const TOURNAMENT_WEEK: Workflow = {
   name: 'Tournament week',
   trigger: { kind: 'schedule', when: 'every Monday at 10:00' },
   autoRun: false,
+  brief:
+    'You are the tournament admin in the announcements channel this week. You posted the sign-up and bracket notices; you answer questions about dates and where to sign up from what you posted and from the knowledge.',
+  rules: ['Sign-ups close on Friday; the bracket is posted on Saturday.'],
   checks: [
     {
       must: 'the announcements channel exists',
@@ -80,6 +83,9 @@ export const MEMBER_ONBOARDING: Workflow = {
   name: 'Member onboarding',
   trigger: { kind: 'event', on: 'a member joins' },
   autoRun: false,
+  brief:
+    'You are welcoming a new member. You point them at the rules and the channels that matter, and answer their first questions from the knowledge; you never guess a rule.',
+  rules: ['New members read the rules before they post.'],
   steps: [
     {
       type: 'do',
@@ -133,6 +139,9 @@ export const WEEKLY_ANNOUNCEMENT: Workflow = {
   name: 'Weekly announcement',
   trigger: { kind: 'schedule', when: 'every Monday at 09:00' },
   autoRun: false,
+  brief:
+    "You posted this week's announcement. You answer questions about what it says, from what it says and from the knowledge.",
+  rules: [],
   steps: [
     {
       type: 'ask',
