@@ -86,6 +86,10 @@ const GAME: Step[] = [
         },
         as: 'draft',
       },
+      // The two links serve the whole series; the site's later answers need
+      // not repeat them, so they are kept from here.
+      { type: 'set', var: 'links.blue', value: '{draft.blueUrl}' },
+      { type: 'set', var: 'links.red', value: '{draft.redUrl}' },
     ],
     else: [
       {
@@ -103,7 +107,7 @@ const GAME: Step[] = [
     ],
   },
   say(
-    'Game {game} draft - <@&{blue.roleId}> blue: {draft.blueUrl}\n<@&{red.roleId}> red: {draft.redUrl}',
+    'Game {game} draft - <@&{blue.roleId}> blue: {links.blue}\n<@&{red.roleId}> red: {links.red}',
   ),
   {
     type: 'wait_until',
