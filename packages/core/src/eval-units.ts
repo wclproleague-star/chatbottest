@@ -645,6 +645,24 @@ console.log(['', 'where Kalvard will answer'].join(String.fromCharCode(10)));
     'unless it has spoken there itself',
     answersHere({ allowedChannelIds: [staff], channelId: test, spokenHere: true }),
   );
+  check(
+    'the owner naming it in a fresh channel is answered there',
+    answersHere({
+      allowedChannelIds: ['c1'],
+      channelId: 'c9',
+      spokenHere: false,
+      addressedByStaff: true,
+    }),
+  );
+  check(
+    'a member in that channel still is not',
+    !answersHere({
+      allowedChannelIds: ['c1'],
+      channelId: 'c9',
+      spokenHere: false,
+      addressedByStaff: false,
+    }),
+  );
 }
 
 console.log(

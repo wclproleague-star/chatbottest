@@ -149,11 +149,15 @@ client.on(Events.MessageCreate, async (message: Message) => {
     // and a bot that opens a conversation has to hold it. Replying to Kalvard
     // is proof enough on its own; otherwise the channel is checked once, and
     // only for a message that was actually addressed to it.
+    const staff =
+      message.guild.ownerId === message.author.id ||
+      (settings.modRoleId ? (message.member?.roles.cache.has(settings.modRoleId) ?? false) : false);
     if (
       !answersHere({
         allowedChannelIds: settings.allowedChannelIds,
         channelId: message.channelId,
         spokenHere: answeringKalvard || (await hasSpokenIn(message, client.user.id)),
+        addressedByStaff: named && staff,
       })
     ) {
       return;
