@@ -494,6 +494,74 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
     `${nameOf('competition', SHAPE.categories)} / ${nameOf('staff wcl', [{ id: 'k9', name: 'WCL | Staff' }])}`,
   );
 
+  // The ticket setup's own actions go through the same runner as everything
+  // else: a category, a channel in it, the button message, and the choice
+  // written down with what was made.
+  {
+    const { supportPlan } = await import('./support');
+    const calls: string[] = [];
+    const plan = supportPlan({
+      mode: 'tickets',
+      answers: {
+        category: 'new:Tickets',
+        buttonChannel: 'new:open-a-ticket',
+        offerCategories: 'yes',
+        ticketKinds: 'Question, Roles',
+        humanRole: 'Modérateur',
+      },
+      shape: SHAPE,
+    });
+    const effects: CommandEffects = {
+      async createChannel({ name, category }) {
+        calls.push(`createChannel ${name} in ${category ?? '-'}`);
+        return { id: 'chan-1', url: 'https://discord/chan-1' };
+      },
+      async allowRoles() {},
+      async archiveChannel() {},
+      async setPrivate() {},
+      async postMessage() {
+        return { url: 'x' };
+      },
+      async pinMessage() {},
+      async assignRole() {},
+      async createCategory({ name }) {
+        calls.push(`createCategory ${name}`);
+        return { id: 'cat-1' };
+      },
+      async postButton({ channelId, buttons }) {
+        calls.push(`postButton in ${channelId}: ${buttons.map((b) => b.id).join('|')}`);
+        return { url: 'https://discord/msg' };
+      },
+    };
+    const done = await runPlan({
+      guildId: '900000000000000001',
+      commandId: '',
+      plan: plan.steps,
+      shape: SHAPE,
+      effects,
+    });
+    check(
+      'the ticket plan runs end to end',
+      done.every((d) => d.ok),
+      JSON.stringify(done.filter((d) => !d.ok)),
+    );
+    check(
+      'category, then channel in it, then buttons on the new channel',
+      calls.join(' / ') ===
+        'createCategory Tickets / createChannel open-a-ticket in Tickets / postButton in chan-1: ticket:open:Question|ticket:open:Roles',
+      calls.join(' / '),
+    );
+    const { loadSupport } = await import('./support');
+    const saved = await loadSupport('900000000000000001');
+    check(
+      'and the choice is written down with what it made',
+      saved.mode === 'tickets' &&
+        saved.setup?.created.length === 2 &&
+        saved.setup.humanRoleId === 'r3',
+      JSON.stringify(saved),
+    );
+  }
+
   // A real request that this server has switched off is still a refusal: the
   // two must not be told apart by reading the model's English.
   const off = await planCommand({

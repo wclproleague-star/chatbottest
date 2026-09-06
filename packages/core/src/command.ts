@@ -28,9 +28,17 @@ export const COMMAND_ACTIONS = [
 ] as const;
 export type CommandAction = (typeof COMMAND_ACTIONS)[number];
 
+/**
+ * Actions only the support setup plans, never the model: a category, a
+ * message carrying buttons, and the choice itself written down. They go
+ * through the same confirmation and the same runner as everything else.
+ */
+export const SUPPORT_ACTIONS = ['create_category', 'post_button', 'set_support'] as const;
+export type SupportAction = (typeof SUPPORT_ACTIONS)[number];
+
 /** One thing the plan will do, with the names already resolved. */
 export type PlannedStep = {
-  action: CommandAction;
+  action: CommandAction | SupportAction;
   /** The values, as an owner would read them: names, not ids. */
   args: Record<string, string>;
   /** The same thing as one plain sentence. */
@@ -82,6 +90,14 @@ export type CommandEffects = {
   postMessage(input: { channelId: string; text: string }): Promise<{ url: string }>;
   pinMessage(input: { channelId: string; messageId: string }): Promise<void>;
   assignRole(input: { userId: string; roleId: string }): Promise<void>;
+  /** A category, for the ticket system. */
+  createCategory?(input: { name: string }): Promise<{ id: string }>;
+  /** A message with buttons, each with an id the bot answers to. */
+  postButton?(input: {
+    channelId: string;
+    text: string;
+    buttons: { id: string; label: string }[];
+  }): Promise<{ url: string }>;
 };
 
 /** More than this and the plan is read out item by item before anything runs. */
@@ -507,6 +523,71 @@ async function carryOut(
     }
     case 'pin_message':
       throw new Error('Pinning needs the message, so it is not something a command can do yet.');
+    case 'create_category': {
+      if (!input.effects.createCategory)
+        throw new Error('Categories can only be made from Discord.');
+      const created = await input.effects.createCategory({ name: step.args.name ?? '' });
+      made.set(`category:${clean(step.args.name ?? '')}`, created.id);
+      return { detail: `Created the category "${step.args.name ?? ''}"` };
+    }
+    case 'post_button': {
+      if (!input.effects.postButton) throw new Error('Buttons can only be posted from Discord.');
+      const labels = (step.args.buttons ?? '')
+        .split(',')
+        .map((b) => b.trim())
+        .filter(Boolean);
+      const posted = await input.effects.postButton({
+        channelId: channelId(step.args.channel ?? ''),
+        text: step.args.text ?? '',
+        buttons: labels.map((label) => ({
+          id: `${step.args.kind ?? 'button'}:open:${label}`,
+          label,
+        })),
+      });
+      return {
+        detail: `Posted the ${step.args.kind ?? ''} message in ${hash(step.args.channel ?? '')}`,
+        link: posted.url,
+      };
+    }
+    case 'set_support': {
+      const { saveSupport } = await import('./support');
+      const mode = step.args.mode as 'tickets' | 'help_channel' | 'existing_channel';
+      const created = (step.args.created ?? '')
+        .split(',')
+        .map((c) => c.trim())
+        .filter(Boolean)
+        .map((c) => {
+          const [kind, name] = c.split(':') as ['category' | 'channel', string];
+          const id =
+            kind === 'category' ? made.get(`category:${clean(name)}`) : made.get(clean(name));
+          return id ? { id, name, kind } : null;
+        })
+        .filter((c): c is { id: string; name: string; kind: 'category' | 'channel' } => Boolean(c));
+      const channelName = step.args.channel ?? step.args.buttonChannel ?? '';
+      const channel = channelName ? channelId(channelName) : null;
+      const categoryName = step.args.category ?? '';
+      const categoryId = categoryName
+        ? (made.get(`category:${clean(categoryName)}`) ??
+          find(input.shape.categories, categoryName)?.id)
+        : undefined;
+      const human = step.args.humanRole ? find(input.shape.roles, step.args.humanRole) : undefined;
+      await saveSupport(
+        input.guildId,
+        {
+          mode,
+          created,
+          categoryId,
+          buttonChannelId: mode === 'tickets' ? (channel ?? undefined) : undefined,
+          ticketKinds: (step.args.kinds ?? '')
+            .split(',')
+            .map((k) => k.trim())
+            .filter(Boolean),
+          humanRoleId: human?.id,
+        },
+        channel,
+      );
+      return { detail: step.sentence };
+    }
     case 'assign_role': {
       const role = find(input.shape.roles, (step.args.roles ?? '').split(',')[0] ?? '');
       if (!role) throw new Error('That role is gone.');

@@ -395,6 +395,26 @@ export function commandEffects(guild: Guild): CommandEffects {
       await message?.pin();
     },
 
+    async createCategory({ name }) {
+      const created = await guild.channels.create({ name, type: ChannelType.GuildCategory });
+      return { id: created.id };
+    },
+
+    async postButton({ channelId, text: content, buttons }) {
+      const channel = text(channelId);
+      if (!channel) throw new Error('That channel is gone.');
+      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
+        ...buttons.slice(0, 5).map((b, i) =>
+          new ButtonBuilder()
+            .setCustomId(b.id.slice(0, 100))
+            .setLabel(b.label.slice(0, 80))
+            .setStyle(i === 0 ? ButtonStyle.Primary : ButtonStyle.Secondary),
+        ),
+      );
+      const posted = await channel.send({ content: content.slice(0, 2000), components: [row] });
+      return { url: posted.url };
+    },
+
     async assignRole({ userId, roleId }) {
       const member = await guild.members.fetch(userId).catch(() => null);
       const role = guild.roles.cache.get(roleId);

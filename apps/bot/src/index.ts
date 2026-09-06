@@ -23,6 +23,7 @@ import { handleMention } from './mention';
 import { claim, sweepClaims } from './once';
 import { onCommandButton, watchDashboardCommands } from './command';
 import { deliverMessage, onButton, startRunTicker } from './workflow';
+import { onTicketButton } from './tickets';
 import { startScheduler } from './scheduler';
 
 const client = new Client({
@@ -201,6 +202,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (!(await isClaimed(interaction.guildId))) return;
     // A command's own buttons first; anything else belongs to a workflow.
     if (await onCommandButton(interaction)) return;
+    if (await onTicketButton(interaction)) return;
     await onButton(interaction);
   } catch (err) {
     console.error(`kalvard: interaction handler failed: ${String(err)}`);

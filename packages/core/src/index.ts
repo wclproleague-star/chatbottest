@@ -177,3 +177,14 @@ export {
 export type { UpcomingMatch } from './matches';
 export { riftMatchesBetween, reportResult } from './fetchers/rift-legends';
 export type { RiftMatch, RiftTeam } from './fetchers/rift-legends';
+export {
+  nextSupportQuestion,
+  supportPlan,
+  loadSupport,
+  saveSupport,
+  nextTicketNumber,
+  DEFAULT_TICKET_KINDS,
+} from './support';
+export type { SupportMode, SupportAnswers, SupportQuestion, SupportSetup } from './support';
+export { SUPPORT_ACTIONS } from './command';
+export type { SupportAction } from './command';

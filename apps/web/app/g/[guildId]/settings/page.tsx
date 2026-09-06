@@ -57,6 +57,12 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
           address: typeof s.config.baseUrl === 'string' ? s.config.baseUrl : '',
         }))}
         issues={issues}
+        support={{
+          mode:
+            (settings?.support_mode as 'tickets' | 'help_channel' | 'existing_channel' | null) ??
+            null,
+          channel: channels.find((c) => c.id === settings?.support_channel_id)?.name ?? null,
+        }}
         values={{
           allowedChannelIds: settings?.allowed_channel_ids ?? [],
           modRoleId: settings?.mod_role_id ?? '',

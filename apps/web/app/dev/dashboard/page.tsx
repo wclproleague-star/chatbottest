@@ -368,6 +368,7 @@ function SettingsPreview() {
             address: 'https://api.riftlegends.gg/v1',
           },
         ]}
+        support={{ mode: null, channel: null }}
         issues={[{ setting: 'mod_channel_id', id: '99999' }]}
         values={{
           allowedChannelIds: ['2'],

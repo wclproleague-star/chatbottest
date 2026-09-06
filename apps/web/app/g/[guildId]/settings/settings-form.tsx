@@ -38,6 +38,7 @@ import { useActionState, useState } from 'react';
 import { deleteEverything, removeBot, saveGuildSettings } from './actions';
 import { SourcesPanel } from './sources-panel';
 import type { SettingsState } from './actions';
+import { SupportChoice } from '@/components/dashboard/support-choice';
 
 type Named = { id: string; name: string };
 
@@ -64,6 +65,7 @@ export function SettingsForm({
   values,
   sources,
   issues,
+  support,
 }: {
   guildId: string;
   guildName: string;
@@ -73,6 +75,8 @@ export function SettingsForm({
   values: Values;
   sources: { id: string; name: string; answers: string; kind: string; address: string }[];
   issues: { setting: string; id: string }[];
+  /** Where members get help today, if chosen. */
+  support: { mode: 'tickets' | 'help_channel' | 'existing_channel' | null; channel: string | null };
 }) {
   const [state, act, pending] = useActionState<SettingsState, FormData>(saveGuildSettings, null);
   const [allowed, setAllowed] = useState<string[]>(values.allowedChannelIds);
@@ -270,6 +274,17 @@ export function SettingsForm({
                 />
               </Field>
             </FormSection>
+
+            <Section
+              heading="Where members get help"
+              lede="One of three. Kalvard asks what it needs, one thing at a time, shows the plan, and creates nothing until you say yes."
+            >
+              <SupportChoice
+                guildId={guildId}
+                current={support.mode}
+                currentChannel={support.channel}
+              />
+            </Section>
 
             <SourcesPanel guildId={guildId} sources={sources} />
           </>

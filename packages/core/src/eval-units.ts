@@ -26,6 +26,8 @@ import { appendVouch, onRoster, vouchDocument } from './vouch';
 import { findRepeat, offer } from './repeats';
 import { channelNameFor, dueToPrepare, teamRole } from './matches';
 import { defaultBrief, memoryOf } from './keeper';
+import { nextSupportQuestion, supportPlan } from './support';
+import type { SupportAnswers } from './support';
 import { TEMPLATES } from './workflows/templates';
 import type { RiftMatch } from './fetchers/rift-legends';
 import { runWorkflow } from './workflows';
@@ -863,6 +865,157 @@ console.log(
   );
   check('nor is asking when a match is', !aboutARole('when do we play next', []));
   check('asking for one is', aboutARole('give me the ttk role', []));
+}
+
+console.log(
+  ['', 'where members get help: one question at a time, then the plan'].join(
+    String.fromCharCode(10),
+  ),
+);
+{
+  const shape = {
+    channels: [
+      { id: 'c1', name: 'general' },
+      { id: 'c2', name: 'aide' },
+    ],
+    categories: [
+      { id: 'k1', name: 'Community' },
+      { id: 'k2', name: 'Staff' },
+    ],
+    roles: [
+      { id: 'r1', name: 'Joueur' },
+      { id: 'r3', name: 'Modérateur' },
+    ],
+    allowedActions: [],
+    modRole: { id: 'r3', name: 'Modérateur' },
+  };
+  // Tickets: five questions, each with a default, in order.
+  const answers: SupportAnswers = {};
+  const asked: string[] = [];
+  for (let i = 0; i < 8; i++) {
+    const q = nextSupportQuestion('tickets', answers, shape);
+    if (!q) break;
+    asked.push(q.key);
+    (answers as Record<string, string>)[q.key] = q.suggested;
+  }
+  check(
+    'tickets asks category, button channel, kinds, which kinds, human role, in that order',
+    asked.join(',') === 'category,buttonChannel,offerCategories,ticketKinds,humanRole',
+    asked.join(','),
+  );
+  check(
+    'and proposes a new Tickets category when none fits',
+    answers.category === 'new:Tickets',
+    answers.category,
+  );
+  check('and the moderators as the human', answers.humanRole === 'Modérateur', answers.humanRole);
+  const tickets = supportPlan({ mode: 'tickets', answers, shape });
+  check(
+    'the ticket plan creates the category, the channel, the buttons, then writes the choice',
+    tickets.steps.map((s) => s.action).join(',') ===
+      'create_category,create_channel,post_button,set_support',
+    tickets.steps.map((s) => s.action).join(','),
+  );
+  check(
+    'with the four default kinds as buttons',
+    tickets.steps[2]?.args.buttons === 'Question,Roles,Report a problem,Other',
+    tickets.steps[2]?.args.buttons,
+  );
+  check(
+    'every step is a sentence an owner can check',
+    tickets.steps.every((s) => s.sentence.length > 20),
+  );
+
+  // A help channel: a name and a category, then one channel.
+  const help: SupportAnswers = {};
+  const helpAsked: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const q = nextSupportQuestion('help_channel', help, shape);
+    if (!q) break;
+    helpAsked.push(q.key);
+    (help as Record<string, string>)[q.key] = q.suggested;
+  }
+  check(
+    'the help channel asks a name and a category',
+    helpAsked.join(',') === 'helpName,helpCategory',
+    helpAsked.join(','),
+  );
+  check(
+    'and proposes #help in Community',
+    help.helpName === 'help' && help.helpCategory === 'Community',
+    JSON.stringify(help),
+  );
+  const helpPlan = supportPlan({ mode: 'help_channel', answers: help, shape });
+  check(
+    'its plan is one channel and the choice',
+    helpPlan.steps.map((s) => s.action).join(',') === 'create_channel,set_support',
+    helpPlan.steps.map((s) => s.action).join(','),
+  );
+  check(
+    'a name already taken is refused, not duplicated',
+    Boolean(
+      supportPlan({
+        mode: 'help_channel',
+        answers: { helpName: 'general', helpCategory: '' },
+        shape,
+      }).missing,
+    ),
+  );
+
+  // An existing channel: one question, nothing created.
+  const q = nextSupportQuestion('existing_channel', {}, shape);
+  check(
+    'an existing channel asks which, proposing the one that looks like help',
+    q?.key === 'existingChannel' && q.suggested === 'aide',
+    JSON.stringify(q),
+  );
+  const existing = supportPlan({
+    mode: 'existing_channel',
+    answers: { existingChannel: 'aide' },
+    shape,
+  });
+  check(
+    'and creates nothing',
+    existing.steps.length === 1 && existing.steps[0]?.action === 'set_support',
+    existing.steps.map((s) => s.action).join(','),
+  );
+
+  // Switching from tickets to an existing channel archives what tickets made, and says so.
+  const after = supportPlan({
+    mode: 'existing_channel',
+    answers: { existingChannel: 'aide' },
+    shape: { ...shape, channels: [...shape.channels, { id: 'c9', name: 'open-a-ticket' }] },
+    current: {
+      mode: 'tickets',
+      created: [
+        { id: 'k9', name: 'Tickets', kind: 'category' },
+        { id: 'c9', name: 'open-a-ticket', kind: 'channel' },
+      ],
+    },
+  });
+  check(
+    'the switch archives the button channel first',
+    after.steps[0]?.action === 'archive_channel' && after.steps[0].args.channel === 'open-a-ticket',
+    JSON.stringify(after.steps[0]),
+  );
+  check(
+    'and tells the owner what was archived',
+    after.archived.join(',') === '#open-a-ticket',
+    after.archived.join(','),
+  );
+  check('and deletes nothing', !after.steps.some((s) => /delete/i.test(s.action)));
+  check(
+    'a channel already gone is not archived twice',
+    supportPlan({
+      mode: 'existing_channel',
+      answers: { existingChannel: 'aide' },
+      shape,
+      current: {
+        mode: 'tickets',
+        created: [{ id: 'gone', name: 'open-a-ticket', kind: 'channel' }],
+      },
+    }).steps.length === 1,
+  );
 }
 
 console.log(['', 'a memory for any routine'].join(String.fromCharCode(10)));

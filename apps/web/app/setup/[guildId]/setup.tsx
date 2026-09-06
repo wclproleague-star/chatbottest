@@ -16,6 +16,7 @@ import { Button, ButtonLink, Field, Input, Panel, Textarea, cx } from '@kalvard/
 import type { DraftConfig } from '@kalvard/core';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { Beacon } from '@/components/beacon/beacon';
+import { SupportChoice } from '@/components/dashboard/support-choice';
 import { Live, NightScene } from './night-scene';
 import { Travel } from './travel';
 import { TestChat } from '@/app/g/[guildId]/test/test-chat';
@@ -667,55 +668,69 @@ function Finish({
   }
 
   return (
-    <form action={action} className="mt-10 max-w-[60ch] space-y-6">
-      <input type="hidden" name="guild_id" value={guildId} />
-      <Field
-        label="Where may it answer?"
-        help="Leave all unticked and it answers wherever it is mentioned."
-      >
-        <div className="space-y-2">
-          {channels.map((channel) => (
-            <label key={channel.id} className="text-ui text-ink flex items-center gap-2">
-              <input type="checkbox" name="answer_in" value={channel.id} />#{channel.name}
-            </label>
-          ))}
+    <>
+      <form action={action} className="mt-10 max-w-[60ch] space-y-6">
+        <input type="hidden" name="guild_id" value={guildId} />
+        <Field
+          label="Where may it answer?"
+          help="Leave all unticked and it answers wherever it is mentioned."
+        >
+          <div className="space-y-2">
+            {channels.map((channel) => (
+              <label key={channel.id} className="text-ui text-ink flex items-center gap-2">
+                <input type="checkbox" name="answer_in" value={channel.id} />#{channel.name}
+              </label>
+            ))}
+          </div>
+        </Field>
+        <Field label="Who does it wake when it is not sure?">
+          <select
+            name="mod_role"
+            defaultValue=""
+            className="border-field-line text-ui text-ink bg-field h-11 w-full rounded-lg border px-3"
+          >
+            <option value="">Choose a role</option>
+            {roles.map((role) => (
+              <option key={role.id} value={role.id}>
+                {role.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field
+          label="Where should it report quietly?"
+          help="Harassment, slurs and scams are never answered in public. They go here instead."
+        >
+          <select
+            name="mod_channel"
+            defaultValue=""
+            className="border-field-line text-ui text-ink bg-field h-11 w-full rounded-lg border px-3"
+          >
+            <option value="">Nowhere, just record it</option>
+            {channels.map((channel) => (
+              <option key={channel.id} value={channel.id}>
+                #{channel.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        {state?.error && <p className="text-ui text-ink">{state.error}</p>}
+        <Button type="submit" disabled={pending}>
+          {pending ? 'Saving' : 'Save changes'}
+        </Button>
+      </form>
+      <div className="mt-16 max-w-[60ch]">
+        <h2 className="display text-ink" style={{ ['--display-size' as string]: '24px' }}>
+          Where members get help
+        </h2>
+        <p className="text-body text-ink-soft mt-2">
+          One of three. Kalvard asks what it needs, one thing at a time, shows the plan, and creates
+          nothing until you say yes. You can change it later in Settings.
+        </p>
+        <div className="mt-6">
+          <SupportChoice guildId={guildId} current={null} currentChannel={null} />
         </div>
-      </Field>
-      <Field label="Who does it wake when it is not sure?">
-        <select
-          name="mod_role"
-          defaultValue=""
-          className="border-field-line text-ui text-ink bg-field h-11 w-full rounded-lg border px-3"
-        >
-          <option value="">Choose a role</option>
-          {roles.map((role) => (
-            <option key={role.id} value={role.id}>
-              {role.name}
-            </option>
-          ))}
-        </select>
-      </Field>
-      <Field
-        label="Where should it report quietly?"
-        help="Harassment, slurs and scams are never answered in public. They go here instead."
-      >
-        <select
-          name="mod_channel"
-          defaultValue=""
-          className="border-field-line text-ui text-ink bg-field h-11 w-full rounded-lg border px-3"
-        >
-          <option value="">Nowhere, just record it</option>
-          {channels.map((channel) => (
-            <option key={channel.id} value={channel.id}>
-              #{channel.name}
-            </option>
-          ))}
-        </select>
-      </Field>
-      {state?.error && <p className="text-ui text-ink">{state.error}</p>}
-      <Button type="submit" disabled={pending}>
-        {pending ? 'Saving' : 'Save changes'}
-      </Button>
-    </form>
+      </div>
+    </>
   );
 }

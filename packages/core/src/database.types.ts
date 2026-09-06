@@ -69,6 +69,9 @@ type GuildSettingsRow = {
   mod_role_id: string | null;
   mod_channel_id: string | null;
   match_category: string | null;
+  support_mode: 'tickets' | 'help_channel' | 'existing_channel' | null;
+  support_channel_id: string | null;
+  support_setup: Json | null;
   allowed_channel_ids: string[];
   indexed_channel_ids: string[];
   intro_channel_id: string | null;
