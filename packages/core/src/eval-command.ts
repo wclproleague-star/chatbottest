@@ -325,5 +325,55 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
   check('a switched-off action is still refused', off.kind === 'refused', off.kind);
 }
 
+console.log(['', 'giving somebody a role'].join(String.fromCharCode(10)));
+{
+  // What happened live: the plan came back with an empty role name, was shown
+  // as "Give this guy the  role", and stopped on confirm. Whatever the model
+  // returns, a plan must never carry a step with nothing to act on — that is
+  // the invariant, and it does not depend on how the model felt that day.
+  for (const request of [
+    'give him the role',
+    'donne lui le rôle',
+    'this guy is indeed a part of the roster, give him the role',
+  ]) {
+    const out = await planCommand({
+      guildId: '900000000000000001',
+      request,
+      by: MOD,
+      shape: SHAPE,
+    });
+    const empty =
+      out.kind === 'plan' &&
+      out.steps.some(
+        (step) =>
+          step.action === 'assign_role' && (!step.args.roles?.trim() || !step.args.member?.trim()),
+      );
+    check(`"${request}" never plans an empty assignment`, !empty, JSON.stringify(out));
+  }
+
+  // A role named anywhere in the sentence is the role, and asking again for
+  // something already said is how a bot wastes somebody's time.
+  const named = await planCommand({
+    guildId: '900000000000000001',
+    request: 'PPG is part of Joueur, give PPG the role',
+    by: MOD,
+    shape: SHAPE,
+  });
+  // Either it plans it properly or it asks; what it may never do is plan a
+  // sentence nobody can check.
+  check(
+    'a plan for an assignment is always readable',
+    named.kind !== 'plan' ||
+      named.steps.every(
+        (step) =>
+          step.action !== 'assign_role' ||
+          (Boolean(step.args.roles?.trim()) &&
+            Boolean(step.args.member?.trim()) &&
+            (step.args.member ?? '').length < 60),
+      ),
+    JSON.stringify(named),
+  );
+}
+
 console.log(failed === 0 ? '\ncommand mode plans as written.' : `\n${failed} check(s) failed.`);
 if (failed > 0) process.exitCode = 1;

@@ -83,6 +83,9 @@ export type CommandEffects = {
   assignRole(input: { userId: string; roleId: string }): Promise<void>;
 };
 
+/** A Discord display name is short. Anything longer is not a name. */
+const MEMBER_NAME_MAX = 60;
+
 /** More than this and the plan is read out item by item before anything runs. */
 export const ITEMISE_ABOVE = 3;
 
@@ -150,6 +153,38 @@ export async function planCommand(input: {
         question: `Which category should ${hash(step.name ?? '')} go in? This server has: ${names(input.shape.categories)}.`,
       };
     }
+    if (action === 'assign_role') {
+      // A member field that is not a name is not a member. Models have handed
+      // back their own reasoning in this field, and a plan reading "Give
+      // <two hundred words> the role" is not one anybody can check.
+      const member = (step.member ?? '').trim();
+      if (!member || member.length > MEMBER_NAME_MAX || member.split(/\s+/).length > 6) {
+        return {
+          kind: 'question',
+          because: 'The request does not say who gets the role.',
+          question: 'Who should it go to? Name them, or reply to one of their messages.',
+        };
+      }
+      step.member = member;
+
+      // The role is often in the sentence even when the model left the field
+      // empty. Reading it back out of the request beats asking for something
+      // that was already said.
+      if ((step.roles ?? []).filter((r) => r.trim()).length === 0) {
+        const inText = input.shape.roles.filter((role) =>
+          clean(input.request).includes(clean(role.name)),
+        );
+        if (inText.length === 1) step.roles = [inText[0]!.name];
+        else {
+          return {
+            kind: 'question',
+            because: 'The request does not say which role.',
+            question: `Which role should they get? This server has: ${names(input.shape.roles)}.`,
+          };
+        }
+      }
+    }
+
     if (action === 'allow_roles' || action === 'assign_role' || action === 'set_private') {
       const wanted = (step.roles ?? []).map((r) => r.trim()).filter(Boolean);
       const missing = wanted.filter((r) => !find(input.shape.roles, r));

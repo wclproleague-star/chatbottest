@@ -324,13 +324,17 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         userId,
         channelId: input.channelId ?? null,
       });
+      // Somebody has asked for a role only a moderator can give. Telling them
+      // that and leaving them to ask for a moderator themselves is one round
+      // trip too many: the moderators are brought in with the same message.
       const line = selfServe.length
-        ? `${match.role.name} is a role here, but not one I hand out — a moderator gives that one. What I can give you is ${selfServe.map((r) => r.name).join(' or ')}.`
-        : `${match.role.name} is a role here, but not one I hand out. A moderator gives that one.`;
+        ? `${match.role.name} is a role here, but not one I hand out — a moderator gives that one. ${MODS} What I can give you is ${selfServe.map((r) => r.name).join(' or ')}.`
+        : `${match.role.name} is a role here, but not one I hand out. ${MODS}`;
       await closeConversation(guildId, conversationId);
       return {
-        outcome: 'reply',
+        outcome: 'escalate',
         text: await inLanguage(line, language),
+        summary: `${input.askerName ?? 'A member'} asked for ${match.role.name}, which is not self-serve. Only a moderator can give it.`,
         steps: [...steps, `${match.role.name} exists here but is not self-serve`],
         calls: called,
         wouldHave,
