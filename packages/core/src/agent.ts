@@ -25,7 +25,7 @@ import './fetchers/weather';
 import './fetchers/rift-legends';
 import './fetchers/http-json';
 import { detectLanguage, inLanguage } from './language';
-import { whichRole } from './roles';
+import { asksForRole, whichRole } from './roles';
 import { fetchFrom, parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
 import { serviceClient } from './supabase';
@@ -292,7 +292,32 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   // somebody does, and the useful answer says so and records the request.
   if (!wanted) {
     const match = whichRole(input.message, selfServe, allRoles);
-    if (match.kind === 'not_mine' && (await memberAgreed(input.message, '', match.role.name))) {
+
+    // Nothing named exactly, but one or a few roles are the obvious reading.
+    // Put the reading back rather than answering a request nobody made: the
+    // conversation stays open, so their next message is the answer to it.
+    if (match.kind === 'did_you_mean' && asksForRole(input.message)) {
+      const names = match.candidates.map((c) => c.name);
+      const line =
+        names.length === 1
+          ? `You mean ${names[0]}?`
+          : `Which one do you mean: ${names.slice(0, -1).join(', ')} or ${names.at(-1)}?`;
+      turns.push({ role: 'model', text: line });
+      await saveConversation(guildId, conversationId, turns, language);
+      return {
+        outcome: 'ask',
+        text: await inLanguage(line, language),
+        steps: [...steps, `nothing named exactly; offered ${names.join(', ')}`],
+        calls: called,
+        wouldHave,
+      };
+    }
+
+    if (
+      match.kind === 'not_mine' &&
+      asksForRole(input.message) &&
+      (await memberAgreed(input.message, '', match.role.name))
+    ) {
       await logCapabilityRequest(guildId, {
         capability: `assign_role:${match.role.name}`,
         request: input.message,

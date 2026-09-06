@@ -20,7 +20,7 @@ import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { answersHere } from './answers-here';
-import { whichRole } from './roles';
+import { asksForRole, whichRole } from './roles';
 import { findRepeat, offer } from './repeats';
 import { runWorkflow } from './workflows';
 import { isDue, lastDue, readSchedule } from './schedule';
@@ -672,6 +672,120 @@ console.log(
   check(
     'naming two is not a request for either',
     whichRole('ttk or fast forward test?', selfServe, all).kind === 'unknown',
+  );
+}
+
+console.log(['', 'the nearest role, when nothing matches exactly'].join(String.fromCharCode(10)));
+{
+  const all = [
+    { id: '1', name: 'Train To Kill' },
+    { id: '2', name: 'Fast Forward Test' },
+    { id: '3', name: 'Chromanova Test' },
+    { id: '4', name: 'Sapphire' },
+    { id: '5', name: 'Community' },
+    { id: '6', name: 'Qualifiers players' },
+  ];
+  const selfServe = [all[1]!, all[2]!];
+
+  // An acronym is how people actually write a long role name.
+  const ttk = whichRole('give me ttk role', selfServe, all);
+  check('initials find the role', ttk.kind === 'did_you_mean', ttk.kind);
+  check(
+    'and it is the right one',
+    ttk.kind === 'did_you_mean' && ttk.candidates[0]!.name === 'Train To Kill',
+    JSON.stringify(ttk),
+  );
+
+  // A near spelling is a typo, not a different role.
+  const typo = whichRole('can i get saphire', selfServe, all);
+  check(
+    'a near spelling finds it',
+    typo.kind === 'did_you_mean' && typo.candidates[0]!.name === 'Sapphire',
+    JSON.stringify(typo),
+  );
+
+  // Part of a name is a request, not a puzzle.
+  const part = whichRole('the qualifiers role please', selfServe, all);
+  check(
+    'part of a name finds it',
+    part.kind === 'did_you_mean' && part.candidates[0]!.name === 'Qualifiers players',
+    JSON.stringify(part),
+  );
+
+  // Several near ones is a question to put back, not a guess to make.
+  const many = whichRole('give me the test role', selfServe, all);
+  check(
+    'several near matches are all offered',
+    many.kind === 'did_you_mean' && many.candidates.length === 2,
+    JSON.stringify(many),
+  );
+
+  // An exact name still wins outright.
+  check(
+    'an exact self-serve name still wins',
+    whichRole('fast forward test', selfServe, all).kind === 'self_serve',
+  );
+  check(
+    'an exact other role is still not mine',
+    whichRole('sapphire', selfServe, all).kind === 'not_mine',
+  );
+
+  // And nothing at all is still nothing: it does not invent a nearest.
+  check(
+    'nothing role-shaped stays unknown',
+    whichRole('what time is the match', selfServe, all).kind === 'unknown',
+  );
+
+  // A server with both "Fast Forward" and "Fast Forward Test" is normal, and
+  // one name containing the other is not an ambiguity: the longer one is what
+  // was typed. Getting this wrong breaks the main path, handing out a role.
+  const nested = [
+    { id: '9', name: 'Fast Forward' },
+    { id: '2', name: 'Fast Forward Test' },
+  ];
+  const longest = whichRole('give me fast forward test', [nested[1]!], nested);
+  check(
+    'the longer of two nested names wins',
+    longest.kind === 'self_serve' && longest.role.name === 'Fast Forward Test',
+    JSON.stringify(longest),
+  );
+  const shorter = whichRole('give me fast forward', [nested[1]!], nested);
+  check(
+    'and the shorter one still resolves on its own',
+    shorter.kind === 'not_mine' && shorter.role.name === 'Fast Forward',
+    JSON.stringify(shorter),
+  );
+  // Two unrelated names is still a question rather than a guess.
+  check(
+    'two unrelated names stay ambiguous',
+    whichRole(
+      'sapphire or community?',
+      [],
+      [
+        { id: '4', name: 'Sapphire' },
+        { id: '5', name: 'Community' },
+      ],
+    ).kind === 'unknown',
+  );
+
+  // A near match is only put back as a question when the message was asking
+  // for something. Somebody talking about a role is not requesting it.
+  check('a request is a request', asksForRole('give me ttk role'));
+  check('and so is one without the word role', asksForRole('i want ceo'));
+  check('talking about it is not', !asksForRole('train to kill was fun yesterday'));
+  check('nor is a question about the match', !asksForRole('what time is the match'));
+
+  // Servers decorate role names. Typing the name without its emoji is typing
+  // the name, and should be as exact as typing it with one.
+  const decorated = [
+    { id: '7', name: 'Streamer 📺' },
+    { id: '8', name: 'Community 👥' },
+  ];
+  const plain = whichRole('je peux avoir le rôle streamer', [], decorated);
+  check(
+    'a decorated name matches without its emoji',
+    plain.kind === 'not_mine' && plain.role.name === 'Streamer 📺',
+    JSON.stringify(plain),
   );
 }
 
