@@ -21,7 +21,6 @@ export function FormSection({
   pending,
   saveLabel = 'Save changes',
   note,
-  tone = 'secondary',
   changed = false,
   children,
 }: {
@@ -32,8 +31,6 @@ export function FormSection({
   saveLabel?: string;
   /** Shown to the left of Save: an error, or what just happened. */
   note?: ReactNode;
-  /** Which surface this panel sits on. One panel per page is primary. */
-  tone?: 'primary' | 'secondary';
   /**
    * Something outside the form's own fields changed, a hidden value set by a
    * click rather than typed. The form cannot see those, so the caller says so.
@@ -64,7 +61,6 @@ export function FormSection({
     <Section
       heading={heading}
       lede={lede}
-      tone={tone}
       footer={
         note || show ? (
           <>
@@ -93,7 +89,7 @@ export function FormSection({
         action={action}
         onInput={check}
         onChange={check}
-        className="space-y-5"
+        className="space-y-6"
       >
         {children}
       </form>

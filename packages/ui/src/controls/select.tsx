@@ -85,7 +85,7 @@ export function Option({ value, children }: { value: string; children: ReactNode
     <SelectPrimitive.Item
       value={value}
       className={cx(
-        'text-ui text-ink flex h-9 cursor-pointer select-none items-center justify-between gap-3 rounded-lg px-2.5 outline-none',
+        'text-ui text-ink flex h-11 cursor-pointer select-none items-center justify-between gap-3 rounded-lg px-3 outline-none',
         'data-[highlighted]:bg-panel data-[state=checked]:text-ink',
       )}
     >

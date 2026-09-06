@@ -82,17 +82,19 @@
 [data-theme='dark'] {
   --color-paper: #0e1116;
   --color-panel: #161a21;
+  /* Above a panel: menus, and blocks inside a row. */
   --color-raised: #1c222b;
-  --color-hairline: #242a33;
-  --color-ink: #e8eaed;
-  --color-ink-soft: #9aa3ae;
-  --color-field: #12161c;
-  --color-field-line: #2a313b;
+  --color-hairline: #262d38;
+  --color-ink: #f2f4f7;
+  --color-ink-soft: #8b95a3;
+  /* A field sits below the panel it is in, not level with it. */
+  --color-field: #10141a;
+  --color-field-line: #262d38;
 
   /* A panel reads by being lighter than the page, not by casting onto it: in
      the dark a shadow is invisible and an edge is not. One lit line along the
      top, one dark line along the bottom, both inside the panel. */
-  --shadow-panel-paper: inset 0 1px 0 rgb(255 255 255 / 0.04), inset 0 -1px 0 rgb(0 0 0 / 0.3);
+  --shadow-panel-paper: inset 0 1px 0 rgb(255 255 255 / 0.06), inset 0 -1px 0 rgb(0 0 0 / 0.4);
 
   /* Ticks, radios and the slider take the state colour rather than the
      browser's blue, which is the one colour the palette does not have. */

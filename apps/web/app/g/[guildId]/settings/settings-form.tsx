@@ -5,10 +5,15 @@
 // so both are said in words rather than left to a toggle: what happens when it
 // is not sure, and whether it answers anything outside this server at all.
 //
-// Where it answers is the panel this page is about, so it is the one that sits
-// a shade above the others and takes the left column. The danger zone keeps
-// its own panel at the bottom and never gets a Save that appears on its own:
-// both of those are typed out in full first.
+// Settings has no single thing it is about, so nothing here is enlarged to
+// pretend otherwise: the panel titles carry the page at 20px and every field
+// label recedes to 13px, which is the right way round — a question should
+// never compete with its answer.
+//
+// The two columns are filled to end at about the same place, and nothing
+// full-width follows them: a band across the bottom would undo the column the
+// eye has just learned. The danger zone never gets a Save that appears on its
+// own; both of those are typed out in full first.
 //
 // Channels and roles are chips rather than a column of ticks. A server's
 // channels are objects people already recognise, and picking three of twenty
@@ -24,7 +29,6 @@ import {
   Option,
   Panel,
   Section,
-  Sections,
   Select,
   Split,
   Textarea,
@@ -96,75 +100,78 @@ export function SettingsForm({
 
       <Split
         left={
-          <FormSection
-            heading="Where it answers"
-            tone="primary"
-            action={act}
-            pending={pending}
-            note={note}
-            changed={allowed.join(',') !== values.allowedChannelIds.join(',')}
-          >
-            <Hidden guildId={guildId} basedOn={basedOn} />
-            {/* Every panel posts the whole form, so a save from one never blanks
+          <>
+            <FormSection
+              heading="Where it answers"
+              action={act}
+              pending={pending}
+              note={note}
+              changed={allowed.join(',') !== values.allowedChannelIds.join(',')}
+            >
+              <Hidden guildId={guildId} basedOn={basedOn} />
+              {/* Every panel posts the whole form, so a save from one never blanks
                 what somebody set on another. */}
-            <Elsewhere values={values} panel="where" />
+              <Elsewhere values={values} panel="where" />
 
-            <Field
-              label="Which channels?"
-              help="Pick none and it answers anywhere it is mentioned."
-            >
-              {channels.length === 0 ? (
-                <Empty>Kalvard has not read your channels yet. Add it to the server first.</Empty>
-              ) : (
-                <Chips>
+              <Field
+                label="Which channels?"
+                help="Pick none and it answers anywhere it is mentioned."
+              >
+                {channels.length === 0 ? (
+                  <Empty>Kalvard has not read your channels yet. Add it to the server first.</Empty>
+                ) : (
+                  <Chips>
+                    {channels.map((c) => (
+                      <Chip
+                        key={c.id}
+                        name="allowed_channel_ids"
+                        value={c.id}
+                        label={c.name}
+                        prefix="#"
+                        on={allowed.includes(c.id)}
+                        onToggle={() =>
+                          setAllowed((now) =>
+                            now.includes(c.id) ? now.filter((id) => id !== c.id) : [...now, c.id],
+                          )
+                        }
+                      />
+                    ))}
+                  </Chips>
+                )}
+              </Field>
+
+              <Field label="May it answer things that are not about this server?">
+                <Select name="scope" defaultValue={values.scope}>
+                  <Option value="open">Yes, general questions too</Option>
+                  <Option value="server_only">No, this server only</Option>
+                </Select>
+              </Field>
+
+              <Field
+                label="What time is it where the server lives?"
+                help="An IANA name, such as Europe/Paris."
+              >
+                <Input name="timezone" defaultValue={values.timezone} placeholder="Europe/Paris" />
+              </Field>
+
+              <Field label="Where should it introduce itself?">
+                <Select name="intro_channel_id" defaultValue={values.introChannelId || 'none'}>
+                  <Option value="none">Nowhere</Option>
                   {channels.map((c) => (
-                    <Chip
-                      key={c.id}
-                      name="allowed_channel_ids"
-                      value={c.id}
-                      label={c.name}
-                      prefix="#"
-                      on={allowed.includes(c.id)}
-                      onToggle={() =>
-                        setAllowed((now) =>
-                          now.includes(c.id) ? now.filter((id) => id !== c.id) : [...now, c.id],
-                        )
-                      }
-                    />
+                    <Option key={c.id} value={c.id}>
+                      #{c.name}
+                    </Option>
                   ))}
-                </Chips>
-              )}
-            </Field>
+                </Select>
+              </Field>
 
-            <Field label="May it answer things that are not about this server?">
-              <Select name="scope" defaultValue={values.scope}>
-                <Option value="open">Yes, general questions too</Option>
-                <Option value="server_only">No, this server only</Option>
-              </Select>
-            </Field>
+              <Field label="What should it say when it arrives?">
+                <Textarea name="intro_message" rows={3} defaultValue={values.introMessage} />
+              </Field>
+            </FormSection>
 
-            <Field
-              label="What time is it where the server lives?"
-              help="An IANA name, such as Europe/Paris."
-            >
-              <Input name="timezone" defaultValue={values.timezone} placeholder="Europe/Paris" />
-            </Field>
-
-            <Field label="Where should it introduce itself?">
-              <Select name="intro_channel_id" defaultValue={values.introChannelId || 'none'}>
-                <Option value="none">Nowhere</Option>
-                {channels.map((c) => (
-                  <Option key={c.id} value={c.id}>
-                    #{c.name}
-                  </Option>
-                ))}
-              </Select>
-            </Field>
-
-            <Field label="What should it say when it arrives?">
-              <Textarea name="intro_message" rows={3} defaultValue={values.introMessage} />
-            </Field>
-          </FormSection>
+            <SourcesPanel guildId={guildId} sources={sources} />
+          </>
         }
         right={
           <>
@@ -235,16 +242,11 @@ export function SettingsForm({
                 />
               </Field>
             </FormSection>
+
+            <DangerZone guildId={guildId} guildName={guildName} />
           </>
         }
       />
-
-      <div className="mt-6">
-        <Sections>
-          <SourcesPanel guildId={guildId} sources={sources} />
-          <DangerZone guildId={guildId} guildName={guildName} />
-        </Sections>
-      </div>
     </div>
   );
 }

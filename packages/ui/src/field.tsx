@@ -21,8 +21,13 @@ const WIDTH: Record<FieldWidth, string> = {
   full: 'w-full',
 };
 
+/**
+ * A field is the answer, so it is set at reading size and in the reading
+ * colour. It sits below the panel it is in and takes an amber edge on focus,
+ * the same amber the rest of the dashboard uses for a thing that is on.
+ */
 const fieldClass =
-  'text-ui text-ink placeholder:text-ink-soft/70 border-field-line focus-visible:outline-green rounded-lg border bg-field px-3 shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] outline-offset-2 focus-visible:outline-2 disabled:opacity-40';
+  'text-ui text-ink placeholder:text-ink-soft/60 border-field-line focus:border-amber rounded-lg border bg-field px-3.5 shadow-[inset_0_1px_0_rgb(255_255_255/0.03)] outline-none transition-colors disabled:opacity-40';
 
 export function Input({
   className,
@@ -39,7 +44,7 @@ export function Textarea({
 }: ComponentProps<'textarea'> & { width?: FieldWidth }) {
   return (
     <textarea
-      className={cx(fieldClass, WIDTH[width], 'min-h-24 resize-y py-3', className)}
+      className={cx(fieldClass, WIDTH[width], 'min-h-28 resize-y p-4', className)}
       {...props}
     />
   );
@@ -60,10 +65,12 @@ export function Field({
 }) {
   return (
     <label className={cx('block', className)}>
-      <span className="text-ui-sm text-ink-soft mb-1.5 block">{label}</span>
+      <span className="text-ink-soft/60 mb-2 block text-[13px] leading-[1.3]">{label}</span>
       {children}
-      {help && !error && <span className="text-ui-sm text-ink-soft mt-1.5 block">{help}</span>}
-      {error && <span className="text-ui-sm text-ink mt-1.5 block">{error}</span>}
+      {help && !error && (
+        <span className="text-ink-soft/60 mt-2 block text-[13px] leading-[1.4]">{help}</span>
+      )}
+      {error && <span className="text-ui text-ink mt-2 block">{error}</span>}
     </label>
   );
 }

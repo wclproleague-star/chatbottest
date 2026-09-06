@@ -28,9 +28,10 @@ const ROLES = [
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ p?: string; open?: string }>;
+  searchParams: Promise<{ p?: string; open?: string; head?: string }>;
 }) {
-  const { p = 'inbox', open } = await searchParams;
+  const { p = 'inbox', open, head } = await searchParams;
+  const shape = head === 'beside' ? 'beside' : 'bare';
   return (
     <Surface surface="paper" theme="dark" className="min-h-screen lg:flex">
       <Sidebar guildId="900000000000000001" guildName="Wild Champions League" />
@@ -41,7 +42,7 @@ export default async function Page({
           {p === 'test' && <TestPreview />}
           {p === 'inbox' && <InboxPreview openAt={open} />}
           {p === 'personality' && <PersonalityPreview />}
-          {p === 'settings' && <SettingsPreview />}
+          {p === 'settings' && <SettingsPreview shape={shape} />}
           {p === 'commands' && <CommandsPreview />}
         </Column>
       </main>
@@ -237,7 +238,7 @@ function CommandsPreview() {
   );
 }
 
-function SettingsPreview() {
+function SettingsPreview({ shape }: { shape: 'bare' | 'beside' }) {
   return (
     <div>
       <PageTitle
@@ -245,6 +246,7 @@ function SettingsPreview() {
         lede="Where it answers, who it wakes, and what it may look up."
         light="amber"
         standing="Your vard is lit, and 2 waiting on you."
+        shape={shape}
       />
       <SettingsForm
         guildId="900000000000000001"

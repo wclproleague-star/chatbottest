@@ -53,33 +53,26 @@ export function Section({
   heading,
   lede,
   footer,
-  tone = 'secondary',
   children,
   className,
 }: {
   heading: string;
   lede?: string;
   footer?: ReactNode;
-  /**
-   * The one panel a page is about sits a shade above the others. Every page
-   * has exactly one; if two look primary, neither is.
-   */
-  tone?: 'primary' | 'secondary';
   children: ReactNode;
   className?: string;
 }) {
   return (
     <section
       className={cx(
-        'rounded-panel text-ink shadow-(--surface-panel-shadow) p-6',
-        tone === 'primary' ? 'bg-raised' : 'bg-panel',
+        'rounded-panel bg-panel text-ink shadow-(--surface-panel-shadow) p-7',
         className,
       )}
     >
       <h2 className="text-[20px] font-medium">{heading}</h2>
-      {lede && <p className="text-ui-sm text-ink-soft mt-1">{lede}</p>}
-      <div className="mt-5 space-y-5">{children}</div>
-      {footer && <div className="mt-6 flex items-center justify-end gap-4">{footer}</div>}
+      {lede && <p className="text-ink-soft mt-1.5 text-[13px]">{lede}</p>}
+      <div className="mt-6 space-y-6">{children}</div>
+      {footer && <div className="mt-7 flex items-center justify-end gap-4">{footer}</div>}
     </section>
   );
 }
