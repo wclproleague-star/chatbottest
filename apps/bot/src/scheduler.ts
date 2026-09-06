@@ -58,7 +58,7 @@ async function tick(client: Client): Promise<void> {
     for (const workflow of scheduled) {
       const { data: row } = await db
         .from('workflows')
-        .select('last_run')
+        .select('last_run, created_at')
         .eq('id', workflow.id ?? '')
         .maybeSingle();
 
@@ -67,6 +67,7 @@ async function tick(client: Client): Promise<void> {
         now,
         timezone: settings?.timezone ?? null,
         lastRun: row?.last_run ?? null,
+        createdAt: row?.created_at ?? null,
       });
       if (!due.due) continue;
 

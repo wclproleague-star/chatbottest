@@ -402,6 +402,7 @@ export async function saveWorkflow(input: {
     .select('id')
     .single();
   if (error || !data) {
+    console.error(`kalvard: could not save the workflow: ${error?.message ?? 'no row came back'}`);
     return { ok: false, message: 'Could not save that workflow. Try again.' };
   }
   return { ok: true, id: data.id };

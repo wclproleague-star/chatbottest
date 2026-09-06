@@ -469,6 +469,28 @@ console.log(['', 'when a scheduled workflow is due'].join(String.fromCharCode(10
     lastRun: '2026-08-27T16:00:05.000Z',
   });
   check('but last week does not count as this week', notYet.due === true);
+
+  // A routine written this afternoon did not exist at yesterday's slot, and
+  // must not fire for it the moment it is saved.
+  const justWritten = isDue({
+    when: 'every day at 17:45',
+    now: new Date('2026-09-03T15:30:00Z'),
+    timezone: paris,
+    lastRun: null,
+    createdAt: '2026-09-03T15:29:00Z',
+  });
+  check(
+    'a workflow does not run for a slot that passed before it existed',
+    justWritten.due === false,
+  );
+  const oldEnough = isDue({
+    when: 'every day at 17:45',
+    now: new Date('2026-09-03T15:30:00Z'),
+    timezone: paris,
+    lastRun: null,
+    createdAt: '2026-09-01T09:00:00Z',
+  });
+  check('and one written last week still runs for yesterday', oldEnough.due === true);
 }
 
 console.log(['', 'noticing a routine somebody already keeps'].join(String.fromCharCode(10)));

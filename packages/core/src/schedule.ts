@@ -59,16 +59,26 @@ export function lastDue(when: string | undefined, now: Date, timezone: string | 
   return null;
 }
 
-/** Whether it is due and has not already run for that moment. */
+/**
+ * Whether it is due and has not already run for that moment.
+ *
+ * A routine written this afternoon did not exist at yesterday's slot, so it
+ * does not fire for it the moment it is saved. Looking backwards is what makes
+ * a late worker catch up; without this it also makes a new workflow run at once
+ * for a time that passed before anybody wrote it.
+ */
 export function isDue(input: {
   when: string | undefined;
   now: Date;
   timezone: string | null;
   lastRun: string | null;
+  /** When the workflow was written down. */
+  createdAt?: string | null;
 }): { due: true; at: Date } | { due: false } {
   const at = lastDue(input.when, input.now, input.timezone);
   if (!at) return { due: false };
   if (input.lastRun && new Date(input.lastRun).getTime() >= at.getTime()) return { due: false };
+  if (input.createdAt && new Date(input.createdAt).getTime() > at.getTime()) return { due: false };
   return { due: true, at };
 }
 
