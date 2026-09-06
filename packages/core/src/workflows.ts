@@ -37,7 +37,7 @@ export type Step =
       timeoutMinutes?: number;
     }
   | { type: 'if'; when: string; then: Step[]; else?: Step[] }
-  | { type: 'pick'; from: string[]; announce?: string; as: string }
+  | { type: 'pick'; from: string[]; announce?: string; in?: string; as: string }
   | { type: 'for_each'; items: string; as: string; steps: Step[] };
 
 export type Workflow = {
@@ -147,6 +147,9 @@ async function runStep(step: Step, input: RunInput, result: RunResult): Promise<
     }
 
     case 'ask': {
+      if (!input.allowedActions.includes('ask_buttons')) {
+        return stop(result, 'ask_buttons is not something this server lets Kalvard do');
+      }
       const who = fillList(step.of, result.variables);
       if (who.length === 0) return stop(result, `nobody to ask: ${step.of} resolved to nobody`);
       const question = fill(step.question, result.variables) ?? step.question;
@@ -200,6 +203,14 @@ async function runStep(step: Step, input: RunInput, result: RunResult): Promise<
       const line = step.announce
         ? (fill(step.announce, { ...result.variables, [step.as]: chosen }) ?? chosen)
         : `Picked ${chosen}`;
+      if (step.in) {
+        if (!input.allowedActions.includes('post_message')) {
+          return stop(result, 'post_message is not something this server lets Kalvard do');
+        }
+        const channel = await where(step.in, input, result);
+        if (channel === null) return;
+        if (!input.dryRun) await input.effects.postMessage(channel, line);
+      }
       result.entries.push({ step: 'pick', detail: line, wouldHave: input.dryRun });
       return;
     }

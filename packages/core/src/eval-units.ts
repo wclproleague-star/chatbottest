@@ -20,6 +20,7 @@ import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { findRepeat, offer } from './repeats';
+import { runWorkflow } from './workflows';
 import { isDue, lastDue, readSchedule } from './schedule';
 import { checkStep, readBack, whatChanged } from './workflow-author';
 import type { RawStep } from './workflow-author';
@@ -519,6 +520,81 @@ console.log(['', 'noticing a routine somebody already keeps'].join(String.fromCh
     'a routine on different weekdays names no day',
     findRepeat(scattered, paris)?.weekday === undefined,
   );
+}
+
+console.log(['', 'the allowlist holds for every kind of step'].join(String.fromCharCode(10)));
+{
+  const posted: string[] = [];
+  const asked: string[] = [];
+  const effects = {
+    async postMessage(_channelId: string, text: string) {
+      posted.push(text);
+    },
+    async askButtons(input: { question: string }) {
+      asked.push(input.question);
+    },
+    async addReaction() {},
+    async pinMessage() {},
+    async channelId(name: string) {
+      return name;
+    },
+  };
+
+  // A server that has not switched buttons on does not get buttons.
+  const noButtons = await runWorkflow({
+    guildId: 'g',
+    workflow: {
+      name: 'Ask',
+      trigger: { kind: 'request' },
+      steps: [
+        {
+          type: 'ask',
+          question: 'Ready?',
+          options: ['Yes', 'No'],
+          of: 'the captains',
+          in: 'test',
+          as: 'ready',
+        },
+      ],
+    },
+    context: {},
+    effects,
+    allowedActions: ['post_message'],
+  });
+  check(
+    'asking with buttons is refused when the action is off',
+    Boolean(noButtons.stoppedBecause?.includes('ask_buttons')),
+    String(noButtons.stoppedBecause),
+  );
+  check('and nothing was asked', asked.length === 0);
+
+  // A coin flip is announced where people can see it, not only in the summary.
+  const flip = await runWorkflow({
+    guildId: 'g',
+    workflow: {
+      name: 'Flip',
+      trigger: { kind: 'request' },
+      steps: [
+        {
+          type: 'pick',
+          from: ['Blue', 'Red'],
+          announce: 'Coin flip: {side} picks first.',
+          in: 'test',
+          as: 'side',
+        },
+      ],
+    },
+    context: {},
+    effects,
+    allowedActions: ['post_message'],
+  });
+  check(
+    'a coin flip reaches the channel',
+    posted.some((t) => t.startsWith('Coin flip:')),
+    posted.join(' | '),
+  );
+  check('and says what it landed on', /Blue|Red/.test(posted.join(' ')), posted.join(' | '));
+  check('the run did not stop', !flip.stoppedBecause, String(flip.stoppedBecause));
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);
