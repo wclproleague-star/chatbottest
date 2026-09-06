@@ -336,6 +336,10 @@ async function ask(
 }
 
 /** Three tone samples, written from what the owner has already said. */
+export async function toneSamples(config: DraftConfig, guildName: string): Promise<string[]> {
+  return tones(config, guildName);
+}
+
 async function tones(config: DraftConfig, guildName: string): Promise<string[]> {
   try {
     const out = await generateJson<{ samples: string[] }>({

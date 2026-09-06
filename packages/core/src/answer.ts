@@ -486,7 +486,11 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
   // that lists other days, so it is hedged and confirmed rather than asserted.
   // The time window is what makes it a reading. Without one, "nothing on
   // substitutes" is exactly what it says, and belongs with the moderators.
-  if (resolution.asksIfExists && resolution.timeWindow && matches.length > 0) {
+  if (
+    resolution.asksIfExists &&
+    (resolution.timeWindow || namesADay(question)) &&
+    matches.length > 0
+  ) {
     for (const claim of claims) {
       if (claim.grounding === 'none') {
         claim.grounding = 'partial';
@@ -664,6 +668,50 @@ async function overQuota(guildId: string, limits: Limits): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Whether the question names a day or a date. The resolution step usually
+ * reports the time window itself, but it drops it now and again, and whether
+ * "no match on Saturday" is a reading or a blank must not wobble between runs.
+ * Days, not subjects: this is about the shape of the question.
+ */
+function namesADay(question: string): boolean {
+  const words = question.toLowerCase();
+  return DAY_WORDS.some((day) => words.includes(day));
+}
+
+const DAY_WORDS = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+  'today',
+  'tomorrow',
+  'tonight',
+  'weekend',
+  'lundi',
+  'mardi',
+  'mercredi',
+  'jeudi',
+  'vendredi',
+  'samedi',
+  'dimanche',
+  "aujourd'hui",
+  'demain',
+  'ce soir',
+  'week-end',
+  'lunes',
+  'martes',
+  'miércoles',
+  'jueves',
+  'viernes',
+  'sábado',
+  'domingo',
+  'mañana',
+];
 
 /** Whether this message is a member asking to be given a role. */
 function asksForARole(resolution: Resolution, question: string): boolean {

@@ -55,6 +55,9 @@ await db.from('guild_settings').upsert({
   // Two roles the bot may hand out itself, so the cases about what it can and
   // cannot do have something real to be about.
   self_serve_role_ids: ['role_ff_hard', 'role_eu_hard'],
+  // The suites ask thousands of questions; the monthly allowance is a real
+  // product limit and not something the tests should keep tripping over.
+  limits: { monthlyAnswers: 1000000 },
 });
 
 for (const doc of DOCUMENTS) {

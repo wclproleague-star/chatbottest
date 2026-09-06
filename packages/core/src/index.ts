@@ -1,6 +1,6 @@
 // The AI pipeline and the typed Supabase client. Server side and the bot only.
 
-export { onboard, missing, DEFAULT_FORBIDDEN } from './onboard';
+export { onboard, missing, applyAnswer, toneSamples, DEFAULT_FORBIDDEN } from './onboard';
 export type { DraftConfig, OnboardMessage, OnboardResult } from './onboard';
 
 export {
