@@ -582,13 +582,15 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       // way to look that up", which is the line for the world outside the
       // server, when the funnel says the moderators.
       const onlyRead = called.every((c) => c === 'search_knowledge' || c === 'list_roles');
-      if (onlyRead && earlier.length === 0) {
+      if (onlyRead) {
         const graded: AnswerResult = await answer({
           guildId,
           question: input.message,
           askerName: input.askerName,
           channelId: input.channelId,
-          history: earlier.length > 0 ? undefined : input.history,
+          // Mid-conversation, the earlier turns are the context; otherwise
+          // the channel's last messages are.
+          history: earlier.length > 0 ? spokenTurns(earlier) : input.history,
           asker: input.asker,
           channel: input.channel,
           canAct: true,
@@ -803,6 +805,38 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       case 'note_unavailable': {
         const capability = String(call.args.capability ?? '').trim();
         const request = String(call.args.request ?? input.message).trim();
+        // "Who knows the prize pool?" is a question. Answering it with "that
+        // is not something I do" is the wrong stage of the funnel: the
+        // knowledge, then the moderators. Sent back once; the second time
+        // the moderators are brought in here.
+        if (isQuestion(input.message)) {
+          if (!nagged) {
+            nagged = true;
+            turns.push({
+              role: 'tool',
+              name: call.name,
+              result: {
+                ok: false,
+                reason:
+                  'That is a question, not a request to do something, so note_unavailable does not apply. Call search_knowledge; if nothing answers it, call escalate_to_mod with the question as the summary.',
+              },
+            });
+            break;
+          }
+          await closeConversation(guildId, conversationId);
+          steps.push('nothing answered a question about the server; brought the moderators in');
+          return {
+            outcome: 'escalate',
+            text: await inLanguage(
+              `I don't have that one. ${MODS}, can one of you take it?`,
+              language,
+            ),
+            summary: `${input.askerName ?? 'A member'} asked: "${input.message}". Nothing in the knowledge answers it.`,
+            steps,
+            calls: called,
+            wouldHave,
+          };
+        }
         await logCapabilityRequest(guildId, {
           capability,
           request,
@@ -1058,6 +1092,33 @@ function initials(name: string): string {
     .split(/\s+/)
     .map((word) => word[0] ?? '')
     .join('');
+}
+
+/** Whether a message asks something, rather than asking for something to be done. */
+function isQuestion(message: string): boolean {
+  const text = message.trim().toLowerCase();
+  if (text.includes('?')) return true;
+  const first = text.split(/[^a-z\u00e0-\u00ff']+/).filter(Boolean)[0] ?? '';
+  return QUESTION_WORDS.has(first);
+}
+
+const QUESTION_WORDS = new Set(
+  'who what when where why how which whose whom qui quoi quand ou où pourquoi comment quel quelle quels quelles combien est-ce'.split(
+    ' ',
+  ),
+);
+
+/** The conversation as words, for the grader: what was said, by whom. */
+function spokenTurns(turns: unknown[]): HistoryTurn[] {
+  const out: HistoryTurn[] = [];
+  for (const turn of turns) {
+    if (!turn || typeof turn !== 'object') continue;
+    const said = turn as { role?: unknown; text?: unknown };
+    if (typeof said.text !== 'string' || !said.text.trim()) continue;
+    if (said.role === 'user') out.push({ role: 'user', text: said.text });
+    else if (said.role === 'model') out.push({ role: 'model', text: said.text });
+  }
+  return out;
 }
 
 /** Everything the member has said in this conversation, in order. */

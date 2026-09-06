@@ -216,6 +216,11 @@ export async function resolveTarget(input: {
   if (raw.asksNothing) outcome = 'unique';
   if (raw.aboutHoldings) outcome = 'unique';
 
+  // "Who might know?" asks for a person to go to. The answer is the people
+  // who answer here, never a choice between the members the knowledge lists:
+  // live, that came back as "Which one do you mean: kestrel, norsacce, vlad?"
+  if (asksWho(input.message)) outcome = 'unique';
+
   // Nothing of this server's is being referred to, so there is nothing here to
   // resolve and no reason to hand it to a moderator.
   if (raw.aboutServer === false) outcome = 'unique';
@@ -275,4 +280,13 @@ export function resolutionBrief(r: Resolution): string {
     );
   }
   return parts.join(' ');
+}
+
+/** Whether the message asks who, as in which person, rather than about a thing. */
+function asksWho(message: string): boolean {
+  const words = message
+    .toLowerCase()
+    .split(/[^a-zà-ÿ']+/)
+    .filter(Boolean);
+  return words.includes('who') || words.includes('qui') || words.includes('whom');
 }

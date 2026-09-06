@@ -700,7 +700,7 @@
   },
   {
     "name": "a question about the server that the knowledge does not answer goes to the moderators",
-    "why": "Live, 'what's the prize for winners?' came back as 'I have no way to look that up right now, check the official site'. That line is for the world outside the server. The prize is a fact about this server: the knowledge is searched, and what it does not answer is handed to the moderators, graded like any informational reply.",
+    "why": "Live, verbatim: 'what's the prize pool' came back as 'not something I can look up, check wcultra.com', 'who might know here?' as the asker's own roles read out, and the restatement as 'That is not something I do'. Every one of those is a question about the server that the knowledge does not answer, and the funnel says the moderators. The no-way-to-look-that-up line is for the world outside the server; note_unavailable is for things it is asked to do; and a reply written after nothing but reads is graded, mid-conversation too.",
     "roles": [
       {
         "id": "role_ff",
@@ -713,13 +713,38 @@
     },
     "turns": [
       {
-        "message": "what's the prize for winners ?",
+        "message": "what's the prize pool for winnners ??",
         "expect": {
           "outcomeOneOf": ["reply", "escalate"],
           "tier": "none",
           "notCalls": ["assign_role"]
         },
         "why": "nothing in the knowledge says; the mods are asked, not a website"
+      },
+      {
+        "message": "who might know here ?",
+        "expect": {
+          "outcomeOneOf": ["reply", "escalate"],
+          "notCalls": ["assign_role", "note_unavailable"],
+          "textNot": [
+            "is part of",
+            "not something I do",
+            "cannot look",
+            "can't look",
+            "no way to look",
+            "do you mean"
+          ]
+        },
+        "why": "who to ask is answered from the knowledge when it says (the seed does: admins, #help) and by the moderators when it does not; never the asker's roles read out, never a choice between members"
+      },
+      {
+        "message": "no, like who might know what 's the prize pool for winnners ?",
+        "expect": {
+          "outcomeOneOf": ["reply", "escalate"],
+          "notCalls": ["note_unavailable"],
+          "textNot": ["not something I do", "no way to look", "cannot look", "can't look"]
+        },
+        "why": "a question is never 'not something I do': the knowledge answers it or the moderators do"
       }
     ]
   }

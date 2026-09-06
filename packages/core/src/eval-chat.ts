@@ -169,7 +169,12 @@ function problems(turn: Turn, result: ConversationResult, trace: Trace): string[
     if (trace.calls.includes(call)) out.push(`${call} actually happened, and must not`);
   }
   if (turn.expect.tier) {
-    const tier = result.outcome === 'reply' && result.graded ? result.graded.tier : null;
+    const tier =
+      result.outcome === 'reply' && result.graded
+        ? result.graded.tier
+        : result.outcome === 'escalate'
+          ? 'none'
+          : null;
     if (tier !== turn.expect.tier) {
       out.push(`tier ${tier ?? 'not graded'}, expected ${turn.expect.tier}`);
     }
