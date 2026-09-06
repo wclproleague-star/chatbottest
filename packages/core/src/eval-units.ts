@@ -19,6 +19,8 @@ import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
 import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
+import { checkStep, readBack, whatChanged } from './workflow-author';
+import type { RawStep } from './workflow-author';
 import { summarise } from './fetchers/http-json';
 import { fetchFrom } from './sources';
 import { findPersonal, personalSummary } from './personal';
@@ -315,6 +317,103 @@ console.log(['', 'any JSON address'].join(String.fromCharCode(10)));
   check(
     'a long list says how long it is',
     summarise({ xs: Array.from({ length: 30 }, (_, i) => i) }).some((l) => l.includes('30 items')),
+  );
+}
+
+console.log(['', 'writing a workflow by describing it'].join(String.fromCharCode(10)));
+{
+  const shape = {
+    channels: [{ id: '1', name: 'match-info' }],
+    roles: [{ id: '10', name: 'Captain' }],
+    allowedActions: ['post_message', 'ask_buttons'],
+  };
+  const asked = (raw: RawStep) => {
+    const out = checkStep(raw, shape);
+    return 'kind' in out ? out.question : '';
+  };
+
+  // The four things somebody describing a routine never says, and every one of
+  // them decides whether the flow moves again.
+  check(
+    'a wait with nobody named asks who may satisfy it',
+    asked({ type: 'wait_for', event: 'attachment', timeoutMinutes: 30 }).includes('satisfy'),
+  );
+  check(
+    'a wait with no timeout asks how long',
+    asked({ type: 'wait_for', event: 'attachment', from: 'either captain' }).includes('How long'),
+  );
+  check(
+    'a timeout with nothing to do asks what happens',
+    asked({
+      type: 'wait_for',
+      event: 'attachment',
+      from: 'either captain',
+      timeoutMinutes: 30,
+    }).includes('time runs out'),
+  );
+  check(
+    'a question with no buttons asks for them',
+    asked({ type: 'ask', question: 'Which side?', of: 'the losing captain' }).includes('buttons'),
+  );
+  check(
+    'a question put to nobody asks who',
+    asked({ type: 'ask', question: 'Which side?', options: ['Blue', 'Red'] }).includes(
+      'Who should be asked',
+    ),
+  );
+  check(
+    'a coin flip that says nothing is asked to say it',
+    asked({ type: 'pick', options: ['Blue', 'Red'] }).includes('landed on'),
+  );
+
+  // The allowlist is code, not prompt.
+  check(
+    'an action this server has switched off is refused by name',
+    asked({ type: 'do', action: 'pin_message', with: [] }).includes('pin message'),
+  );
+  const complete = checkStep(
+    {
+      type: 'wait_for',
+      event: 'attachment',
+      from: 'either captain',
+      in: '#match-info',
+      timeoutMinutes: 30,
+      onTimeout: [
+        { type: 'do', action: 'post_message', with: [{ key: 'text', value: 'Screenshot?' }] },
+      ],
+    },
+    shape,
+  );
+  check('a complete wait compiles', 'step' in complete && complete.step?.type === 'wait_for');
+
+  // A flow is approved by reading it, not by parsing it.
+  const flow = {
+    name: 'Best of three',
+    trigger: { kind: 'request' as const },
+    steps: [
+      { type: 'pick' as const, from: ['Blue', 'Red'], announce: '#match-info', as: 'side' },
+      {
+        type: 'ask' as const,
+        question: 'Which side?',
+        options: ['Blue', 'Red'],
+        of: 'the losing captain',
+        as: 'side2',
+      },
+    ],
+  };
+  const lines = readBack(flow);
+  check(
+    'the read-back names the choice',
+    Boolean(lines[0]?.includes('Pick one of Blue, Red')),
+    lines[0],
+  );
+  check('and who is asked what', Boolean(lines[1]?.includes('Ask the losing captain')), lines[1]);
+  const after = { ...flow, steps: [flow.steps[0]!] };
+  const diff = whatChanged(flow, after);
+  check(
+    'an edit reads back only what changed',
+    diff.length === 1 && diff[0]!.startsWith('Removed: Ask'),
+    diff.join(' | '),
   );
 }
 
