@@ -1,21 +1,20 @@
 #!/usr/bin/env node
-// Generates the brand assets from the picked marks.
+// Generates the brand assets from the picked mark.
 //
 //   pnpm build            next/font writes the Instrument Sans files this reads
 //   node scripts/marks.mjs
 //
-// Writes assets/wordmark.svg (outlined to paths), assets/avatar.svg,
-// assets/avatar-512.png (star white on answered green, for Discord) and the
-// favicon set, then copies the favicons into apps/web/app where Next serves them.
+// The mark is the K: the stem is the vard, the slit is cut into it, and the
+// two diagonals stand clear. It is drawn twice. The master is the shape; the
+// small version is the same shape corrected for its size, with the slit 1.6x
+// wider and the stem a tenth heavier, because below about 48px a two-unit slit
+// falls under one device pixel and the light goes out.
+//
+// Everything lands in assets/brand/, in two colourways: star white with an
+// amber slit for night, ink with an amber slit for paper. The favicons and the
+// Discord avatar are copied into apps/web/app where Next serves them.
 import { Resvg } from '@resvg/resvg-js';
-import {
-  copyFileSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,13 +25,59 @@ const fontkit = createRequire(import.meta.url)('fontkit');
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const assets = join(root, 'assets');
+const brand = join(assets, 'brand');
 const appDir = join(root, 'apps/web/app');
-mkdirSync(assets, { recursive: true });
+mkdirSync(brand, { recursive: true });
 
 const STAR = '#F2EEE6';
-const GREEN = '#23A55A';
+const INK = '#111418';
+const AMBER = '#D9A21B';
+const NIGHT = '#070A10';
+const CONSOLE = '#0E1116';
 
-// Wordmark ---------------------------------------------------------------
+/** The two colourways, by the ground they stand on. */
+const WAYS = {
+  night: { body: STAR, slit: AMBER },
+  paper: { body: INK, slit: AMBER },
+};
+
+// The mark ---------------------------------------------------------------
+// A 32-unit grid, so every edge lands on a whole pixel at 16, 32, 64 and 256.
+
+/**
+ * @param {{body: string, slit: string}} way
+ * @param {'master'|'small'} optical
+ */
+function markShapes(way, optical) {
+  // Small: the stem is a tenth heavier and the slit 1.6 times wider, both
+  // centred where they were, so the light survives at 16 and 32.
+  const stemW = optical === 'small' ? 7.7 : 7;
+  const slitW = optical === 'small' ? 3.2 : 2;
+  const slitX = 4 + (stemW - slitW) / 2;
+  return (
+    `<rect x="4" y="3" width="${stemW}" height="26" fill="${way.body}"/>` +
+    `<rect x="${round(slitX)}" y="9" width="${slitW}" height="12" fill="${way.slit}"/>` +
+    `<path d="M13 16 L26 3 L30 3 L15.5 17.5 Z" fill="${way.body}"/>` +
+    `<path d="M15.5 14.5 L30 29 L26 29 L13 16 Z" fill="${way.body}"/>`
+  );
+}
+
+/** The mark on its own, transparent. */
+function markSvg(way, optical) {
+  return (
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" ' +
+    'role="img" aria-label="Kalvard">' +
+    markShapes(way, optical) +
+    '</svg>'
+  );
+}
+
+for (const [name, way] of Object.entries(WAYS)) {
+  writeFileSync(join(brand, `mark-${name}.svg`), tidy(markSvg(way, 'master')));
+  writeFileSync(join(brand, `mark-small-${name}.svg`), tidy(markSvg(way, 'small')));
+}
+
+// The wordmark -----------------------------------------------------------
 // Instrument Sans, weight 500, width 86%, tracking -0.035em, as the Wordmark
 // component sets it. Outlined so the file needs no font.
 
@@ -42,7 +87,7 @@ const fontFile = readdirSync(mediaDir)
   .map((f) => join(mediaDir, f))
   .find((p) => {
     const f = fontkit.openSync(p);
-    return Boolean(f.variationAxes?.wdth) && f.hasGlyphForCodePoint('S'.codePointAt(0));
+    return Boolean(f.variationAxes?.wdth) && f.hasGlyphForCodePoint('K'.codePointAt(0));
   });
 if (!fontFile) {
   throw new Error(
@@ -54,85 +99,146 @@ if (!fontFile) {
 // decompress to a TTF buffer first.
 const ttf = Buffer.from(await decompress(readFileSync(fontFile)));
 const font = fontkit.create(ttf).getVariation({ wdth: 86, wght: 500 });
-const tracking = -0.035 * font.unitsPerEm;
-const run = font.layout('Kalvard');
 
-// The box follows the glyph outlines, not the advances: the y overhangs its advance.
-let x = 0;
-let minX = Infinity;
-let maxX = -Infinity;
-let minY = Infinity;
-let maxY = -Infinity;
-const glyphPaths = [];
-run.glyphs.forEach((glyph, i) => {
-  const d = glyph.path.toSVG();
-  if (d) glyphPaths.push(`<path transform="translate(${round(x)} 0)" d="${d}"/>`);
-  minX = Math.min(minX, x + glyph.bbox.minX);
-  maxX = Math.max(maxX, x + glyph.bbox.maxX);
-  minY = Math.min(minY, glyph.bbox.minY);
-  maxY = Math.max(maxY, glyph.bbox.maxY);
-  x += run.positions[i].xAdvance + (i < run.glyphs.length - 1 ? tracking : 0);
-});
+/** One word, outlined, with its own box. Returns paths in font units, y up. */
+function outline(word) {
+  const tracking = -0.035 * font.unitsPerEm;
+  const run = font.layout(word);
+  let x = 0;
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  const paths = [];
+  run.glyphs.forEach((glyph, i) => {
+    const d = glyph.path.toSVG();
+    if (d) paths.push(`<path transform="translate(${round(x)} 0)" d="${d}"/>`);
+    minX = Math.min(minX, x + glyph.bbox.minX);
+    maxX = Math.max(maxX, x + glyph.bbox.maxX);
+    minY = Math.min(minY, glyph.bbox.minY);
+    maxY = Math.max(maxY, glyph.bbox.maxY);
+    x += run.positions[i].xAdvance + (i < run.glyphs.length - 1 ? tracking : 0);
+  });
+  return { paths: paths.join(''), minX, maxX, minY, maxY };
+}
 
-const wordmark = tidy(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${round(minX)} ${round(-maxY)} ${round(maxX - minX)} ${round(maxY - minY)}" role="img" aria-label="Kalvard">` +
-    `<g fill="currentColor" transform="scale(1 -1)">${glyphPaths.join('')}</g></svg>`,
+const word = outline('KALVARD');
+writeFileSync(
+  join(assets, 'wordmark.svg'),
+  tidy(
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${round(word.minX)} ${round(-word.maxY)} ${round(word.maxX - word.minX)} ${round(word.maxY - word.minY)}" role="img" aria-label="Kalvard">` +
+      `<g fill="currentColor" transform="scale(1 -1)">${word.paths}</g></svg>`,
+  ),
 );
-writeFileSync(join(assets, 'wordmark.svg'), wordmark);
 
-// Avatar mark ------------------------------------------------------------
-// Same four shapes as packages/ui/src/avatar-mark.tsx. Keep them in sync.
+// The lockup -------------------------------------------------------------
+// The mark at cap height, then a gap of half its width, then the word. Both
+// sit on the same baseline, which is what makes it read as one thing.
 
-const MARK =
-  '<circle cx="32" cy="11" r="6"/>' +
-  '<rect x="23" y="20" width="18" height="4" rx="2"/>' +
-  '<polygon points="30,24 34,24 37,52 27,52"/>' +
-  '<rect x="16" y="54" width="32" height="4" rx="2"/>';
-
-/** The mark, optionally on a field and inset so it survives a circular crop. */
-function avatarSvg({ fill, field, inset = 0 }) {
-  const scale = 1 - inset * 2;
-  const g = inset
-    ? `<g fill="${fill}" transform="translate(${round(64 * inset)} ${round(64 * inset)}) scale(${scale})">${MARK}</g>`
-    : `<g fill="${fill}">${MARK}</g>`;
+function lockupSvg(way) {
+  const capH = word.maxY;
+  const scale = capH / 26; // the mark's stem is 26 units tall
+  const markW = 32 * scale;
+  const gap = markW * 0.34;
+  const wordW = word.maxX - word.minX;
+  const height = capH;
+  const width = markW + gap + wordW;
+  // The mark's grid has y down and the word has y up, so each gets its own frame.
   return (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kalvard">' +
-    (field ? `<rect width="64" height="64" fill="${field}"/>` : '') +
-    g +
-    '</svg>'
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${round(width)} ${round(height)}" role="img" aria-label="Kalvard">` +
+    `<g transform="translate(0 ${round(-1.5 * scale)}) scale(${round6(scale)})">${markShapes(way, 'master')}</g>` +
+    `<g fill="${way.body}" transform="translate(${round(markW + gap - word.minX)} ${round(height)}) scale(1 -1)">${word.paths}</g>` +
+    `</svg>`
   );
 }
 
-writeFileSync(join(assets, 'avatar.svg'), avatarSvg({ fill: 'currentColor' }));
+for (const [name, way] of Object.entries(WAYS)) {
+  writeFileSync(join(brand, `lockup-${name}.svg`), tidy(lockupSvg(way)));
+}
 
-const discord = avatarSvg({ fill: STAR, field: GREEN, inset: 0.16 });
-writeFileSync(join(assets, 'avatar-512.png'), png(discord, 512));
+// Avatar, tile, favicons -------------------------------------------------
 
-// Favicons ---------------------------------------------------------------
-// Star white on answered green, like the Discord avatar, with a little less
-// inset so the mark stays legible at 16px.
+/** The mark centred on a ground, with room around it. */
+function onGround({ way, optical, ground, shape, size = 512, inset = 0.26 }) {
+  const scale = (1 - inset * 2) * (size / 32);
+  const offset = size * inset;
+  const field =
+    shape === 'circle'
+      ? `<circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="${ground}"/>`
+      : `<rect width="${size}" height="${size}" rx="${round(size * 0.22)}" fill="${ground}"/>`;
+  return (
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" role="img" aria-label="Kalvard">` +
+    field +
+    `<g transform="translate(${round(offset)} ${round(offset)}) scale(${round6(scale)})">${markShapes(way, optical)}</g>` +
+    `</svg>`
+  );
+}
 
-const favicon = avatarSvg({ fill: STAR, field: GREEN, inset: 0.1 });
-writeFileSync(join(assets, 'favicon.svg'), favicon);
-writeFileSync(join(assets, 'apple-touch-icon.png'), png(favicon, 180));
+// Discord crops to a circle, so the avatar is a circle: nothing is lost to a
+// crop that was not drawn for it.
+const avatar = onGround({ way: WAYS.night, optical: 'master', ground: NIGHT, shape: 'circle' });
+writeFileSync(join(brand, 'avatar-512.svg'), tidy(avatar));
+writeFileSync(join(brand, 'avatar-512.png'), png(avatar, 512));
+
+const tile = onGround({
+  way: WAYS.night,
+  optical: 'master',
+  ground: CONSOLE,
+  shape: 'rounded',
+  inset: 0.24,
+});
+writeFileSync(join(brand, 'app-tile-512.png'), png(tile, 512));
+
+// The favicons take the small version, which is the whole point of drawing it.
+const favicon = onGround({
+  way: WAYS.night,
+  optical: 'small',
+  ground: NIGHT,
+  shape: 'rounded',
+  size: 64,
+  // Less room than the avatar gets: at 16px every unit of inset is a unit the
+  // slit does not have.
+  inset: 0.1,
+});
+writeFileSync(join(brand, 'favicon.svg'), tidy(favicon));
+for (const size of [16, 32, 48, 180]) {
+  writeFileSync(join(brand, `favicon-${size}.png`), png(favicon, size));
+}
 writeFileSync(
-  join(assets, 'favicon.ico'),
+  join(brand, 'favicon.ico'),
   ico([16, 32, 48].map((size) => ({ size, data: png(favicon, size) }))),
 );
 
-copyFileSync(join(assets, 'favicon.ico'), join(appDir, 'favicon.ico'));
-copyFileSync(join(assets, 'favicon.svg'), join(appDir, 'icon.svg'));
-copyFileSync(join(assets, 'apple-touch-icon.png'), join(appDir, 'apple-icon.png'));
+// The banner -------------------------------------------------------------
+// The headland the product is named after, with the lockup standing on it.
 
-for (const f of [
-  'wordmark.svg',
-  'avatar.svg',
-  'avatar-512.png',
-  'favicon.svg',
-  'favicon.ico',
-  'apple-touch-icon.png',
-]) {
-  console.log(`${String(statSync(join(assets, f)).size).padStart(7)} B  assets/${f}`);
+const scene = readFileSync(join(assets, 'beacon/scene.jpg')).toString('base64');
+const bannerLockup = lockupSvg(WAYS.night);
+const lockupHeight = 96;
+const lockupWidth =
+  lockupHeight *
+  (Number(bannerLockup.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/)[1]) /
+    Number(bannerLockup.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/)[2]));
+const banner =
+  `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1500 500">` +
+  `<rect width="1500" height="500" fill="${NIGHT}"/>` +
+  // The still, covering the banner and anchored to its bottom, as the hero has it.
+  `<image href="data:image/jpeg;base64,${scene}" x="0" y="-330" width="1500" height="844" preserveAspectRatio="xMidYMax slice" opacity="0.55"/>` +
+  `<rect width="1500" height="500" fill="${NIGHT}" opacity="0.35"/>` +
+  `<g transform="translate(96 ${round(250 - lockupHeight / 2)}) scale(${round6(lockupHeight / Number(bannerLockup.match(/viewBox="0 0 ([\d.]+) ([\d.]+)"/)[2]))})">` +
+  bannerLockup.replace(/^<svg[^>]*>/, '').replace(/<\/svg>$/, '') +
+  `</g>` +
+  `</svg>`;
+writeFileSync(join(brand, 'banner-1500x500.png'), png(banner, 1500));
+void lockupWidth;
+
+// What the app serves ----------------------------------------------------
+writeFileSync(join(appDir, 'favicon.ico'), readFileSync(join(brand, 'favicon.ico')));
+writeFileSync(join(appDir, 'icon.svg'), readFileSync(join(brand, 'favicon.svg')));
+writeFileSync(join(appDir, 'apple-icon.png'), readFileSync(join(brand, 'favicon-180.png')));
+
+for (const f of readdirSync(brand).sort()) {
+  console.log(`${String(statSync(join(brand, f)).size).padStart(8)} B  assets/brand/${f}`);
 }
 console.log('copied favicon.ico, icon.svg, apple-icon.png into apps/web/app');
 
@@ -165,6 +271,10 @@ function ico(images) {
 
 function round(n) {
   return Number(n.toFixed(1));
+}
+
+function round6(n) {
+  return Number(n.toFixed(6));
 }
 
 /** Trims path numbers to one decimal so the file stays small. */
