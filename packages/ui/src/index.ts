@@ -27,7 +27,7 @@ export { AvatarMark } from './avatar-mark';
 export { Field, Input, Textarea } from './field';
 export type { FieldWidth } from './field';
 export { GrowingInput } from './growing-input';
-export { Column, Section, Sections, Split } from './layout';
+export { Column, Group, Narrow, Section, Sections, Split } from './layout';
 export * from './controls';
 export { FormSection } from './form-section';
 export { ExpandingRow, RowBlock } from './expanding-row';

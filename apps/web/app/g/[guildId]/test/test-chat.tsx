@@ -2,8 +2,11 @@
 
 import { MODS } from '@kalvard/core/tokens';
 import type { AnswerResult, ConversationResult, HistoryTurn, WouldHave } from '@kalvard/core';
-import { Button, Input, Panel, ThreadMessage } from '@kalvard/ui';
+import { Button, Input, Panel, Section, Split, ThreadMessage } from '@kalvard/ui';
+import type { ReactNode } from 'react';
 import { useEffect, useRef, useState } from 'react';
+import { Beacon } from '@/components/beacon/beacon';
+import type { Light } from '@/components/sky/beacon';
 import { ask, suggest } from './actions';
 
 // The test chat, on paper: your messages in a white panel on the right,
@@ -19,7 +22,24 @@ type Turn =
   | { id: number; role: 'user'; text: string }
   | { id: number; role: 'kalvard'; result: ConversationResult };
 
-export function TestChat({ guildId, botName }: { guildId: string; botName: string }) {
+export function TestChat({
+  guildId,
+  botName,
+  aside,
+}: {
+  guildId: string;
+  botName: string;
+  /** Handed the questions and the recent answers, for a page with a second column. */
+  aside?: (parts: {
+    suggestions: string[] | null;
+    suggesting: boolean;
+    note: string | null;
+    generate: () => void;
+    ask: (question: string) => void;
+    recent: string[];
+    light: Light;
+  }) => ReactNode;
+}) {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState('');
   const [pending, setPending] = useState(false);
@@ -76,12 +96,27 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
     setSuggestions(outcome.questions);
   }
 
-  return (
-    <div className="mt-10 max-w-[760px]">
-      <p className="text-ui-sm text-ink-soft border-amber mb-8 border-l-2 pl-3">
-        <span className="text-ink font-medium">Dry run.</span> Kalvard reads your knowledge and your
-        roles for real. Anything it would do to your server is shown, never done.
-      </p>
+  const light: Light = pending || suggesting ? 'working' : turns.length > 0 ? 'green' : 'amber';
+  const recent = turns
+    .filter((t): t is Extract<Turn, { role: 'user' }> => t.role === 'user')
+    .slice(-5)
+    .map((t) => t.text)
+    .reverse();
+
+  const body = (
+    <div>
+      <div className="mb-8 flex items-start gap-5">
+        <Beacon
+          light={light}
+          className="h-16 w-10 shrink-0"
+          height={0.95}
+          label={light === 'working' ? 'Kalvard is working' : 'Kalvard'}
+        />
+        <p className="text-ui-sm text-ink-soft border-amber border-l-2 pl-3">
+          <span className="text-ink font-medium">Dry run.</span> Kalvard reads your knowledge and
+          your roles for real. Anything it would do to your server is shown, never done.
+        </p>
+      </div>
 
       <div className="space-y-6" aria-live="polite">
         {turns.length === 0 && !pending && (
@@ -131,34 +166,40 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
         </Button>
       </form>
 
-      <div className="mt-6">
-        <button
-          type="button"
-          onClick={() => void generate()}
-          disabled={suggesting}
-          className="text-ui text-ink decoration-ink/40 hover:decoration-ink underline underline-offset-[3px] transition-colors disabled:opacity-40"
-        >
-          {suggesting ? 'Thinking of questions' : 'Generate test questions'}
-        </button>
-        {suggestNote && <p className="text-ui text-ink-soft mt-3 max-w-[60ch]">{suggestNote}</p>}
-        {suggestions && (
-          <ul className="mt-4 flex flex-wrap gap-2">
-            {suggestions.map((s) => (
-              <li key={s}>
-                <button
-                  type="button"
-                  onClick={() => void send(s)}
-                  disabled={pending}
-                  className="text-ui-sm text-ink border-hairline hover:bg-raised h-9 rounded-full border px-4 transition-colors disabled:opacity-40"
-                >
-                  {s}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {!aside && (
+        <div className="mt-6">
+          <button
+            type="button"
+            onClick={() => void generate()}
+            disabled={suggesting}
+            className="text-ui text-ink decoration-ink/40 hover:decoration-ink underline underline-offset-[3px] transition-colors disabled:opacity-40"
+          >
+            {suggesting ? 'Thinking of questions' : 'Generate test questions'}
+          </button>
+          {suggestNote && <p className="text-ui text-ink-soft mt-3">{suggestNote}</p>}
+        </div>
+      )}
     </div>
+  );
+
+  if (!aside) return body;
+  // Beside panels, the conversation gets one too, or the page reads as a panel
+  // and a piece of loose paper.
+  // The caller wants a second column, so the chat renders one: the state it
+  // needs lives here, and lifting it out would be state in two places.
+  return (
+    <Split
+      left={<Section heading="Ask it something">{body}</Section>}
+      right={aside({
+        suggestions,
+        suggesting,
+        note: suggestNote,
+        generate: () => void generate(),
+        ask: (question: string) => void send(question),
+        recent,
+        light,
+      })}
+    />
   );
 }
 

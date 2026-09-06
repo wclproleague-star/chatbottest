@@ -41,12 +41,7 @@ export type OverviewData = {
 export function Overview({ data }: { data: OverviewData }) {
   return (
     <div>
-      <PageTitle
-        title="Overview"
-        lede={`How ${data.guildName} used Kalvard this week.`}
-        light={data.light}
-        standing={STANDING[data.light]}
-      />
+      <PageTitle title="Overview" lede={`How ${data.guildName} used Kalvard this week.`} />
 
       <div className="mt-10">
         <Split
@@ -119,14 +114,6 @@ export function Overview({ data }: { data: OverviewData }) {
   );
 }
 
-/** What the light means this morning, said in words as well. */
-const STANDING: Record<Light, string> = {
-  off: 'Your vard is dark',
-  amber: 'Your vard is lit, and something is waiting on you',
-  working: 'Your vard is working',
-  green: 'Your vard answered everything it was asked',
-};
-
 function Count({
   label,
   value,
@@ -140,7 +127,7 @@ function Count({
 }) {
   return (
     <div className={wide ? 'col-span-3' : undefined}>
-      <dt className="text-ink-soft/60 text-[13px]">{label}</dt>
+      <dt className="text-ink-soft text-[14px]">{label}</dt>
       <dd
         className="display text-ink mt-1 tabular-nums"
         style={{ ['--display-size' as string]: `${size}px` }}

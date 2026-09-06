@@ -1,4 +1,4 @@
-import { Column, Surface } from '@kalvard/ui';
+import { Column, Section, Split, Surface } from '@kalvard/ui';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { Inbox } from '@/app/g/[guildId]/inbox/inbox-rows';
@@ -7,8 +7,7 @@ import { SettingsForm } from '@/app/g/[guildId]/settings/settings-form';
 import { Commands } from '@/app/g/[guildId]/commands/commands-form';
 import { Overview } from '@/app/g/[guildId]/overview/overview';
 import { Knowledge } from '@/app/g/[guildId]/knowledge/knowledge';
-import { TestChat } from '@/app/g/[guildId]/test/test-chat';
-import { Section } from '@kalvard/ui';
+import { TestPanels } from '@/app/g/[guildId]/test/test-panels';
 
 // The dashboard screens with fixed data, so they can be looked at and checked
 // against the design without a Discord session. The forms post to the real
@@ -33,7 +32,12 @@ export default async function Page({
   const { p = 'inbox', open } = await searchParams;
   return (
     <Surface surface="paper" theme="dark" className="min-h-screen lg:flex">
-      <Sidebar guildId="900000000000000001" guildName="Wild Champions League" />
+      <Sidebar
+        guildId="900000000000000001"
+        guildName="Wild Champions League"
+        light="amber"
+        standing="Your vard is lit, and 2 waiting on you"
+      />
       <main className="min-w-0 flex-1 px-6 pb-24 pt-10 lg:px-12">
         <Column>
           {p === 'overview' && <OverviewPreview />}
@@ -128,9 +132,7 @@ function TestPreview() {
         lede="Ask what a member would ask. Kalvard answers from the knowledge, or shows where it would ask a mod."
       />
       <div className="mt-10">
-        <Section heading="Ask it something">
-          <TestChat guildId="900000000000000001" botName="Kalvard" />
-        </Section>
+        <TestPanels guildId="900000000000000001" botName="Kalvard" />
       </div>
     </div>
   );
@@ -194,8 +196,6 @@ function PersonalityPreview() {
       <PageTitle
         title="Personality"
         lede="How it talks, and how sure it has to be before it answers."
-        light="amber"
-        standing="Your vard is lit. Nothing is waiting on you."
       />
       <PersonalityForm
         guildId="900000000000000001"
@@ -224,15 +224,45 @@ function CommandsPreview() {
         title="Commands"
         lede="Tell Kalvard what to change. It shows you the plan first, and nothing happens until you confirm."
       />
-      <Commands
-        guildId="900000000000000001"
-        examples={[
-          'crée un channel #finale-wcl dans la catégorie Matchs',
-          'donne accès à #finale-wcl aux rôles Joueur et Caster',
-          'poste dans #annonces que le check-in ouvre à 17h',
-          'archive #vieux-matchs',
-        ]}
-      />
+      <div className="mt-10">
+        <Split
+          left={
+            <Commands
+              guildId="900000000000000001"
+              examples={[
+                'crée un channel #finale-wcl dans la catégorie Matchs',
+                'donne accès à #finale-wcl aux rôles Joueur et Caster',
+                'poste dans #annonces que le check-in ouvre à 17h',
+                'archive #vieux-matchs',
+              ]}
+            />
+          }
+          right={
+            <Section heading="What has been asked for" lede="Every command, and what came of it.">
+              <ul className="divide-hairline -my-4 divide-y">
+                <li className="py-4">
+                  <p className="text-ui text-ink">
+                    crée un channel #finale-wcl et mets les rôles Joueur et Caster dedans
+                  </p>
+                  <p className="text-ink-faint mt-1 text-[13px]">
+                    Ran · 2 steps · Petru · Sat 5 Sep
+                  </p>
+                  <ul className="text-ink-faint mt-2 space-y-1 text-[13px]">
+                    <li>Created #finale-wcl in Matchs, private</li>
+                    <li>Let Joueur, Caster and Mods see it</li>
+                  </ul>
+                </li>
+                <li className="py-4">
+                  <p className="text-ui text-ink">archive #vieux-matchs</p>
+                  <p className="text-ink-faint mt-1 text-[13px]">
+                    Cancelled · 1 step · Petru · Fri 4 Sep
+                  </p>
+                </li>
+              </ul>
+            </Section>
+          }
+        />
+      </div>
     </div>
   );
 }
@@ -240,12 +270,7 @@ function CommandsPreview() {
 function SettingsPreview() {
   return (
     <div>
-      <PageTitle
-        title="Settings"
-        lede="Where it answers, who it wakes, and what it may look up."
-        light="amber"
-        standing="Your vard is lit, and 2 waiting on you."
-      />
+      <PageTitle title="Settings" lede="Where it answers, who it wakes, and what it may look up." />
       <SettingsForm
         guildId="900000000000000001"
         guildName="Wild Champions League"

@@ -1,7 +1,6 @@
-import { Section } from '@kalvard/ui';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { requireMember } from '@/lib/guild';
-import { TestChat } from './test-chat';
+import { TestPanels } from './test-panels';
 
 // The test chat: the real answer pipeline against this server's knowledge.
 
@@ -21,9 +20,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
         lede="Ask what a member would ask. Kalvard answers from the knowledge, or shows where it would ask a mod."
       />
       <div className="mt-10">
-        <Section heading="Ask it something">
-          <TestChat guildId={guildId} botName={settings?.bot_name?.trim() || 'Kalvard'} />
-        </Section>
+        <TestPanels guildId={guildId} botName={settings?.bot_name?.trim() || 'Kalvard'} />
       </div>
     </div>
   );

@@ -7,6 +7,7 @@
 
 import { Wordmark, cx } from '@kalvard/ui';
 import { Beacon } from '../beacon/beacon';
+import type { Light } from '../sky/beacon';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
@@ -31,7 +32,17 @@ const PAGES: ([string, string] | { group: string; pages: [string, string][] })[]
   ['test', 'Test'],
 ];
 
-export function Sidebar({ guildId, guildName }: { guildId: string; guildName: string }) {
+export function Sidebar({
+  guildId,
+  guildName,
+  light = 'amber',
+  standing = 'Your vard is lit',
+}: {
+  guildId: string;
+  guildName: string;
+  light?: Light;
+  standing?: string;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const current = pathname.split('/')[3] ?? '';
@@ -85,14 +96,15 @@ export function Sidebar({ guildId, guildName }: { guildId: string; guildName: st
   return (
     <>
       <aside className="border-hairline hidden h-screen w-60 shrink-0 flex-col border-r px-6 py-6 lg:sticky lg:top-0 lg:flex">
-        <div className="flex items-center gap-3">
-          <Beacon light="amber" className="h-10 w-[27px] shrink-0" label="Kalvard, watching" />
-          <div className="min-w-0">
-            <a href="/" className="text-ui text-ink">
-              <Wordmark />
-            </a>
-            <p className="text-ui-sm text-ink-soft mt-1 truncate">{guildName}</p>
-          </div>
+        <a href="/" className="text-ui text-ink">
+          <Wordmark />
+        </a>
+        <p className="text-ui-sm text-ink-soft mt-1 truncate">{guildName}</p>
+
+        {/* The one place the light is always worth having: this server, now. */}
+        <div className="border-hairline mt-6 flex items-center gap-3 border-t pt-6">
+          <Beacon light={light} className="h-12 w-[32px] shrink-0" label={standing} />
+          <p className="text-ink-soft min-w-0 text-[13px] leading-[1.35]">{standing}</p>
         </div>
         <nav className="mt-10 flex-1" aria-label="Pages">
           {list}

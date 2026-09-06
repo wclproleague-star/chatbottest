@@ -33,16 +33,48 @@ export function Split({
   className?: string;
 }) {
   return (
-    <div className={cx('grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]', className)}>
-      <div className="min-w-0 space-y-6">{left}</div>
-      <div className="min-w-0 space-y-6">{right}</div>
+    <div className={cx('grid gap-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]', className)}>
+      <div className="min-w-0 space-y-10">{left}</div>
+      <div className="min-w-0 space-y-10">{right}</div>
     </div>
   );
 }
 
+/**
+ * The narrow column, for a page with only one thing on it. A page that cannot
+ * fill two columns is centred at 840 rather than glued to the left of 1200
+ * with half the window empty beside it.
+ */
+export function Narrow({ className, ...props }: ComponentProps<'div'>) {
+  return <div className={cx('mx-auto w-full max-w-[840px]', className)} {...props} />;
+}
+
 /** Panels down a page. */
 export function Sections({ className, ...props }: ComponentProps<'div'>) {
-  return <div className={cx('space-y-6', className)} {...props} />;
+  return <div className={cx('space-y-10', className)} {...props} />;
+}
+
+/**
+ * A group of fields inside a panel, under a sub-heading.
+ *
+ * Six questions in a row is a wall, and a wall is read by nobody. Four is the
+ * most that should go past without something telling you where you are.
+ */
+export function Group({
+  heading,
+  children,
+  className,
+}: {
+  heading: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cx('space-y-5', className)}>
+      <h3 className="text-ink text-[14px] font-medium">{heading}</h3>
+      {children}
+    </div>
+  );
 }
 
 /**
@@ -69,8 +101,8 @@ export function Section({
         className,
       )}
     >
-      <h2 className="text-[20px] font-medium">{heading}</h2>
-      {lede && <p className="text-ink-soft mt-1.5 text-[13px]">{lede}</p>}
+      <h2 className="text-ink text-[22px] font-medium leading-tight">{heading}</h2>
+      {lede && <p className="text-ink-faint mt-2 text-[13px]">{lede}</p>}
       <div className="mt-6 space-y-6">{children}</div>
       {footer && <div className="mt-7 flex items-center justify-end gap-4">{footer}</div>}
     </section>

@@ -1,7 +1,6 @@
 import { parseLimits, parseSources, serviceClient } from '@kalvard/core';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { requireMember } from '@/lib/guild';
-import { standing } from '@/lib/standing';
 import { SettingsForm } from './settings-form';
 
 // Everything that is not personality, plus the two things that cannot be
@@ -13,7 +12,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
   const { guild } = await requireMember(guildId);
   const db = serviceClient();
 
-  const [{ data: settings }, { data: meta }, { data: issue }, now] = await Promise.all([
+  const [{ data: settings }, { data: meta }, { data: issue }] = await Promise.all([
     db.from('guild_settings').select('*').eq('guild_id', guildId).maybeSingle(),
     db.from('guild_discord_meta').select('channels, roles').eq('guild_id', guildId).maybeSingle(),
     db
@@ -24,7 +23,6 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle(),
-    standing(guildId),
   ]);
 
   const channels = (meta?.channels ?? []) as { id: string; name: string }[];
@@ -43,12 +41,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
 
   return (
     <div>
-      <PageTitle
-        title="Settings"
-        lede="Where it answers, who it wakes, and what it may look up."
-        light={now.light}
-        standing={now.line}
-      />
+      <PageTitle title="Settings" lede="Where it answers, who it wakes, and what it may look up." />
       <SettingsForm
         guildId={guildId}
         guildName={guild.name ?? guildId}

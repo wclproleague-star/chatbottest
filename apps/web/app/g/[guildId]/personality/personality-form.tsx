@@ -16,6 +16,7 @@ import {
   CheckboxRow,
   Field,
   FormSection,
+  Group,
   Input,
   Panel,
   Section,
@@ -109,73 +110,79 @@ export function PersonalityForm({
                 <input key={r} type="hidden" name="self_serve_role_ids" value={r} />
               ))}
 
-              <Field label="What is it called?">
-                <Input name="bot_name" defaultValue={values.botName} maxLength={60} />
-              </Field>
+              <Group heading="Name and voice">
+                <Field label="What is it called?">
+                  <Input name="bot_name" defaultValue={values.botName} maxLength={60} />
+                </Field>
 
-              <Field
-                label="What is this server for, and how should it talk?"
-                help="Tone only. It always answers from what your server knows, whatever you write here."
-              >
-                <Textarea
-                  name="persona_prompt"
-                  rows={4}
-                  value={persona}
-                  onChange={(e) => setPersona(e.target.value)}
-                />
-              </Field>
-
-              <Field
-                label="What language should it reply in?"
-                help="Leave empty to follow each member."
-              >
-                <Input name="language" defaultValue={values.language} />
-              </Field>
-
-              <input type="hidden" name="tone_sample" value={tone} />
-              <div>
-                <span className="text-ui-sm text-ink-soft block">How that sounds</span>
-                {tone ? (
-                  <blockquote className="text-thread text-ink border-green mt-2 border-l-2 pl-3">
-                    {tone}
-                  </blockquote>
-                ) : (
-                  <p className="text-ui-sm text-ink-soft mt-2">
-                    Nothing yet. Ask for three and pick the one that sounds like your server.
-                  </p>
-                )}
-                <button
-                  type="button"
-                  onClick={() => void newSamples()}
-                  disabled={thinking}
-                  className="text-ui-sm text-ink-soft hover:text-ink mt-3 underline underline-offset-[3px] disabled:opacity-40"
+                <Field
+                  label="What is this server for, and how should it talk?"
+                  help="Tone only. It always answers from what your server knows, whatever you write here."
                 >
-                  {thinking ? 'Writing three' : 'Write me three'}
-                </button>
-                {samples && samples.length === 0 && (
-                  <p className="text-ui-sm text-ink-soft mt-2">Could not think of any just now.</p>
-                )}
-                {samples && samples.length > 0 && (
-                  <ul className="mt-3 space-y-2">
-                    {samples.map((s) => (
-                      <li key={s}>
-                        <button
-                          type="button"
-                          onClick={() => setTone(s)}
-                          className={cx(
-                            'text-ui-sm block w-full rounded-lg border px-4 py-2 text-left',
-                            s === tone
-                              ? 'border-ink bg-ink text-paper'
-                              : 'border-hairline text-ink',
-                          )}
-                        >
-                          {s}
-                        </button>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+                  <Textarea
+                    name="persona_prompt"
+                    rows={4}
+                    value={persona}
+                    onChange={(e) => setPersona(e.target.value)}
+                  />
+                </Field>
+              </Group>
+
+              <Group heading="Language">
+                <Field
+                  label="What language should it reply in?"
+                  help="Leave empty to follow each member."
+                >
+                  <Input name="language" defaultValue={values.language} />
+                </Field>
+
+                <input type="hidden" name="tone_sample" value={tone} />
+                <div>
+                  <span className="text-ink-soft block text-[14px]">How that sounds</span>
+                  {tone ? (
+                    <blockquote className="text-thread text-ink border-green mt-2 border-l-2 pl-3">
+                      {tone}
+                    </blockquote>
+                  ) : (
+                    <p className="text-ui-sm text-ink-soft mt-2">
+                      Nothing yet. Ask for three and pick the one that sounds like your server.
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void newSamples()}
+                    disabled={thinking}
+                    className="text-ui-sm text-ink-soft hover:text-ink mt-3 underline underline-offset-[3px] disabled:opacity-40"
+                  >
+                    {thinking ? 'Writing three' : 'Write me three'}
+                  </button>
+                  {samples && samples.length === 0 && (
+                    <p className="text-ui-sm text-ink-soft mt-2">
+                      Could not think of any just now.
+                    </p>
+                  )}
+                  {samples && samples.length > 0 && (
+                    <ul className="mt-3 space-y-2">
+                      {samples.map((s) => (
+                        <li key={s}>
+                          <button
+                            type="button"
+                            onClick={() => setTone(s)}
+                            className={cx(
+                              'text-ui-sm block w-full rounded-lg border px-4 py-2 text-left',
+                              s === tone
+                                ? 'border-ink bg-ink text-paper'
+                                : 'border-hairline text-ink',
+                            )}
+                          >
+                            {s}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </Group>
             </FormSection>
 
             <Section
@@ -215,25 +222,25 @@ export function PersonalityForm({
                 />
               </Field>
 
-              <div>
-                <span className="text-ink-soft/60 mb-2 block text-[13px]">
-                  How sure must it be?
-                </span>
-                <input type="hidden" name="confidence_threshold" value={threshold} />
-                <Slider
-                  value={threshold}
-                  onValueChange={setThreshold}
-                  min={0.2}
-                  max={0.9}
-                  step={0.05}
-                  ariaLabel="How sure must it be"
-                />
-                <div className="text-ink-soft/60 mt-2 flex max-w-[420px] justify-between text-[13px]">
-                  <span>Cautious</span>
-                  <span>Confident</span>
+              <Group heading="How sure">
+                <div>
+                  <span className="text-ink-soft mb-2 block text-[14px]">How sure must it be?</span>
+                  <input type="hidden" name="confidence_threshold" value={threshold} />
+                  <Slider
+                    value={threshold}
+                    onValueChange={setThreshold}
+                    min={0.2}
+                    max={0.9}
+                    step={0.05}
+                    ariaLabel="How sure must it be"
+                  />
+                  <div className="text-ink-faint mt-2 flex max-w-[420px] justify-between text-[13px]">
+                    <span>Cautious</span>
+                    <span>Confident</span>
+                  </div>
+                  <p className="text-ui text-ink mt-3">{thresholdLine(threshold)}</p>
                 </div>
-                <p className="text-ui text-ink mt-3">{thresholdLine(threshold)}</p>
-              </div>
+              </Group>
 
               <Field label="What may it do?">
                 <div className="-mx-2">

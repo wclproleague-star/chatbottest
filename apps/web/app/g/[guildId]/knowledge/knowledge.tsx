@@ -65,7 +65,7 @@ export function Knowledge({
                     {documents.map((d) => (
                       <li key={d.id} className="py-3">
                         <p className="text-ui text-ink">{d.title ?? 'Untitled'}</p>
-                        <p className="text-ink-soft/60 mt-0.5 text-[13px]">
+                        <p className="text-ink-faint mt-0.5 text-[13px]">
                           {SOURCE[d.sourceType] ?? d.sourceType}
                           {' · '}
                           {statusLine(d.status, d.chunkCount, d.error)}

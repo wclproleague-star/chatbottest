@@ -27,7 +27,7 @@ const WIDTH: Record<FieldWidth, string> = {
  * the same amber the rest of the dashboard uses for a thing that is on.
  */
 const fieldClass =
-  'text-ui text-ink placeholder:text-ink-soft/60 border-field-line focus:border-amber rounded-lg border bg-field px-3.5 shadow-[inset_0_1px_0_rgb(255_255_255/0.03)] outline-none transition-colors disabled:opacity-40';
+  'text-ui text-ink placeholder:text-ink-faint border-field-line focus:border-amber rounded-lg border bg-field px-3.5 shadow-[inset_0_1px_0_rgb(255_255_255/0.03)] outline-none transition-colors disabled:opacity-40';
 
 export function Input({
   className,

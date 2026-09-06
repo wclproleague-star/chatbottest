@@ -1,5 +1,5 @@
 import { serviceClient } from '@kalvard/core';
-import { Section } from '@kalvard/ui';
+import { Section, Split } from '@kalvard/ui';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { formatDate } from '@/lib/format';
 import { requireMember } from '@/lib/guild';
@@ -54,40 +54,49 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
         title="Commands"
         lede="Tell Kalvard what to change. It shows you the plan first, and nothing happens until you confirm."
       />
-      <Commands guildId={guildId} examples={shown} />
-
-      {(history ?? []).length > 0 && (
-        <div className="mt-6">
-          <Section heading="What has been asked for">
-            <ul className="divide-hairline -my-4 divide-y">
-              {(history ?? []).map((row) => {
-                const ran = (row.ran ?? []) as { ok: boolean; detail: string }[];
-                const planned = (row.plan ?? []) as { sentence: string }[];
-                const lines: string[] =
-                  ran.length > 0
-                    ? ran.map((step) => (step.ok ? step.detail : `stopped: ${step.detail}`))
-                    : planned.map((step) => step.sentence);
-                const steps = lines.length;
-                return (
-                  <li key={row.id} className="py-4">
-                    <p className="text-ui text-ink">{row.request}</p>
-                    <p className="text-ink-soft/60 mt-1 text-[13px]">
-                      {outcome(row.status, ran.length > 0)} · {steps}{' '}
-                      {steps === 1 ? 'step' : 'steps'} · {row.asked_by_name ?? 'somebody'} ·{' '}
-                      {formatDate(row.created_at)}
-                    </p>
-                    <ul className="text-ink-soft/60 mt-2 space-y-1 text-[13px]">
-                      {lines.map((line, i) => (
-                        <li key={i}>{line}</li>
-                      ))}
-                    </ul>
-                  </li>
-                );
-              })}
-            </ul>
-          </Section>
-        </div>
-      )}
+      <div className="mt-10">
+        <Split
+          left={<Commands guildId={guildId} examples={shown} />}
+          right={
+            <Section heading="What has been asked for" lede="Every command, and what came of it.">
+              {(history ?? []).length === 0 && (
+                <p className="text-ink-faint text-[13px]">
+                  Nothing yet. What you confirm here is written down, so a change to the server can
+                  always be answered for.
+                </p>
+              )}
+              {(history ?? []).length > 0 && (
+                <ul className="divide-hairline -my-4 divide-y">
+                  {(history ?? []).map((row) => {
+                    const ran = (row.ran ?? []) as { ok: boolean; detail: string }[];
+                    const planned = (row.plan ?? []) as { sentence: string }[];
+                    const lines: string[] =
+                      ran.length > 0
+                        ? ran.map((step) => (step.ok ? step.detail : `stopped: ${step.detail}`))
+                        : planned.map((step) => step.sentence);
+                    const steps = lines.length;
+                    return (
+                      <li key={row.id} className="py-4">
+                        <p className="text-ui text-ink">{row.request}</p>
+                        <p className="text-ink-faint mt-1 text-[13px]">
+                          {outcome(row.status, ran.length > 0)} · {steps}{' '}
+                          {steps === 1 ? 'step' : 'steps'} · {row.asked_by_name ?? 'somebody'} ·{' '}
+                          {formatDate(row.created_at)}
+                        </p>
+                        <ul className="text-ink-faint mt-2 space-y-1 text-[13px]">
+                          {lines.map((line, i) => (
+                            <li key={i}>{line}</li>
+                          ))}
+                        </ul>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Section>
+          }
+        />
+      </div>
     </div>
   );
 }

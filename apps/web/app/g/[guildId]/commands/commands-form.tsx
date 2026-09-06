@@ -47,12 +47,12 @@ export function Commands({ guildId, examples }: { guildId: string; examples: str
     planning || deciding || reading ? 'working' : decided?.kind === 'sent' ? 'green' : 'amber';
 
   return (
-    <div className="mt-10">
+    <div>
       <Section heading="What should it do?">
         <div className="flex gap-6">
           <Beacon
             light={light}
-            className="hidden h-[180px] w-[64px] shrink-0 sm:block"
+            className="hidden h-16 w-10 shrink-0 sm:block"
             label={light === 'working' ? 'Kalvard is working' : 'Kalvard'}
           />
           <div className="min-w-0 flex-1">

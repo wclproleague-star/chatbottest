@@ -19,6 +19,8 @@
   --color-raised: #ffffff;
   --color-field: #ffffff;
   --color-field-line: #e3e6ea;
+  /* Help text: quieter than a label, and still a colour rather than an alpha. */
+  --color-ink-faint: #7b8492;
 
   /* One family for everything, including the thread. */
   --font-*: initial;
@@ -87,6 +89,7 @@
   --color-hairline: #262d38;
   --color-ink: #f2f4f7;
   --color-ink-soft: #8b95a3;
+  --color-ink-faint: #6b7683;
   /* A field sits below the panel it is in, not level with it. */
   --color-field: #10141a;
   --color-field-line: #262d38;

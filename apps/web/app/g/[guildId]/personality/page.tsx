@@ -1,7 +1,6 @@
 import { serviceClient } from '@kalvard/core';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { requireMember } from '@/lib/guild';
-import { standing } from '@/lib/standing';
 import { PersonalityForm } from './personality-form';
 
 // How the bot talks. The dry-run test chat sits underneath it, because a
@@ -12,10 +11,9 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
   await requireMember(guildId);
   const db = serviceClient();
 
-  const [{ data: settings }, { data: meta }, now] = await Promise.all([
+  const [{ data: settings }, { data: meta }] = await Promise.all([
     db.from('guild_settings').select('*').eq('guild_id', guildId).maybeSingle(),
     db.from('guild_discord_meta').select('roles').eq('guild_id', guildId).maybeSingle(),
-    standing(guildId),
   ]);
 
   return (
@@ -23,8 +21,6 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
       <PageTitle
         title="Personality"
         lede="How it talks, and how sure it has to be before it answers."
-        light={now.light}
-        standing={now.line}
       />
       <PersonalityForm
         guildId={guildId}

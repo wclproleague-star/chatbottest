@@ -25,6 +25,7 @@ import {
   Chips,
   Field,
   FormSection,
+  Group,
   Input,
   Option,
   Panel,
@@ -113,61 +114,73 @@ export function SettingsForm({
                 what somebody set on another. */}
               <Elsewhere values={values} panel="where" />
 
-              <Field
-                label="Which channels?"
-                help="Pick none and it answers anywhere it is mentioned."
-              >
-                {channels.length === 0 ? (
-                  <Empty>Kalvard has not read your channels yet. Add it to the server first.</Empty>
-                ) : (
-                  <Chips>
+              <Group heading="Channels">
+                <Field
+                  label="Which channels?"
+                  help="Pick none and it answers anywhere it is mentioned."
+                >
+                  {channels.length === 0 ? (
+                    <Empty>
+                      Kalvard has not read your channels yet. Add it to the server first.
+                    </Empty>
+                  ) : (
+                    <Chips>
+                      {channels.map((c) => (
+                        <Chip
+                          key={c.id}
+                          name="allowed_channel_ids"
+                          value={c.id}
+                          label={c.name}
+                          prefix="#"
+                          on={allowed.includes(c.id)}
+                          onToggle={() =>
+                            setAllowed((now) =>
+                              now.includes(c.id) ? now.filter((id) => id !== c.id) : [...now, c.id],
+                            )
+                          }
+                        />
+                      ))}
+                    </Chips>
+                  )}
+                </Field>
+              </Group>
+
+              <Group heading="Scope">
+                <Field label="May it answer things that are not about this server?">
+                  <Select name="scope" defaultValue={values.scope}>
+                    <Option value="open">Yes, general questions too</Option>
+                    <Option value="server_only">No, this server only</Option>
+                  </Select>
+                </Field>
+
+                <Field
+                  label="What time is it where the server lives?"
+                  help="An IANA name, such as Europe/Paris."
+                >
+                  <Input
+                    name="timezone"
+                    defaultValue={values.timezone}
+                    placeholder="Europe/Paris"
+                  />
+                </Field>
+              </Group>
+
+              <Group heading="Introduction">
+                <Field label="Where should it introduce itself?">
+                  <Select name="intro_channel_id" defaultValue={values.introChannelId || 'none'}>
+                    <Option value="none">Nowhere</Option>
                     {channels.map((c) => (
-                      <Chip
-                        key={c.id}
-                        name="allowed_channel_ids"
-                        value={c.id}
-                        label={c.name}
-                        prefix="#"
-                        on={allowed.includes(c.id)}
-                        onToggle={() =>
-                          setAllowed((now) =>
-                            now.includes(c.id) ? now.filter((id) => id !== c.id) : [...now, c.id],
-                          )
-                        }
-                      />
+                      <Option key={c.id} value={c.id}>
+                        #{c.name}
+                      </Option>
                     ))}
-                  </Chips>
-                )}
-              </Field>
+                  </Select>
+                </Field>
 
-              <Field label="May it answer things that are not about this server?">
-                <Select name="scope" defaultValue={values.scope}>
-                  <Option value="open">Yes, general questions too</Option>
-                  <Option value="server_only">No, this server only</Option>
-                </Select>
-              </Field>
-
-              <Field
-                label="What time is it where the server lives?"
-                help="An IANA name, such as Europe/Paris."
-              >
-                <Input name="timezone" defaultValue={values.timezone} placeholder="Europe/Paris" />
-              </Field>
-
-              <Field label="Where should it introduce itself?">
-                <Select name="intro_channel_id" defaultValue={values.introChannelId || 'none'}>
-                  <Option value="none">Nowhere</Option>
-                  {channels.map((c) => (
-                    <Option key={c.id} value={c.id}>
-                      #{c.name}
-                    </Option>
-                  ))}
-                </Select>
-              </Field>
-
-              <Field label="What should it say when it arrives?">
-                <Textarea name="intro_message" rows={3} defaultValue={values.introMessage} />
-              </Field>
+                <Field label="What should it say when it arrives?">
+                  <Textarea name="intro_message" rows={3} defaultValue={values.introMessage} />
+                </Field>
+              </Group>
             </FormSection>
 
             <FormSection heading="Who it wakes" action={act} pending={pending} note={note}>
