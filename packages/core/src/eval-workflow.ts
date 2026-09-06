@@ -271,7 +271,7 @@ check(
 );
 const blueFirst = (run.variables.blue as { roleId: string }).roleId;
 const redFirst = (run.variables.red as { roleId: string }).roleId;
-const links = posted.find((p) => p.text.includes('draft -'))?.text ?? '';
+const links = posted.find((p) => p.text.includes('📝 Game'))?.text ?? '';
 check(
   'the blue link goes to the blue team',
   links.includes(`<@&${blueFirst}> blue: https://draft.example/session/draft-1/blue`),
@@ -478,7 +478,7 @@ check(
     (state.variables.blue as { name: string }).name === 'PPG',
   JSON.stringify([state.variables.blue, state.variables.red]),
 );
-const links2 = posted.filter((p) => p.text.includes('draft -')).at(-1)?.text ?? '';
+const links2 = posted.filter((p) => p.text.includes('📝 Game')).at(-1)?.text ?? '';
 check(
   'game 2 links follow the new sides, on the same session',
   links2.includes('<@&role-b> blue: https://draft.example/session/draft-1/blue') &&
@@ -650,7 +650,7 @@ console.log(['', 'a series from the calendar waits for its hour'].join(String.fr
   );
   check(
     'and the draft links go out',
-    posted.slice(m).some((p) => p.text.includes('draft -')),
+    posted.slice(m).some((p) => p.text.includes('📝 Game')),
     since(m),
   );
   fetched.splice(0, fetched.length, ...kept);

@@ -192,6 +192,24 @@ export async function deliverMessage(message: Message): Promise<boolean> {
   return keepChannel(message, runs[0]!);
 }
 
+/** "the draft to finish: 27 minutes left, until 00:52 (Europe/Paris)". */
+function describeWait(what: string, deadline: string, timezone: string | null): string {
+  const left = Math.max(0, Math.round((new Date(deadline).getTime() - Date.now()) / 60_000));
+  let clock = deadline.slice(11, 16) + ' UTC';
+  try {
+    clock =
+      new Intl.DateTimeFormat('en-GB', {
+        timeZone: timezone || 'UTC',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date(deadline)) + ` (${timezone || 'UTC'})`;
+  } catch {
+    /* the UTC form stands */
+  }
+  return `${what}: ${left} minute${left === 1 ? '' : 's'} left, until ${clock}`;
+}
+
 /**
  * Kalvard as the admin of a channel where a run is alive: every message is
  * read, few are answered, and only a moderator's word moves the run.
@@ -210,7 +228,7 @@ async function keepChannel(
 
   const { data: settingsRow } = await serviceClient()
     .from('guild_settings')
-    .select('bot_name, mod_role_id, language')
+    .select('bot_name, mod_role_id, language, timezone')
     .eq('guild_id', guild.id)
     .maybeSingle();
   const modRoleId = settingsRow?.mod_role_id ?? null;
@@ -242,9 +260,7 @@ async function keepChannel(
     brief,
     rules,
     memory: memoryOf(run.state.variables),
-    waiting: wait
-      ? `${wait.what} (until ${new Date(wait.deadline).toISOString().slice(11, 16)} UTC)`
-      : null,
+    waiting: wait ? describeWait(wait.what, wait.deadline, settingsRow?.timezone ?? null) : null,
     knowledge,
     recent,
     message: { who: message.author.displayName, text: message.content, isStaff, mentionsBot },

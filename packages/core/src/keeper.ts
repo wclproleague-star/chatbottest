@@ -110,6 +110,18 @@ export function guard(raw: KeeperDecision, input: KeeperInput): KeeperDecision {
       .slice(0, 200),
   };
 
+  // A moderator stating an allowance in minutes has granted it, whatever the
+  // model made of the sentence: "they have 15 min from now on" is fifteen
+  // minutes, decided here.
+  const granted = input.message.isStaff ? grantedMinutes(input.message.text) : null;
+  if (granted && out.decision !== 'act') {
+    out.decision = 'act';
+    out.extendDeadlineMinutes = granted;
+    if (!out.reply) out.reply = `Noted: ${granted} more minutes.`;
+  } else if (granted && out.decision === 'act' && out.extendDeadlineMinutes === 0) {
+    out.extendDeadlineMinutes = granted;
+  }
+
   // Only a moderator moves the run. A player asking for fifteen more minutes
   // gets the rule and the moderators, never the minutes.
   if (out.decision === 'act' && !input.message.isStaff) {
@@ -147,6 +159,17 @@ export function guard(raw: KeeperDecision, input: KeeperInput): KeeperDecision {
   return out;
 }
 
+/** "15 min", "15 more minutes", "quinze minutes": the minutes a staff line grants, or null. */
+export function grantedMinutes(text: string): number | null {
+  const lower = text.toLowerCase();
+  // A refusal or a question is not a grant.
+  if (/\?/.test(lower) || /\b(no|non|not|pas|never|jamais|don't|dont)\b/.test(lower)) return null;
+  const match = lower.match(/\b(\d{1,3})\s*(min|mins|minutes?|m)\b/);
+  if (!match) return null;
+  const minutes = Number(match[1]);
+  return minutes > 0 && minutes <= 120 ? minutes : null;
+}
+
 function normalise(text: string): string {
   return text
     .toLowerCase()
@@ -160,7 +183,9 @@ function systemPrompt(input: KeeperInput): string {
     'You read every message. Most are players talking to each other, and the right thing is to say nothing: decision "ignore".',
     'Answer when somebody asks something you can answer from what is below — the state of the series, the rules, a fact from the knowledge — or when they are clearly stuck and one line would unstick them. One or two short lines, like a person at the table, never a paragraph, never a list, never "as an AI".',
     'Never state a fact about the series that is not in the memory, a rule that is not in the rules, or a fact about the server that is not in the knowledge. What none of those hold, and only a person can decide — a dispute, a forfeit, an exception to a rule — is decision "escalate": say in one line that staff has to decide, and the caller brings them in.',
-    'A player asking for more time, a pause or an exception gets the rule as written and "escalate", never the exception itself. Only a message marked (staff) may change the run: decision "act", with extendDeadlineMinutes for time granted and remember for a fact to keep, plus one line acknowledging it.',
+    'A player asking for more time, a pause or an exception gets the rule as written and "escalate", never the exception itself. Only a message marked (staff) may change the run: decision "act", with extendDeadlineMinutes for time granted and remember for a fact to keep, plus one line acknowledging it. A (staff) message stating a time allowance — "they have 15 min", "15 more minutes", "give them until 10" — is such a grant: act, with the minutes.',
+    '"How long do we have?", "how many minutes?", "when is the deadline?" are answered from what the run is waiting for and until when, below, in minutes from now. That is a fact you hold: never escalate a time question, never ping anyone over it.',
+    'You cannot check anything, ask anyone, or get back to someone: never say you are checking, looking into it, or will confirm. Either you know it from what is below, or it is for staff, said in one line.',
     'Do not repeat what you already said. Do not ask questions nobody needs answered. Do not greet, thank, or sign off.',
     input.language ? `Write in ${input.language}.` : 'Write in the language the channel is using.',
     '',

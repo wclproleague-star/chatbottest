@@ -18,7 +18,7 @@ for (const f of ['.env', '.env.local']) {
     /* absent */
   }
 }
-const { keep, guard, memoryOf } = await import('./keeper');
+const { keep, guard, memoryOf, grantedMinutes } = await import('./keeper');
 const { BO3_SERIES, seriesContext } = await import('./workflows/series');
 import type { KeeperInput, KeeperDecision } from './keeper';
 
@@ -64,7 +64,7 @@ function input(
     brief: BO3_SERIES.brief ?? '',
     rules: RULES,
     memory: memoryOf(variables),
-    waiting: 'the draft to finish on the site (30 minutes at most)',
+    waiting: 'the draft to finish on the site: 27 minutes left, until 00:52 (Europe/Paris)',
     knowledge: [],
     recent,
     message,
@@ -122,6 +122,40 @@ console.log(
   );
   check('sides come from memory', d.decision === 'answer' && /blue|red/i.test(d.reply), said(d));
 }
+
+console.log(['', 'time left is a fact it holds'].join(String.fromCharCode(10)));
+{
+  const d = await keep(
+    input({
+      who: 'Joelz',
+      text: 'no, how many minutes do we have ?',
+      isStaff: false,
+      mentionsBot: false,
+    }),
+  );
+  check('a time question is answered, not escalated', d.decision === 'answer', said(d));
+  check('with the minutes', /27|00:52/.test(d.reply), d.reply);
+  check('and no talk of checking', !/check|looking into|get back|confirm/i.test(d.reply), d.reply);
+}
+{
+  const d = await keep(
+    input({
+      who: 'Legosi',
+      text: 'they have 15 min from now on',
+      isStaff: true,
+      mentionsBot: false,
+    }),
+  );
+  check('staff stating an allowance is a grant', d.decision === 'act', said(d));
+  check('of fifteen minutes', d.extendDeadlineMinutes === 15, String(d.extendDeadlineMinutes));
+}
+check(
+  'the minutes in a staff line are read',
+  grantedMinutes('they have 15 min from now on') === 15,
+);
+check('a question about minutes is not a grant', grantedMinutes('do they have 15 min?') === null);
+check('a refusal is not a grant', grantedMinutes('no, not 15 more minutes') === null);
+check('a sentence without minutes is nothing', grantedMinutes('approved') === null);
 
 console.log(['', "time is the rule, and the exception is staff's"].join(String.fromCharCode(10)));
 {

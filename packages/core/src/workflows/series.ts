@@ -75,7 +75,7 @@ const SIDES_FROM_CHOICE: Step[] = [
 
 /** One game: draft, lobby, screenshot, result. */
 const GAME: Step[] = [
-  say('Game {game}: <@&{blue.roleId}> on blue side, <@&{red.roleId}> on red side.'),
+  say('## Game {game}\n🔵 <@&{blue.roleId}> blue side · 🔴 <@&{red.roleId}> red side'),
 
   // The draft, on the guild's own site. One session for the whole series:
   // game 1 opens it, every game after tells the site who won and which sides
@@ -116,7 +116,7 @@ const GAME: Step[] = [
     ],
   },
   say(
-    'Game {game} draft - <@&{blue.roleId}> blue: {links.blue}\n<@&{red.roleId}> red: {links.red}',
+    '**📝 Game {game} draft**\n🔵 <@&{blue.roleId}> blue: {links.blue}\n🔴 <@&{red.roleId}> red: {links.red}\nOne person per team. Do not share, close or refresh.',
   ),
   {
     type: 'wait_until',
@@ -332,8 +332,36 @@ export const BO3_SERIES: Workflow = {
   steps: [
     // Stands in for "unset" where a template needs a value to compare against.
     { type: 'set', var: 'notYet', value: '{seriesOver}' },
+    // The greeting is a Discord message, read on a phone between two games:
+    // headed, bulleted, one screen. It says what happens here, in the order it
+    // happens, and where the rules are.
     say(
-      '<@&{teamA.roleId}> <@&{teamB.roleId}> welcome to your best of three.\n{rules}\n\nOne member sends the end-of-game screenshots for the whole series: the first to do so.',
+      [
+        '# ⚔️ {teamA.name} vs {teamB.name} — best of three',
+        '<@&{teamA.roleId}> <@&{teamB.roleId}> welcome to your best of three. Fearless draft, first to two wins.',
+        '',
+        '**📝 Draft**',
+        '• I post the two draft links here, one per team, when it is time.',
+        '• One person per team opens the link and drafts. Do not share it, do not close or refresh the page.',
+        '• Bugs on the draft site: tell staff right away.',
+        '',
+        '**🎮 After the draft**',
+        '• Leave the draft site and join the Wild Rift lobby (Blind Pick). Blue side creates the lobby and gives the code.',
+        '• Pick only the drafted champions.',
+        '',
+        '**🔵🔴 Sides**',
+        '• Game 1: a coin flip here decides who starts on blue side.',
+        '• After that, the team that loses a game picks its side for the next one, with the buttons I post.',
+        '',
+        '**📸 Reporting**',
+        '• One member sends the end-of-game screenshots for the whole series: the first to send one.',
+        '• A missing player: screenshot it and tell staff.',
+        '• Rules and anything not covered here: the rulebook, and staff.',
+        '',
+        '{rules}',
+        '',
+        'Have fun, and gl hf! 🍀',
+      ].join('\n'),
     ),
     // From the calendar, the room opens hours ahead: the greeting now, the
     // coin flip and the draft when the hour comes.
@@ -341,9 +369,9 @@ export const BO3_SERIES: Workflow = {
       type: 'if',
       when: '{startAt}',
       then: [
-        say('The draft opens at {startTime}. Be here with your five.'),
+        say('🕖 **The draft opens at {startTime}.** Be here with your five; I will ping you.'),
         { type: 'wait_clock', until: '{startAt}' },
-        say('<@&{teamA.roleId}> <@&{teamB.roleId}> it is time. Coin flip for side coming up.'),
+        say('<@&{teamA.roleId}> <@&{teamB.roleId}> ⏰ it is time. Coin flip for side coming up.'),
       ],
     },
     {
