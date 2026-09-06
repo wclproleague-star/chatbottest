@@ -201,8 +201,14 @@ export async function deliverMessage(message: Message): Promise<boolean> {
   if (taken) return true;
 
   // Not what the run was waiting for, but said in its channel: the keeper
-  // reads it as the admin at the table would, and mostly says nothing.
-  return keepChannel(message, runs[0]!);
+  // reads it as the admin at the table would, and mostly says nothing. Either
+  // way the message ends here. In a room where a series is running, the
+  // keeper is the only voice Kalvard has: the support loop, with its role
+  // menus and its clarifying questions, never speaks in it.
+  await keepChannel(message, runs[0]!).catch((err) => {
+    console.error(`kalvard: the keeper failed: ${String(err)}`);
+  });
+  return true;
 }
 
 /** "the draft to finish: 27 minutes left, until 00:52 (Europe/Paris)". */
@@ -248,7 +254,14 @@ async function keepChannel(
   const isStaff =
     guild.ownerId === message.author.id ||
     (modRoleId ? (message.member?.roles.cache.has(modRoleId) ?? false) : false);
-  const mentionsBot = message.mentions.users.has(message.client.user.id);
+  // Named, or replied to: either is a question put to it, and is answered.
+  let mentionsBot = message.mentions.users.has(message.client.user.id);
+  if (!mentionsBot && message.reference?.messageId) {
+    const repliedTo = await message.channel.messages
+      .fetch(message.reference.messageId)
+      .catch(() => null);
+    mentionsBot = repliedTo?.author.id === message.client.user.id;
+  }
 
   // The rulebook, when the message could be about it.
   const knowledge = await searchKnowledge(guild.id, message.content, 0.45)
