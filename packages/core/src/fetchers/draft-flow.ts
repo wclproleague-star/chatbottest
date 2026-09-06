@@ -9,9 +9,16 @@
 //     -> 201 { id, blueUrl, redUrl, spectatorUrl?, status: "waiting" }
 //   GET  {base}/drafts/{id}
 //     -> 200 { id, status: "waiting" | "drafting" | "done", startedAt?,
-//              finishedAt?, blueTeam, redTeam,
+//              finishedAt?, blueTeam, redTeam, game, seriesStatus,
 //              picks: { blue: string[], red: string[] },
 //              bans:  { blue: string[], red: string[] }, imageUrl: string | null }
+//   POST {base}/drafts/{id}/next      { winner: "blue" | "red", blueTeam, redTeam }
+//     -> the same object, game + 1, the current game waiting
+//   POST {base}/drafts/{id}/finish    { winner: "blue" | "red" }
+//
+// One session is one series. Fearless bans carry from game to game, so the
+// site is told who won and which sides come next, and the same two links
+// serve every game; Kalvard never opens a second session for game two.
 //
 // Every request carries `Authorization: Bearer <key>`. The key is never in the
 // source's config: it is read from the environment (DRAFT_FLOW_KEY), so it
@@ -39,6 +46,9 @@ export type DraftSession = {
   picks: { blue: string[]; red: string[] };
   bans: { blue: string[]; red: string[] };
   imageUrl: string | null;
+  /** Which game of the series the session is on, from 1. */
+  game: number;
+  seriesStatus: 'in_progress' | 'finished';
 };
 
 type Config = { baseUrl: string; timeoutMs: number };
@@ -96,9 +106,38 @@ function scriptedCreate(input: { blueTeam: string; redTeam: string }): DraftSess
     picks: { blue: [], red: [] },
     bans: { blue: [], red: [] },
     imageUrl: null,
+    game: 1,
+    seriesStatus: 'in_progress',
   };
   scripted.set(id, { session, looks: 0 });
   return session;
+}
+
+/** The scripted site moves to the next game: sides as told, the clock reset. */
+function scriptedNext(id: string, input: { blueTeam: string; redTeam: string }): DraftSession {
+  const entry = scripted.get(id);
+  if (!entry) throw new SourceError('It answered 404.');
+  if (entry.session.status !== 'done') throw new SourceError('It answered 409.');
+  entry.looks = 0;
+  entry.session = {
+    ...entry.session,
+    status: 'waiting',
+    startedAt: null,
+    finishedAt: null,
+    picks: { blue: [], red: [] },
+    bans: { blue: [], red: [] },
+    blueTeam: input.blueTeam,
+    redTeam: input.redTeam,
+    game: entry.session.game + 1,
+  };
+  return entry.session;
+}
+
+function scriptedFinish(id: string): DraftSession {
+  const entry = scripted.get(id);
+  if (!entry) throw new SourceError('It answered 404.');
+  entry.session = { ...entry.session, seriesStatus: 'finished' };
+  return entry.session;
 }
 
 function scriptedState(id: string): DraftSession {
@@ -157,6 +196,8 @@ function normalise(raw: unknown, fallback: Partial<DraftSession> = {}): DraftSes
     picks: lists(r.picks),
     bans: lists(r.bans),
     imageUrl: typeof r.imageUrl === 'string' ? r.imageUrl : null,
+    game: typeof r.game === 'number' && r.game > 0 ? r.game : (fallback.game ?? 1),
+    seriesStatus: r.seriesStatus === 'finished' ? 'finished' : 'in_progress',
   };
 }
 
@@ -189,12 +230,43 @@ export async function draftState(source: DataSource, id: string): Promise<DraftS
   return normalise(body, { id });
 }
 
+/** The winner recorded and the next game opened on the same session. */
+export async function nextGame(
+  source: DataSource,
+  id: string,
+  input: { winner: 'blue' | 'red'; blueTeam: string; redTeam: string },
+): Promise<DraftSession> {
+  const config = configOf(source);
+  if (config.baseUrl.startsWith('fixture:')) return scriptedNext(id, input);
+  const body = await postJson(`${config.baseUrl}/drafts/${encodeURIComponent(id)}/next`, input, {
+    headers: headers(),
+    timeoutMs: config.timeoutMs,
+  });
+  return normalise(body, { id });
+}
+
+/** The last winner recorded and the series closed. */
+export async function finishSeries(
+  source: DataSource,
+  id: string,
+  winner: 'blue' | 'red',
+): Promise<DraftSession> {
+  const config = configOf(source);
+  if (config.baseUrl.startsWith('fixture:')) return scriptedFinish(id);
+  const body = await postJson(
+    `${config.baseUrl}/drafts/${encodeURIComponent(id)}/finish`,
+    { winner },
+    { headers: headers(), timeoutMs: config.timeoutMs },
+  );
+  return normalise(body, { id });
+}
+
 /** The finished draft as a card a channel can read, when the site has no picture. */
 export function draftCard(session: DraftSession): string {
   const side = (name: string, team: string, picks: string[], bans: string[]): string =>
     `**${name} — ${team}**\nPicks: ${picks.join(', ') || '—'}\nBans: ${bans.join(', ') || '—'}`;
   return [
-    'Draft done.',
+    `Game ${session.game} draft done.`,
     side('Blue', session.blueTeam, session.picks.blue, session.bans.blue),
     side('Red', session.redTeam, session.picks.red, session.bans.red),
   ].join('\n\n');
@@ -209,6 +281,16 @@ registerOp('draft_flow', 'create', async (source, args) =>
   }),
 );
 registerOp('draft_flow', 'state', async (source, args) => draftState(source, args.id ?? ''));
+registerOp('draft_flow', 'next', async (source, args) =>
+  nextGame(source, args.id ?? '', {
+    winner: args.winner === 'red' ? 'red' : 'blue',
+    blueTeam: args.blueTeam ?? '',
+    redTeam: args.redTeam ?? '',
+  }),
+);
+registerOp('draft_flow', 'finish', async (source, args) =>
+  finishSeries(source, args.id ?? '', args.winner === 'red' ? 'red' : 'blue'),
+);
 registerOp('draft_flow', 'card', async (source, args) =>
   draftCard(await draftState(source, args.id ?? '')),
 );

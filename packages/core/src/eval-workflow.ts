@@ -184,6 +184,7 @@ const BOB = { id: 'u-bob', roles: ['role-b'] }; // team B
 const NOBODY = { id: 'u-rando', roles: [] as string[] };
 
 const posted: { channel: string; text: string; attachments?: string[] }[] = [];
+const fetched: { op: string; args: Record<string, string> }[] = [];
 const asked: { question: string; who: string[] }[] = [];
 const DRAFT_SOURCE = {
   id: 'draft',
@@ -204,7 +205,10 @@ const effects: WorkflowEffects = {
   async channelId(name) {
     return name === 'results' ? 'channel-results' : name;
   },
-  fetch: (source, op, args) => runOp([DRAFT_SOURCE], source, op, args),
+  fetch: (source, op, args) => {
+    fetched.push({ op, args });
+    return runOp([DRAFT_SOURCE], source, op, args);
+  },
   // The scripted reader: the file name says what the model would have said.
   async readImage(url) {
     if (url.includes('lobby')) {
@@ -267,15 +271,15 @@ check(
 );
 const blueFirst = (run.variables.blue as { roleId: string }).roleId;
 const redFirst = (run.variables.red as { roleId: string }).roleId;
-const links = posted.find((p) => p.text.includes('your draft'))?.text ?? '';
+const links = posted.find((p) => p.text.includes('draft -'))?.text ?? '';
 check(
   'the blue link goes to the blue team',
-  links.includes(`<@&${blueFirst}> your draft: https://draft.example/session/draft-1/blue`),
+  links.includes(`<@&${blueFirst}> blue: https://draft.example/session/draft-1/blue`),
   links,
 );
 check(
   'and the red link to the red team',
-  links.includes(`<@&${redFirst}> yours: https://draft.example/session/draft-1/red`),
+  links.includes(`<@&${redFirst}> red: https://draft.example/session/draft-1/red`),
   links,
 );
 check('it is waiting on the draft site', state?.wait?.kind === 'poll', JSON.stringify(state?.wait));
@@ -299,7 +303,7 @@ for (let i = 0; state.wait?.kind === 'poll' && i < 20; i++)
   await feed({ kind: 'tick' }, minutes(3 + i));
 check(
   `the draft finished after ${FIXTURE_LOOKS_TO_DONE} looks`,
-  posted.some((p) => p.text.startsWith('Draft done.')),
+  posted.some((p) => p.text.startsWith('Game 1 draft done.')),
   lastPost(),
 );
 check(
@@ -330,6 +334,8 @@ check(
 // Live, the end screen came straight after the draft card, while the run was
 // only listening for a word: it must count as the screenshot, not the word.
 {
+  // A run of its own: what it reads from the site is not the series' record.
+  const kept = fetched.splice(0);
   const early = await runWorkflow({
     guildId: '900000000000000001',
     workflow: BO3_SERIES,
@@ -387,6 +393,7 @@ check(
     quick.variables.reporter === poster.id,
     String(quick.variables.reporter),
   );
+  fetched.splice(0, fetched.length, ...kept);
 }
 
 // A picture that is not an end screen is refused and the wait holds.
@@ -471,12 +478,22 @@ check(
     (state.variables.blue as { name: string }).name === 'PPG',
   JSON.stringify([state.variables.blue, state.variables.red]),
 );
-const links2 = posted.filter((p) => p.text.includes('your draft')).at(-1)?.text ?? '';
+const links2 = posted.filter((p) => p.text.includes('draft -')).at(-1)?.text ?? '';
 check(
-  'game 2 links follow the new sides',
-  /<@&role-b> your draft: https:\/\/draft\.example\/session\/draft-\d+\/blue/.test(links2) &&
-    /<@&role-a> yours: https:\/\/draft\.example\/session\/draft-\d+\/red/.test(links2),
+  'game 2 links follow the new sides, on the same session',
+  links2.includes('<@&role-b> blue: https://draft.example/session/draft-1/blue') &&
+    links2.includes('<@&role-a> red: https://draft.example/session/draft-1/red'),
   links2,
+);
+const next = fetched.find((f) => f.op === 'next');
+check(
+  'the site was told who won game 1 and the sides for game 2, not asked for a new session',
+  fetched.filter((f) => f.op === 'create').length === 1 &&
+    next?.args.id === 'draft-1' &&
+    next.args.winner === (blueFirst === 'role-b' ? 'blue' : 'red') &&
+    next.args.blueTeam === 'PPG' &&
+    next.args.redTeam === 'CEO',
+  JSON.stringify(fetched.map((f) => `${f.op} ${JSON.stringify(f.args)}`)),
 );
 
 // The draft again, then a word from a team, then the screenshot.
@@ -547,6 +564,11 @@ check(
   JSON.stringify(results?.attachments),
 );
 check('the run is done', state.done && !state.stoppedBecause, state.stoppedBecause ?? '');
+check(
+  'and the series was closed on the site with its winner',
+  fetched.at(-1)?.op === 'finish' && fetched.at(-1)?.args.id === 'draft-1',
+  JSON.stringify(fetched.at(-1)),
+);
 
 console.log(['', 'a series with what it needs missing'].join(String.fromCharCode(10)));
 resetDraftFixture();

@@ -68,19 +68,43 @@ const SIDES_FROM_CHOICE: Step[] = [
 const GAME: Step[] = [
   say('Game {game}: <@&{blue.roleId}> on blue side, <@&{red.roleId}> on red side.'),
 
-  // The draft, on the guild's own site.
+  // The draft, on the guild's own site. One session for the whole series:
+  // game 1 opens it, every game after tells the site who won and which sides
+  // come next, and the same two links serve every game.
   {
-    type: 'fetch',
-    source: 'draft_flow',
-    op: 'create',
-    with: {
-      blueTeam: '{blue.name}',
-      redTeam: '{red.name}',
-      label: '{teamA.name} vs {teamB.name}, game {game}',
-    },
-    as: 'draft',
+    type: 'if',
+    when: '{game} == 1',
+    then: [
+      {
+        type: 'fetch',
+        source: 'draft_flow',
+        op: 'create',
+        with: {
+          blueTeam: '{blue.name}',
+          redTeam: '{red.name}',
+          label: '{teamA.name} vs {teamB.name}',
+        },
+        as: 'draft',
+      },
+    ],
+    else: [
+      {
+        type: 'fetch',
+        source: 'draft_flow',
+        op: 'next',
+        with: {
+          id: '{draft.id}',
+          winner: '{winnerSide}',
+          blueTeam: '{blue.name}',
+          redTeam: '{red.name}',
+        },
+        as: 'draft',
+      },
+    ],
   },
-  say('<@&{blue.roleId}> your draft: {draft.blueUrl}\n<@&{red.roleId}> yours: {draft.redUrl}'),
+  say(
+    'Game {game} draft - <@&{blue.roleId}> blue: {draft.blueUrl}\n<@&{red.roleId}> red: {draft.redUrl}',
+  ),
   {
     type: 'wait_until',
     source: 'draft_flow',
@@ -190,10 +214,12 @@ const GAME: Step[] = [
         then: [
           { type: 'set', var: 'winner', value: '{red}' },
           { type: 'set', var: 'loser', value: '{blue}' },
+          { type: 'set', var: 'winnerSide', value: 'red' },
         ],
         else: [
           { type: 'set', var: 'winner', value: '{blue}' },
           { type: 'set', var: 'loser', value: '{red}' },
+          { type: 'set', var: 'winnerSide', value: 'blue' },
         ],
       },
     ],
@@ -204,10 +230,12 @@ const GAME: Step[] = [
         then: [
           { type: 'set', var: 'winner', value: '{blue}' },
           { type: 'set', var: 'loser', value: '{red}' },
+          { type: 'set', var: 'winnerSide', value: 'blue' },
         ],
         else: [
           { type: 'set', var: 'winner', value: '{red}' },
           { type: 'set', var: 'loser', value: '{blue}' },
+          { type: 'set', var: 'winnerSide', value: 'red' },
         ],
       },
     ],
@@ -306,6 +334,13 @@ export const BO3_SERIES: Workflow = {
       ],
     },
     { type: 'while', when: '{seriesOver} != yes', atMost: 3, steps: GAME },
+    {
+      type: 'fetch',
+      source: 'draft_flow',
+      op: 'finish',
+      with: { id: '{draft.id}', winner: '{winnerSide}' },
+      as: 'draft',
+    },
     say('gg. <@&{champion.roleId}> take it {score} over <@&{runnerUp.roleId}>.'),
     {
       type: 'do',
