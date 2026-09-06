@@ -20,6 +20,7 @@ import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { answersHere } from './answers-here';
+import { whichRole } from './roles';
 import { findRepeat, offer } from './repeats';
 import { runWorkflow } from './workflows';
 import { isDue, lastDue, readSchedule } from './schedule';
@@ -641,6 +642,36 @@ console.log(['', 'where Kalvard will answer'].join(String.fromCharCode(10)));
   check(
     'unless it has spoken there itself',
     answersHere({ allowedChannelIds: [staff], channelId: test, spokenHere: true }),
+  );
+}
+
+console.log(
+  ['', 'a role the server has but Kalvard does not hand out'].join(String.fromCharCode(10)),
+);
+{
+  const selfServe = [
+    { id: '1', name: 'Fast Forward Test' },
+    { id: '2', name: 'Chromanova Test' },
+  ];
+  const all = [...selfServe, { id: '3', name: 'TTK' }, { id: '4', name: 'Modérateur' }];
+
+  check(
+    'a role it hands out is its own to give',
+    whichRole('give me fast forward test', selfServe, all).kind === 'self_serve',
+  );
+  // The one that was wrong live: TTK exists on the server, so saying "that is
+  // not something I do" is false. It is something somebody does.
+  const ttk = whichRole('hum give me ttk role', selfServe, all);
+  check('a real role it does not hand out is known to exist', ttk.kind === 'not_mine', ttk.kind);
+  check('and it is named', ttk.kind === 'not_mine' && ttk.role.name === 'TTK');
+  check(
+    'a role the server does not have is unknown',
+    whichRole('give me the admin role', selfServe, all).kind === 'unknown',
+  );
+  // Two roles named at once is not one request.
+  check(
+    'naming two is not a request for either',
+    whichRole('ttk or fast forward test?', selfServe, all).kind === 'unknown',
   );
 }
 

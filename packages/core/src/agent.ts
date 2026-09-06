@@ -25,6 +25,7 @@ import './fetchers/weather';
 import './fetchers/rift-legends';
 import './fetchers/http-json';
 import { detectLanguage, inLanguage } from './language';
+import { whichRole } from './roles';
 import { fetchFrom, parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
 import { serviceClient } from './supabase';
@@ -48,7 +49,15 @@ export type RoleProof =
 
 /** What the bot can actually do in Discord. The loop asks; these carry it out. */
 export type Effects = {
-  /** The self-serve roles of this guild, by id and name. */
+  /**
+   * Every role on the server, by id and name.
+   *
+   * Discord is the truth about what a server has — its roles, its channels,
+   * its members. Our database is the layer on top: which of these roles the
+   * owner lets Kalvard hand out, and what proves somebody may have one. Asking
+   * Discord only about the roles we already know about is how Kalvard came to
+   * tell a member that a role their own server has was "not something I do".
+   */
   listRoles(): Promise<{ id: string; name: string }[]>;
   /** Whether the member is in that channel; for `channel_access` proofs. */
   memberInChannel(userId: string, channelId: string): Promise<boolean>;
@@ -274,7 +283,36 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   // name already given, and waking a moderator over a check that passed. The
   // two things that protect the member are unchanged and still run first:
   // their own consent, and the proof the owner configured for that role.
-  const wanted = await roleTheyAskedFor(input.message, turns, await effects.listRoles());
+  const allRoles = await effects.listRoles();
+  const selfServe = allRoles.filter((r) => settings.selfServeRoleIds.includes(r.id));
+  const wanted = await roleTheyAskedFor(input.message, turns, selfServe);
+
+  // A role this server really has, that the owner has not put on the list.
+  // Saying "that is not something I do" would be false: it is something
+  // somebody does, and the useful answer says so and records the request.
+  if (!wanted) {
+    const match = whichRole(input.message, selfServe, allRoles);
+    if (match.kind === 'not_mine' && (await memberAgreed(input.message, '', match.role.name))) {
+      await logCapabilityRequest(guildId, {
+        capability: `assign_role:${match.role.name}`,
+        request: input.message,
+        userId,
+        channelId: input.channelId ?? null,
+      });
+      const line = selfServe.length
+        ? `${match.role.name} is a role here, but not one I hand out — a moderator gives that one. What I can give you is ${selfServe.map((r) => r.name).join(' or ')}.`
+        : `${match.role.name} is a role here, but not one I hand out. A moderator gives that one.`;
+      await closeConversation(guildId, conversationId);
+      return {
+        outcome: 'reply',
+        text: await inLanguage(line, language),
+        steps: [...steps, `${match.role.name} exists here but is not self-serve`],
+        calls: called,
+        wouldHave,
+      };
+    }
+  }
+
   if (wanted) {
     const proof = settings.roleProofs[wanted.id];
     const allowed = settings.selfServeRoleIds.includes(wanted.id);
@@ -381,7 +419,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
 
       // A question, or a list of things to choose from, keeps the conversation
       // open: the member's next message is the answer to it, not a new request.
-      const offersChoice = (await effects.listRoles()).filter((r) => mentions(step.text, r.name));
+      const offersChoice = selfServe.filter((r) => mentions(step.text, r.name));
       if (step.text.trim().endsWith('?') || offersChoice.length > 1) {
         turns.push({ model: step.content });
         await saveConversation(guildId, conversationId, turns, language);
@@ -465,7 +503,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     switch (call.name) {
       case 'ask_user': {
         const question = String(call.args.question ?? '').trim();
-        const offered = await effects.listRoles();
+        const offered = selfServe;
         if (!guessed && guessesOneRole(question, turns, offered)) {
           guessed = true;
           turns.push({
@@ -520,8 +558,14 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       }
 
       case 'list_roles': {
-        const roles = await effects.listRoles();
-        steps.push('listed the roles it can give out');
+        // Everything the server has, and which of them are Kalvard's to give.
+        // The model needs both: one to know a role exists, the other to know
+        // whether it may offer it.
+        const roles = allRoles.map((role) => ({
+          ...role,
+          canGive: settings.selfServeRoleIds.includes(role.id),
+        }));
+        steps.push("listed the server's roles, and which it can give out");
         turns.push({ role: 'tool', name: call.name, result: roles });
         break;
       }

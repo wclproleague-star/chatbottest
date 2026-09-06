@@ -116,9 +116,10 @@ function discordEffects(message: Message, settings: GuildSettings): Effects {
   const guild = message.guild!;
   return {
     async listRoles() {
-      return settings.selfServeRoleIds
-        .map((id) => guild.roles.cache.get(id))
-        .filter((r): r is NonNullable<typeof r> => Boolean(r))
+      // Every role the server has. Which of them Kalvard may hand out is our
+      // database's business, and the loop reads it from the settings.
+      return guild.roles.cache
+        .filter((r) => !r.managed && r.id !== guild.id)
         .map((r) => ({ id: r.id, name: r.name }));
     },
     async memberHasRole(userId, roleId) {

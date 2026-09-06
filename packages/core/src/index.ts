@@ -43,6 +43,8 @@ export {
 export { authorWorkflow, checkStep, readBack, whatChanged } from './workflow-author';
 export { isDue, lastDue, readSchedule } from './schedule';
 export { answersHere } from './answers-here';
+export { whichRole } from './roles';
+export type { RoleMatch } from './roles';
 export { findRepeat, offer } from './repeats';
 export type { CommandRecord, Repeat } from './repeats';
 export type { Schedule } from './schedule';
