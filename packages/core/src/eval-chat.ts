@@ -168,8 +168,14 @@ function problems(turn: Turn, result: ConversationResult, trace: Trace): string[
   }
   // What the reply must and must not say, as substrings, case aside.
   const said = ('text' in result ? result.text : '').toLowerCase();
-  for (const phrase of turn.expect.textHas ?? []) {
-    if (!said.includes(phrase.toLowerCase())) out.push(`the reply does not mention "${phrase}"`);
+  // Longest first, and each found phrase is taken out before the next is
+  // looked for, so "Fast Forward" and "Fast Forward Test" both count only when
+  // both are actually there.
+  let left = said;
+  for (const phrase of [...(turn.expect.textHas ?? [])].sort((a, b) => b.length - a.length)) {
+    const at = left.indexOf(phrase.toLowerCase());
+    if (at < 0) out.push(`the reply does not mention "${phrase}"`);
+    else left = left.slice(0, at) + left.slice(at + phrase.length);
   }
   for (const phrase of turn.expect.textNot ?? []) {
     if (said.includes(phrase.toLowerCase())) out.push(`the reply says "${phrase}", and must not`);
@@ -191,8 +197,13 @@ async function main(): Promise<void> {
     readFileSync(fileURLToPath(new URL('../evals/conversations.json', import.meta.url)), 'utf8'),
   ) as Script[];
 
+  // --only <words>: the scripts whose name contains them, while working on one.
+  const onlyIndex = process.argv.indexOf('--only');
+  const only = onlyIndex >= 0 ? (process.argv[onlyIndex + 1] ?? '').toLowerCase() : '';
+
   let failed = 0;
   for (const script of scripts) {
+    if (only && !script.name.toLowerCase().includes(only)) continue;
     console.log(`\n${script.name}`);
     // A fresh pair per run, so one script never inherits another's conversation.
     const conversationId = `eval:${Date.now()}:${Math.random().toString(36).slice(2)}`;

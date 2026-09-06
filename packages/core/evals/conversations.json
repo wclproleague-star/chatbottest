@@ -602,5 +602,48 @@
         "why": "somebody repeating themselves louder has been misread; the same question is never put back"
       }
     ]
+  },
+  {
+    "name": "two roles share their initials, and only one of them is self-serve",
+    "why": "Live, 'the ff one' came back as 'Do you want the Fast Forward Test role?' on a server that also has Fast Forward. Both are readings of ff; the question names both and says which it can give.",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_fft",
+        "name": "Fast Forward Test"
+      },
+      {
+        "id": "role_ct",
+        "name": "Chromanova Test"
+      }
+    ],
+    "selfServe": ["role_fft", "role_ct"],
+    "membership": {
+      "role_fft": true,
+      "role_ct": true
+    },
+    "turns": [
+      {
+        "message": "give me ff role",
+        "expect": {
+          "outcome": "ask",
+          "notCalls": ["assign_role"],
+          "textHas": ["Fast Forward", "Fast Forward Test"]
+        },
+        "why": "ff is either; it asks which, naming both"
+      },
+      {
+        "message": "no, fast forward role",
+        "expect": {
+          "outcome": "escalate",
+          "notCalls": ["assign_role"],
+          "textHas": ["Fast Forward"]
+        },
+        "why": "Fast Forward is written in full, in a request; it is real and not self-serve, so the moderators are brought in at once"
+      }
+    ]
   }
 ]

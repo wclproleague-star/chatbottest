@@ -5,7 +5,14 @@
 // moderator's reply can become knowledge. Tier 4 says nothing in public and
 // reports quietly to the mod channel.
 
-import { HISTORY_LIMIT, classify, converse, forModel, outageReply } from '@kalvard/core';
+import {
+  HISTORY_LIMIT,
+  classify,
+  converse,
+  forModel,
+  hasOpenConversation,
+  outageReply,
+} from '@kalvard/core';
 import type { Action, AnswerResult, Effects, HistoryTurn } from '@kalvard/core';
 import { MODS } from '@kalvard/core/tokens';
 import { serviceClient } from '@kalvard/core/supabase';
@@ -45,8 +52,14 @@ export async function handleMention(message: Message, settings: GuildSettings): 
   }
 
   // A moderator asking for something to be done gets a plan and two buttons,
-  // not an answer. A moderator asking a question falls straight through.
-  if (await handleCommand(message, settings, question)) return;
+  // not an answer. A moderator asking a question falls straight through. And
+  // a moderator in the middle of a conversation with Kalvard is answering it:
+  // "no, fast forward role" after "do you want Fast Forward Test?" is a reply,
+  // and reading it as an order is how a plan ends up giving a role to a
+  // sentence.
+  const conversationId = `${message.channelId}:${message.author.id}`;
+  const midConversation = await hasOpenConversation(guild.id, conversationId);
+  if (!midConversation && (await handleCommand(message, settings, question))) return;
 
   const history = await recentHistory(message);
   const channel = message.channel;
@@ -55,7 +68,7 @@ export async function handleMention(message: Message, settings: GuildSettings): 
     result = await converse({
       guildId: guild.id,
       // One conversation per member per channel, so a follow-up continues it.
-      conversationId: `${message.channelId}:${message.author.id}`,
+      conversationId,
       userId: message.author.id,
       askerName: message.author.displayName,
       message: question,

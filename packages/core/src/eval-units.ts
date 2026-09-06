@@ -21,7 +21,7 @@ import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends'
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { answersHere } from './answers-here';
 import { answersTheQuestion } from './conversation';
-import { aboutARole, asksForRole, whichRole } from './roles';
+import { aboutARole, asksForRole, nearest, whichRole } from './roles';
 import { appendVouch, onRoster, vouchDocument } from './vouch';
 import { findRepeat, offer } from './repeats';
 import { runWorkflow } from './workflows';
@@ -841,6 +841,31 @@ console.log(
   );
   check('nor is asking when a match is', !aboutARole('when do we play next', []));
   check('asking for one is', aboutARole('give me the ttk role', []));
+}
+
+console.log(
+  ['', 'two roles that share their initials are both readings'].join(String.fromCharCode(10)),
+);
+{
+  // Live, "the ff one" came back as "Do you want the Fast Forward Test role?"
+  // when the server also has Fast Forward. Two letters are a reading of both,
+  // and the honest question names both.
+  const roles = [
+    { id: 'ff', name: 'Fast Forward' },
+    { id: 'fft', name: 'Fast Forward Test' },
+    { id: 'ct', name: 'Chromanova Test' },
+  ];
+  const both = nearest('the ff one', roles).map((r) => r.name);
+  check('ff reads as Fast Forward', both.includes('Fast Forward'), both.join(', '));
+  check('and as Fast Forward Test', both.includes('Fast Forward Test'), both.join(', '));
+  check('and as nothing else', both.length === 2, both.join(', '));
+  check(
+    'give me ff role, the same',
+    nearest('give me ff role', roles).length === 2,
+    nearest('give me ff role', roles)
+      .map((r) => r.name)
+      .join(', '),
+  );
 
   // A conversation already about roles stays about roles: "yes please" is an
   // answer to the question before it, not a new subject.

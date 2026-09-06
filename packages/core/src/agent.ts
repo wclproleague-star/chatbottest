@@ -238,6 +238,53 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   // Each correction is offered once; a second time it is not worth the round trip.
   let nagged = false;
   let guessed = false;
+
+  // What the member wrote, read against every role the server has. A
+  // question that puts one role to them when their words read as two
+  // ("ff" on a server with Fast Forward and Fast Forward Test) is a guess
+  // dressed as a question. Returns what to tell the model, or nothing.
+  // Told once and still leaving a reading out, the model does not get a
+  // third go: the question is written here, from the readings, and it is the
+  // clarification the funnel calls for — one question, every candidate, no
+  // moderator.
+  const askAmongReadings = async (): Promise<ConversationResult> => {
+    const readings = nearest(saidByMember(turns), allRoles);
+    const names = readings.map((r) => r.name);
+    const canGive = readings.filter((r) => settings.selfServeRoleIds.includes(r.id));
+    const cannot = readings.filter((r) => !settings.selfServeRoleIds.includes(r.id));
+    const line =
+      `You mean ${names.slice(0, -1).join(', ')} or ${names.at(-1)}?` +
+      (canGive.length > 0 && cannot.length > 0
+        ? ` I can give ${canGive.map((r) => r.name).join(' or ')}; a moderator gives ${cannot.map((r) => r.name).join(' and ')}.`
+        : '');
+    turns.push({ role: 'model', text: line });
+    await saveConversation(guildId, conversationId, turns, language);
+    steps.push(`asked which of ${names.join(', ')} they meant`);
+    return {
+      outcome: 'ask',
+      text: await inLanguage(line, language),
+      steps,
+      calls: called,
+      wouldHave,
+    };
+  };
+
+  const guessAmongReadings = (question: string): string | null => {
+    const readings = nearest(saidByMember(turns), allRoles);
+    const named = allRoles.filter((r) => mentions(question, r.name));
+    const left = readings.filter((r) => !named.some((n) => n.id === r.id));
+    if (readings.length < 2 || left.length === 0) return null;
+    return (
+      'What they wrote reads as more than one role: ' +
+      readings
+        .map(
+          (r) =>
+            `${r.name} (${settings.selfServeRoleIds.includes(r.id) ? 'you can give it' : 'only a moderator gives it'})`,
+        )
+        .join(', ') +
+      '. Ask which of those they mean, in one question that names them all, and say which you can give.'
+    );
+  };
   const performAssign = async (roleId: string): Promise<Record<string, unknown>> => {
     if (!settings.selfServeRoleIds.includes(roleId)) {
       return { ok: false, reason: 'that role is not one the owner lets me give out' };
@@ -309,11 +356,11 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   if (!wanted) {
     const match = whichRole(input.message, selfServe, allRoles);
 
-    if (
-      match.kind === 'not_mine' &&
-      asksForRole(input.message) &&
-      (await memberAgreed(input.message, '', match.role.name))
-    ) {
+    if (match.kind === 'not_mine' && asksForRole(input.message)) {
+      // The name is written in full inside a request. That is the member
+      // asking for it; a second judgement of whether they "really" meant it is
+      // how "no, fast forward role" came back as a question about Fast
+      // Forward Test.
       await logCapabilityRequest(guildId, {
         capability: `assign_role:${match.role.name}`,
         request: input.message,
@@ -432,6 +479,27 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     });
 
     if (step.calls.length === 0) {
+      // Seen live: "ask_user{question:...}" typed out as the reply. That is a
+      // call that did not happen, and it goes back round once to be made.
+      if (
+        !nagged &&
+        /\b(ask_user|check_membership|assign_role|escalate_to_mod|search_knowledge|list_roles)\s*[({]/.test(
+          step.text,
+        )
+      ) {
+        nagged = true;
+        turns.push({ model: step.content });
+        turns.push({
+          role: 'tool',
+          name: 'do_it',
+          result: {
+            ok: false,
+            reason:
+              'You wrote a tool call as text. The member would see that. Call the tool itself, in this turn.',
+          },
+        });
+        continue;
+      }
       // Something was given out: that is what the turn was, whatever the
       // confirmation happens to end with.
       if (assigned) {
@@ -448,8 +516,19 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
 
       // A question, or a list of things to choose from, keeps the conversation
       // open: the member's next message is the answer to it, not a new request.
-      const offersChoice = selfServe.filter((r) => mentions(step.text, r.name));
-      if (step.text.trim().endsWith('?') || offersChoice.length > 1) {
+      const offersChoice = allRoles.filter((r) => mentions(step.text, r.name));
+      if (step.text.includes('?') || offersChoice.length > 1) {
+        // The same guard as ask_user: a question written straight out is
+        // still a question, and one that names one role where the words read
+        // as two goes back round.
+        const halfRead = aboutARole(input.message, turns) && guessAmongReadings(step.text);
+        if (halfRead && !guessed) {
+          guessed = true;
+          turns.push({ model: step.content });
+          turns.push({ role: 'tool', name: 'ask_user', result: { ok: false, reason: halfRead } });
+          continue;
+        }
+        if (halfRead) return askAmongReadings();
         turns.push({ model: step.content });
         await saveConversation(guildId, conversationId, turns, language);
         return {
@@ -554,6 +633,13 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           });
           break;
         }
+        const halfRead = aboutARole(input.message, turns) && guessAmongReadings(question);
+        if (halfRead && !guessed) {
+          guessed = true;
+          turns.push({ role: 'tool', name: call.name, result: { ok: false, reason: halfRead } });
+          break;
+        }
+        if (halfRead) return askAmongReadings();
         // The question is kept, so a later turn can tell what was confirmed.
         turns.push({
           role: 'tool',
@@ -925,6 +1011,11 @@ function initials(name: string): string {
     .split(/\s+/)
     .map((word) => word[0] ?? '')
     .join('');
+}
+
+/** Everything the member has said in this conversation, in order. */
+function saidByMember(turns: ToolTurn[]): string {
+  return turns.map((t) => ('role' in t && t.role === 'user' ? t.text : '')).join(' ');
 }
 
 /**

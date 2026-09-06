@@ -45,7 +45,7 @@ export async function handleCommand(
 
   const shape = await shapeOf(guild);
   const by = { id: message.author.id, name: message.author.displayName, isStaff, isOwner };
-  const plan = await planCommand({ guildId: guild.id, request, by, shape });
+  const plan = await planCommand({ guildId: guild.id, request, by, shape, whoIs: whoIsIn(guild) });
 
   // Not a request to change anything, so it was a question or a greeting: the
   // answer loop has it, and nothing is written down. A moderator is a member
@@ -87,11 +87,59 @@ export async function handleCommand(
   return true;
 }
 
+/**
+ * Who a name or an id is on this server, asked of Discord.
+ *
+ * An id is fetched. A name is searched, and it has to be the one person it
+ * names: an exact display name or username wins; one result is that person;
+ * several is nobody, because picking one would be giving a role to a guess.
+ */
+function whoIsIn(guild: Guild) {
+  return async (nameOrId: string): Promise<{ id: string; name: string } | null> => {
+    if (/^\d{15,22}$/.test(nameOrId)) {
+      const member = await guild.members.fetch(nameOrId).catch(() => null);
+      return member ? { id: member.id, name: member.displayName } : null;
+    }
+    const query = nameOrId.replace(/^@/, '').trim();
+    if (!query) return null;
+    const found = await guild.members.search({ query, limit: 10 }).catch(() => null);
+    if (!found || found.size === 0) return null;
+    const wanted = query.toLowerCase();
+    const exact = found.find(
+      (m) =>
+        m.displayName.toLowerCase() === wanted ||
+        m.user.username.toLowerCase() === wanted ||
+        (m.user.globalName ?? '').toLowerCase() === wanted,
+    );
+    const member = exact ?? (found.size === 1 ? found.first() : undefined);
+    return member ? { id: member.id, name: member.displayName } : null;
+  };
+}
+
+/** A plan still waiting on its buttons, from the record rather than memory. */
+async function recallPlan(commandId: string): Promise<Waiting | null> {
+  if (!commandId) return null;
+  const { data } = await serviceClient()
+    .from('commands')
+    .select('guild_id, asked_by, plan, status')
+    .eq('id', commandId)
+    .maybeSingle();
+  if (!data || data.status !== 'planned') return null;
+  return {
+    guildId: data.guild_id,
+    askedBy: data.asked_by,
+    commandId,
+    steps: (data.plan ?? []) as unknown as PlannedStep[],
+  };
+}
+
 /** Confirm or Cancel. Only the person who asked may answer their own plan. */
 export async function onCommandButton(interaction: ButtonInteraction): Promise<boolean> {
   const [key = '', answer = ''] = interaction.customId.split(':');
   if (!key.startsWith('cmd-')) return false;
-  const plan = waiting.get(key);
+  // The plan is on record, so a restart between the buttons appearing and
+  // somebody pressing one loses nothing: what is not in memory is read back.
+  const plan = waiting.get(key) ?? (await recallPlan(key.slice(4)));
   if (!plan) {
     await interaction.reply({
       content: 'That plan has already been answered.',

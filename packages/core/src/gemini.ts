@@ -66,6 +66,8 @@ export async function generateJson<T>(input: {
   messages: ChatTurn[];
   schema: Schema;
   temperature?: number;
+  /** A ceiling on the answer. A model that runs away writes junk, not JSON. */
+  maxOutputTokens?: number;
 }): Promise<T> {
   const response = await withRetry(() =>
     ai().models.generateContent({
@@ -76,12 +78,20 @@ export async function generateJson<T>(input: {
         responseMimeType: 'application/json',
         responseSchema: input.schema,
         temperature: input.temperature ?? 0.2,
+        ...(input.maxOutputTokens ? { maxOutputTokens: input.maxOutputTokens } : {}),
       },
     }),
   );
   const text = response.text;
   if (!text) throw new Error('Gemini returned an empty response.');
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // Seen live: a name it did not know, repeated until the output ran out.
+    throw new Error(
+      `Gemini did not return JSON (${text.length} characters): ${text.slice(0, 400)}`,
+    );
+  }
 }
 
 /** One step of a tool-using conversation: what the model said, and what it wants to call. */

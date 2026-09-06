@@ -84,9 +84,6 @@ export type CommandEffects = {
   assignRole(input: { userId: string; roleId: string }): Promise<void>;
 };
 
-/** A Discord display name is short. Anything longer is not a name. */
-const MEMBER_NAME_MAX = 60;
-
 /** More than this and the plan is read out item by item before anything runs. */
 export const ITEMISE_ABOVE = 3;
 
@@ -99,6 +96,12 @@ export async function planCommand(input: {
   request: string;
   by: Commander;
   shape: GuildShape;
+  /**
+   * Who a name or a mention id refers to on this server, from Discord. Without
+   * it only a mention can name a member, because a plan that gives a role to
+   * "whoever the model wrote in that field" is not a plan anybody can check.
+   */
+  whoIs?: (nameOrId: string) => Promise<{ id: string; name: string } | null>;
 }): Promise<Plan> {
   if (!input.by.isOwner && !input.by.isStaff) {
     return {
@@ -163,18 +166,40 @@ export async function planCommand(input: {
       };
     }
     if (action === 'assign_role') {
-      // A member field that is not a name is not a member. Models have handed
-      // back their own reasoning in this field, and a plan reading "Give
-      // <two hundred words> the role" is not one anybody can check.
-      const member = (step.member ?? '').trim();
-      if (!member || member.length > MEMBER_NAME_MAX || member.split(/\s+/).length > 6) {
+      // Who gets it is never the model's to write: given the field, it hands
+      // back a sentence, a made-up surname, or two hundred digits. The member
+      // is read from the request in code. A mention is the member; otherwise
+      // every word that is not a role, an action or filler is tried against
+      // the server, and the first one somebody answers to wins. Discord is the
+      // truth about who is here, so a name nobody answers to is a question.
+      const mentioned = mentionsIn(input.request);
+      if (mentioned.length > 1) {
         return {
           kind: 'question',
-          because: 'The request does not say who gets the role.',
-          question: 'Who should it go to? Name them, or reply to one of their messages.',
+          because: 'The request mentions more than one person.',
+          question: 'Who should get it? Mention them, one person at a time.',
         };
       }
-      step.member = member;
+      let found: { id: string; name: string } | null = null;
+      if (mentioned.length === 1) {
+        found = (await input.whoIs?.(mentioned[0]!)) ?? { id: mentioned[0]!, name: mentioned[0]! };
+      } else if (input.whoIs) {
+        for (const word of memberCandidates(input.request, input.shape.roles)) {
+          found = await input.whoIs(word);
+          if (found) break;
+        }
+      }
+      if (!found) {
+        return {
+          kind: 'question',
+          because: input.whoIs
+            ? 'I could not tell who gets the role.'
+            : 'The request does not say who gets the role.',
+          question: 'Who should it go to? Mention them.',
+        };
+      }
+      step.member = found.id;
+      step.memberName = found.name;
 
       // The role is often in the sentence even when the model left the field
       // empty. Reading it back out of the request beats asking for something
@@ -274,6 +299,7 @@ type RawStep = {
   roles?: string[];
   text?: string;
   member?: string;
+  memberName?: string;
 };
 
 /** The model's proposal. It never acts; it only says what it would do. */
@@ -281,10 +307,26 @@ async function propose(
   request: string,
   shape: GuildShape,
 ): Promise<{ steps: RawStep[]; impossible: string }> {
-  const out = await generateJson<{ steps: RawStep[]; impossible: string }>({
+  let out: { steps?: RawStep[]; impossible?: string };
+  try {
+    out = await proposal(request, shape);
+  } catch (err) {
+    // A model that ran away or came back empty has not proposed anything.
+    // Nothing is planned from junk; the moderator is asked to say it again.
+    console.error(`kalvard: the planner did not answer: ${String(err)}`);
+    return { steps: [], impossible: 'I could not make sense of that. Say it again, differently.' };
+  }
+  return { steps: out.steps ?? [], impossible: out.impossible ?? '' };
+}
+
+async function proposal(
+  request: string,
+  shape: GuildShape,
+): Promise<{ steps?: RawStep[]; impossible?: string }> {
+  return generateJson<{ steps: RawStep[]; impossible: string }>({
     system: [
       'You turn a moderator request into a plan for a Discord bot. You never carry anything out.',
-      `The only actions are: create_channel (name, category), allow_roles (channel, roles), set_private (channel, roles: who keeps access), archive_channel (channel), post_message (channel, text), pin_message (channel), assign_role (member, roles).`,
+      `The only actions are: create_channel (name, category), allow_roles (channel, roles), set_private (channel, roles: who keeps access), archive_channel (channel), post_message (channel, text), pin_message (channel), assign_role (roles).`,
       'Making an existing channel private, or hiding it from everyone but some roles, is set_private.',
       'Kalvard never deletes anything. A request to delete or remove a channel becomes archive_channel, and say so in impossible if that is not what they meant.',
       'Use the exact names the request uses. Do not invent a category, a role or a channel that was not asked for; leave the field empty and let the caller ask.',
@@ -306,10 +348,9 @@ async function propose(
               channel: { type: Type.STRING },
               roles: { type: Type.ARRAY, items: { type: Type.STRING } },
               text: { type: Type.STRING },
-              member: { type: Type.STRING },
             },
             required: ['action'],
-            propertyOrdering: ['action', 'name', 'category', 'channel', 'roles', 'text', 'member'],
+            propertyOrdering: ['action', 'name', 'category', 'channel', 'roles', 'text'],
           },
         },
         impossible: { type: Type.STRING },
@@ -318,8 +359,8 @@ async function propose(
       propertyOrdering: ['steps', 'impossible'],
     },
     temperature: 0,
+    maxOutputTokens: 1024,
   });
-  return { steps: out.steps ?? [], impossible: out.impossible ?? '' };
 }
 
 /** The plan, as sentences somebody can check before they confirm. */
@@ -482,7 +523,34 @@ function argsOf(step: RawStep): Record<string, string> {
   if (step.roles?.length) args.roles = step.roles.join(', ');
   if (step.text) args.text = step.text;
   if (step.member) args.member = step.member;
+  if (step.memberName) args.memberName = step.memberName;
   return args;
+}
+
+/** Words in a request that could be a member's name, at most a handful. */
+function memberCandidates(request: string, roles: { id: string; name: string }[]): string[] {
+  const roleWords = new Set(
+    roles.flatMap((r) => clean(r.name).split(/[^a-z0-9]+/)).filter(Boolean),
+  );
+  return request
+    .split(/[^\p{L}\p{N}_.-]+/u)
+    .filter((word) => word.length >= 2 && word.length <= 32)
+    .filter((word) => !FILLER.has(word.toLowerCase()) && !roleWords.has(clean(word)))
+    .slice(0, 6);
+}
+
+/** The words a request is made of that are never anybody's name. */
+const FILLER = new Set(
+  (
+    'give gives assign add put grant make set the an to role roles him her them please plz stp svp ' +
+    'and et donne donnes mets met le la les un une du de des au rôle rôles this that guy mec ce cet ' +
+    'cette on in with for can you tu peux me moi my mon je now pls'
+  ).split(' '),
+);
+
+/** The user ids mentioned in a message, in order. */
+function mentionsIn(text: string): string[] {
+  return [...text.matchAll(/<@!?(\d+)>/g)].map((m) => m[1]!);
 }
 
 /** One line an owner can check, with the real names in it. */
@@ -502,7 +570,7 @@ function sentenceFor(action: CommandAction, step: RawStep): string {
     case 'pin_message':
       return `Pin the last message in ${channel}.`;
     case 'assign_role':
-      return `Give ${step.member ?? 'them'} the ${(step.roles ?? []).join(' and ')} role.`;
+      return `Give @${step.memberName ?? step.member ?? 'them'} the ${(step.roles ?? []).join(' and ')} role.`;
   }
 }
 

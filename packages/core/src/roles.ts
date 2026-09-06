@@ -146,9 +146,11 @@ export function nearest(
   message: string,
   roles: { id: string; name: string }[],
 ): { id: string; name: string }[] {
+  // Two letters are enough to be initials ("ff"), and nothing else: a
+  // two-letter word is never a piece of a name or a near spelling of one.
   const words = fold(message)
     .split(/[^a-z0-9]+/)
-    .filter((word) => word.length >= 3 && !STOP.has(word));
+    .filter((word) => word.length >= 2 && !STOP.has(word));
   if (words.length === 0) return [];
 
   const scored: { role: { id: string; name: string }; score: number }[] = [];
@@ -160,8 +162,12 @@ export function nearest(
 
     let score = 0;
     for (const word of words) {
-      // Initials, which is how a long name actually gets written.
-      if (parts.length > 1 && word === initials) score = Math.max(score, 3);
+      // Initials, which is how a long name actually gets written. "ff" is as
+      // much Fast Forward Test as Fast Forward: a server that has both gets
+      // asked which, not a guess at one.
+      if (parts.length > 1 && (word === initials || initials.startsWith(word))) {
+        score = Math.max(score, 3);
+      } else if (word.length < 3) continue;
       // One of its words, or a long enough piece of it.
       else if (parts.includes(word)) score = Math.max(score, 2);
       else if (word.length >= 4 && name.includes(word)) score = Math.max(score, 2);

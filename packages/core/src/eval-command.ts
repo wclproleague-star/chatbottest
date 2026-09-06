@@ -336,6 +336,59 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
     );
   }
 
+  // Whoever gets a role has to be somebody: a member found on Discord, or a
+  // mention. Live, a plan read "Give no, fast forward role the Fast Forward
+  // role", the member being the message itself. The name is resolved before
+  // the plan is shown, and a name nobody answers to is a question.
+  const whoIs = async (name: string) =>
+    name.toLowerCase() === 'craig' || name === '4242' ? { id: '4242', name: 'Craig' } : null;
+  const known = await planCommand({
+    guildId: '900000000000000001',
+    request: 'give Craig the Caster role',
+    by: MOD,
+    shape: SHAPE,
+    whoIs,
+  });
+  check(
+    'a member Discord knows is planned for',
+    known.kind === 'plan',
+    `${known.kind}: ${'question' in known ? known.because + ' ' + known.question : 'because' in known ? known.because : ''}`,
+  );
+  check(
+    'by id, not by the words',
+    known.kind === 'plan' && known.steps[0]?.args.member === '4242',
+    known.kind === 'plan' ? JSON.stringify(known.steps[0]?.args) : '',
+  );
+  check(
+    'and the sentence names them',
+    known.kind === 'plan' && (known.steps[0]?.sentence.includes('Craig') ?? false),
+    known.kind === 'plan' ? (known.steps[0]?.sentence ?? '') : '',
+  );
+  const mentioned = await planCommand({
+    guildId: '900000000000000001',
+    request: 'give <@4242> the Caster role',
+    by: MOD,
+    shape: SHAPE,
+    whoIs,
+  });
+  check(
+    'a mention is the member',
+    mentioned.kind === 'plan' && mentioned.steps[0]?.args.member === '4242',
+    `${mentioned.kind}: ${'question' in mentioned ? mentioned.because + ' ' + mentioned.question : 'because' in mentioned ? mentioned.because : JSON.stringify(mentioned.steps[0]?.args)}`,
+  );
+  const nobody = await planCommand({
+    guildId: '900000000000000001',
+    request: 'give Zorblax the Caster role',
+    by: MOD,
+    shape: SHAPE,
+    whoIs,
+  });
+  check(
+    'a name nobody answers to is a question, not a plan',
+    nobody.kind === 'question',
+    `${nobody.kind}: ${'question' in nobody ? nobody.question : ''}`,
+  );
+
   // A real request that this server has switched off is still a refusal: the
   // two must not be told apart by reading the model's English.
   const off = await planCommand({
