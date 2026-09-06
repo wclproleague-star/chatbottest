@@ -367,13 +367,28 @@ export async function resumeWorkflow(
     }
     if (wait.event === 'message') {
       if (!allowed) return { taken: false };
-      return settle(state, input, {
+      const settled = await settle(state, input, {
         text: event.text,
         from: event.from,
         messageId: event.messageId,
         attachments: event.attachments ?? [],
         team: teamOf(state, wait, senderRoles),
       });
+      // A screenshot that arrives while the run was only listening for a word
+      // is still the screenshot. Live, the end screen came straight after the
+      // draft card, settled the check-in, and the run then waited for a
+      // picture that had already been posted.
+      const next = settled.taken ? settled.state.wait : undefined;
+      if (
+        settled.taken &&
+        next?.kind === 'event' &&
+        next.event === 'attachment' &&
+        (event.attachments ?? []).length > 0
+      ) {
+        const again = await resumeWorkflow(settled.state, event, input);
+        return again.taken ? again : settled;
+      }
+      return settled;
     }
   }
   return { taken: false };

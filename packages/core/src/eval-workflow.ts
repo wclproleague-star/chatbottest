@@ -327,6 +327,70 @@ check(
   JSON.stringify(state.wait),
 );
 
+// Live, the end screen came straight after the draft card, while the run was
+// only listening for a word: it must count as the screenshot, not the word.
+{
+  resetDraftFixture();
+  const early = await runWorkflow({
+    guildId: '900000000000000001',
+    workflow: BO3_SERIES,
+    context: seriesContext({
+      teamA: A,
+      teamB: B,
+      channel: 'channel-match',
+      results: 'results',
+      rules: '',
+      mods: '@mods',
+    }),
+    effects,
+    allowedActions: [...WORKFLOW_ACTIONS],
+    now: clock,
+  });
+  let quick = early.state as RunState;
+  const step = async (event: RunEvent, at: Date) => {
+    const out = await resumeWorkflow(quick, event, {
+      guildId: '900000000000000001',
+      effects,
+      allowedActions: [...WORKFLOW_ACTIONS],
+      now: at,
+    });
+    if (out.taken) quick = out.state;
+    return out;
+  };
+  for (let i = 0; quick.wait?.kind === 'poll' && i < 20; i++) {
+    await step({ kind: 'tick' }, minutes(1 + i));
+  }
+  check(
+    '(early) the run is listening for a word',
+    quick.wait?.event === 'message',
+    JSON.stringify(quick.wait),
+  );
+  const n = posted.length;
+  const blueRole = (quick.variables.blue as { roleId: string }).roleId;
+  const poster = blueRole === 'role-a' ? ALICE : BOB;
+  await step(
+    {
+      kind: 'message',
+      from: poster.id,
+      roles: poster.roles,
+      text: '',
+      attachments: ['https://cdn.example/g1-defeat.png'],
+    },
+    minutes(1),
+  );
+  check(
+    'a screenshot posted before the check-in counts as the screenshot',
+    posted.slice(n).some((p) => p.text.includes('wins')),
+    since(n),
+  );
+  check(
+    '(early) the reporter is set from it',
+    quick.variables.reporter === poster.id,
+    String(quick.variables.reporter),
+  );
+  resetDraftFixture();
+}
+
 // A picture that is not an end screen is refused and the wait holds.
 const stranger = await feed(
   {
