@@ -19,6 +19,7 @@ import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
 import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
+import { answersHere } from './answers-here';
 import { findRepeat, offer } from './repeats';
 import { runWorkflow } from './workflows';
 import { isDue, lastDue, readSchedule } from './schedule';
@@ -617,6 +618,30 @@ console.log(['', 'the allowlist holds for every kind of step'].join(String.fromC
   );
   check('and says what it landed on', /Blue|Red/.test(posted.join(' ')), posted.join(' | '));
   check('the run did not stop', !flip.stoppedBecause, String(flip.stoppedBecause));
+}
+
+console.log(['', 'where Kalvard will answer'].join(String.fromCharCode(10)));
+{
+  const staff = '1',
+    test = '2';
+  check(
+    'with no list set, it answers anywhere it is named',
+    answersHere({ allowedChannelIds: [], channelId: test, spokenHere: false }),
+  );
+  check(
+    'inside the list it answers',
+    answersHere({ allowedChannelIds: [staff], channelId: staff, spokenHere: false }),
+  );
+  check(
+    'outside the list it stays quiet',
+    !answersHere({ allowedChannelIds: [staff], channelId: test, spokenHere: false }),
+  );
+  // The one that matters: a workflow posts where the owner wrote it, and a bot
+  // that speaks in a channel has to answer in it.
+  check(
+    'unless it has spoken there itself',
+    answersHere({ allowedChannelIds: [staff], channelId: test, spokenHere: true }),
+  );
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);

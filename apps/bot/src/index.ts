@@ -7,7 +7,7 @@
 
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import type { Message } from 'discord.js';
-import { allowMessage, hasOpenConversation, sweepConversations } from '@kalvard/core';
+import { allowMessage, answersHere, hasOpenConversation, sweepConversations } from '@kalvard/core';
 import { onModReply, onTick, watchDashboardApprovals } from './approve';
 import { botEnv } from './env';
 import {
@@ -89,6 +89,18 @@ client.on(Events.GuildDelete, async (guild) => {
   await import('./guild').then((m) => m.logEvent(guild.id, 'uninstall', {}));
 });
 
+/** Whether Kalvard has said anything in this channel lately. */
+async function hasSpokenIn(message: Message, botId: string): Promise<boolean> {
+  if (!message.channel.isTextBased()) return false;
+  try {
+    const recent = await message.channel.messages.fetch({ limit: 50 });
+    return recent.some((m) => m.author.id === botId);
+  } catch {
+    // Cannot read the channel: not a place it has spoken, so not one it answers.
+    return false;
+  }
+}
+
 client.on(Events.MessageCreate, async (message: Message) => {
   try {
     if (message.author.bot) return;
@@ -106,9 +118,6 @@ client.on(Events.MessageCreate, async (message: Message) => {
     }
     if (!(await isClaimed(message.guild.id))) return;
     const settings = await loadSettings(message.guild.id);
-
-    const allowed = settings.allowedChannelIds;
-    if (allowed.length > 0 && !allowed.includes(message.channelId)) return;
 
     // A moderator replying to a question Kalvard could not answer is answering
     // it, not asking a new one.
@@ -129,6 +138,21 @@ client.on(Events.MessageCreate, async (message: Message) => {
       `${message.channelId}:${message.author.id}`,
     );
     if (!named && !answeringKalvard && !waiting) return;
+
+    // Where it may speak first is the owner's list. Where it must answer is
+    // anywhere it has spoken itself: a workflow posts where the routine names,
+    // and a bot that opens a conversation has to hold it. Replying to Kalvard
+    // is proof enough on its own; otherwise the channel is checked once, and
+    // only for a message that was actually addressed to it.
+    if (
+      !answersHere({
+        allowedChannelIds: settings.allowedChannelIds,
+        channelId: message.channelId,
+        spokenHere: answeringKalvard || (await hasSpokenIn(message, client.user.id)),
+      })
+    ) {
+      return;
+    }
 
     // Twenty messages in thirty seconds is not a conversation. Past the burst
     // the member is told once, then it goes quiet for them and for nobody else.
