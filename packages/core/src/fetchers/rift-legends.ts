@@ -19,11 +19,12 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_TIMEOUT_MS, SourceError, getJson } from './http';
-import { registerFetcher } from '../sources';
+import process from 'node:process';
+import { DEFAULT_TIMEOUT_MS, SourceError, getJson, postJson } from './http';
+import { registerFetcher, registerOp } from '../sources';
 import type { DataSource } from '../sources';
 
-export type RiftTeam = { id: string; name: string; tag: string };
+export type RiftTeam = { id: string; name: string; tag: string; discordRoleId?: string | null };
 export type RiftPlayer = {
   id: string;
   handle: string;
@@ -58,11 +59,20 @@ type Config = { baseUrl: string; apiKey?: string; timeoutMs?: number };
 
 function configOf(source: DataSource): Config {
   const raw = source.config as Record<string, unknown>;
-  const baseUrl = typeof raw.baseUrl === 'string' ? raw.baseUrl.trim() : '';
+  // The guild's own calendar is configured once, in the environment, for a
+  // source that names no address of its own; its key never sits in a row.
+  const baseUrl =
+    typeof raw.baseUrl === 'string' && raw.baseUrl.trim()
+      ? raw.baseUrl.trim()
+      : (process.env.CALENDAR_URL ?? '').trim();
   if (!baseUrl) throw new SourceError('This source has no address yet.');
+  const apiKey =
+    typeof raw.apiKey === 'string' && raw.apiKey
+      ? raw.apiKey
+      : (process.env.CALENDAR_KEY ?? '').trim() || undefined;
   return {
     baseUrl: baseUrl.replace(/\/+$/, ''),
-    apiKey: typeof raw.apiKey === 'string' ? raw.apiKey : undefined,
+    apiKey,
     timeoutMs: typeof raw.timeoutMs === 'number' ? raw.timeoutMs : DEFAULT_TIMEOUT_MS,
   };
 }
@@ -84,6 +94,54 @@ export async function riftMatches(source: DataSource, now = new Date()): Promise
   if (!Array.isArray(body.matches)) throw new SourceError('It did not send back a match list.');
   return body.matches;
 }
+
+/** Matches in an exact window, for the clock that prepares match channels. */
+export async function riftMatchesBetween(
+  source: DataSource,
+  from: Date,
+  to: Date,
+): Promise<RiftMatch[]> {
+  const config = configOf(source);
+  if (config.baseUrl.startsWith('fixture:')) {
+    return fixture().matches.filter((m) => {
+      const at = new Date(m.scheduledAt).getTime();
+      return at >= from.getTime() && at <= to.getTime();
+    });
+  }
+  const body = (await getJson(
+    `${config.baseUrl}/matches?from=${encodeURIComponent(from.toISOString())}&to=${encodeURIComponent(to.toISOString())}`,
+    { headers: headers(config), timeoutMs: config.timeoutMs },
+  )) as { matches?: RiftMatch[] };
+  if (!Array.isArray(body.matches)) throw new SourceError('It did not send back a match list.');
+  return body.matches;
+}
+
+/** The result of a match, told to the calendar. The fixture only listens. */
+export async function reportResult(
+  source: DataSource,
+  matchId: string,
+  result: { winner: string; score: [number, number]; screenshots: string[] },
+): Promise<void> {
+  const config = configOf(source);
+  if (config.baseUrl.startsWith('fixture:')) return;
+  await postJson(`${config.baseUrl}/matches/${encodeURIComponent(matchId)}/result`, result, {
+    headers: headers(config),
+    timeoutMs: config.timeoutMs,
+  });
+}
+
+registerOp('rift_legends', 'report', async (source, args) => {
+  const [a, b] = (args.score ?? '0-0').split('-').map((n) => Number(n) || 0);
+  await reportResult(source, args.id ?? '', {
+    winner: args.winner ?? '',
+    score: [a ?? 0, b ?? 0],
+    screenshots: (args.screenshots ?? '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  });
+  return { ok: true };
+});
 
 /** One team's roster, from the league or from the fixture. */
 export async function riftRoster(source: DataSource, teamId: string): Promise<RiftRoster | null> {

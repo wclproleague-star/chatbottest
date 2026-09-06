@@ -227,13 +227,11 @@ async function keepChannel(
   const recentMessages = await message.channel.messages
     .fetch({ limit: 7, before: message.id })
     .catch(() => null);
-  const recent = [...(recentMessages?.values() ?? [])]
-    .reverse()
-    .map((m) => ({
-      who: m.author.displayName,
-      text: m.content.slice(0, 300),
-      isBot: m.author.bot,
-    }));
+  const recent = [...(recentMessages?.values() ?? [])].reverse().map((m) => ({
+    who: m.author.displayName,
+    text: m.content.slice(0, 300),
+    isBot: m.author.bot,
+  }));
 
   const keeperState = (run.state.variables._keeper ?? {}) as {
     lastSaid?: { text: string; at: string } | null;
@@ -430,6 +428,14 @@ export async function startSeries(input: {
   teamB: { name: string; roleId: string };
   modRoleId: string | null;
   startedBy: string;
+  /** From the calendar: when it starts, and how the result is reported back. */
+  calendar?: {
+    matchId: string;
+    startAt: string;
+    startTime: string;
+    teamAId: string;
+    teamBId: string;
+  };
 }): Promise<{ ok: true } | { ok: false; because: string }> {
   const { guild } = input;
   const { allowedActions } = await runSettings(guild.id);
@@ -454,6 +460,7 @@ export async function startSeries(input: {
     results,
     rules,
     mods: input.modRoleId ? `<@&${input.modRoleId}>` : 'the moderators',
+    ...(input.calendar ?? {}),
   });
 
   // The run needs its id inside its own buttons, so the row is made first

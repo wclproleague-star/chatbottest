@@ -84,6 +84,8 @@ export type Step =
     }
   /** Read a picture with the model: is it an end screen, who won. */
   | { type: 'read_image'; url: string; as: string }
+  /** Wait until an instant (an ISO time, usually from a variable). */
+  | { type: 'wait_clock'; until: string }
   /** Stop here, on purpose. */
   | { type: 'stop'; because: string };
 
@@ -114,7 +116,7 @@ export type RunEntry = {
 
 /** What a paused run is waiting for. */
 export type Wait = {
-  kind: 'event' | 'poll';
+  kind: 'event' | 'poll' | 'clock';
   /** For an event: what, where, from whom. */
   event?: 'message' | 'attachment' | 'reaction' | 'button';
   channelId?: string;
@@ -291,6 +293,14 @@ export async function resumeWorkflow(
     if (new Date(wait.deadline) <= now) {
       const frame = state.frames.at(-1)!;
       const step = frame.steps[frame.index]!;
+      // A clock wait ending is not a timeout: the moment came, the run goes on.
+      if (wait.kind === 'clock') {
+        state.entries.push({ step: 'clock', detail: `it is ${wait.deadline.slice(11, 16)} UTC` });
+        state.wait = undefined;
+        frame.index++;
+        await advance(state, input);
+        return { taken: true, state };
+      }
       const onTimeout =
         step.type === 'wait_for' || step.type === 'wait_until'
           ? step.onTimeout
@@ -569,6 +579,26 @@ async function runStep(
           `${step.source} did not answer: ${err instanceof Error ? err.message : String(err)}`,
         );
       }
+    }
+
+    case 'wait_clock': {
+      const until = fill(step.until, vars);
+      if (until === null) return stop(state, `wait_clock needs ${step.until}, and nothing has it`);
+      const at = new Date(until);
+      if (Number.isNaN(at.getTime())) return stop(state, `${until} is not a time`);
+      state.entries.push({
+        step: 'wait_clock',
+        detail: `until ${at.toISOString().slice(0, 16).replace('T', ' ')} UTC`,
+        wouldHave: input.dryRun,
+      });
+      if (input.dryRun || at <= now) return 'next';
+      state.wait = {
+        kind: 'clock',
+        from: [],
+        deadline: at.toISOString(),
+        what: `the clock to reach ${at.toISOString().slice(11, 16)} UTC`,
+      };
+      return 'waiting';
     }
 
     case 'read_image': {
@@ -909,6 +939,8 @@ function describe(step: Step): string {
       return `read ${step.source}`;
     case 'read_image':
       return 'read the picture';
+    case 'wait_clock':
+      return `wait until ${step.until}`;
     case 'stop':
       return 'stop';
   }

@@ -1,12 +1,17 @@
 import {
+  dueToPrepare,
   findRepeat,
   listRuns,
   listWorkflows,
   offer,
+  parseSources,
   readBack,
+  riftMatchesBetween,
   serviceClient,
+  startTimeIn,
   TEMPLATES,
 } from '@kalvard/core';
+import type { DataSource, UpcomingMatch } from '@kalvard/core';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { formatDate } from '@/lib/format';
 import { requireMember } from '@/lib/guild';
@@ -32,8 +37,19 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
       .not('ran', 'is', null)
       .order('created_at', { ascending: false })
       .limit(60),
-    db.from('guild_settings').select('timezone').eq('guild_id', guildId).maybeSingle(),
+    db
+      .from('guild_settings')
+      .select('timezone, data_sources')
+      .eq('guild_id', guildId)
+      .maybeSingle(),
   ]);
+
+  // What the calendar has coming, and where each match has got to here.
+  const upcoming = await upcomingMatches(
+    guildId,
+    parseSources(settings?.data_sources ?? null),
+    settings?.timezone ?? null,
+  );
 
   // What this server already does by hand, twice or more, on separate days.
   const repeat = findRepeat(
@@ -78,6 +94,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
         guildId={guildId}
         workflows={workflows}
         runs={listed}
+        upcoming={upcoming}
         noticed={repeat ? offer(repeat) : null}
         templates={TEMPLATES.filter((t) => !flows.some((w) => w.name === t.name)).map((t) => ({
           name: t.name,
@@ -88,6 +105,79 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
       />
     </div>
   );
+}
+
+/** The next two weeks of the calendar, each match with its state on this server. */
+async function upcomingMatches(
+  guildId: string,
+  sources: DataSource[],
+  timezone: string | null,
+): Promise<UpcomingMatch[]> {
+  let calendar = sources.find((s) => s.kind === 'rift_legends');
+  if (!calendar && process.env.CALENDAR_URL) {
+    calendar = {
+      id: 'calendar',
+      name: 'the match calendar',
+      answers: 'matches',
+      kind: 'rift_legends',
+      config: {},
+    };
+  }
+  if (!calendar) return [];
+  const now = new Date();
+  let matches;
+  try {
+    matches = await riftMatchesBetween(
+      calendar,
+      new Date(now.getTime() - 6 * 3_600_000),
+      new Date(now.getTime() + 14 * 86_400_000),
+    );
+  } catch {
+    return [];
+  }
+  const db = serviceClient();
+  const [{ data: prepared }, { data: runs }] = await Promise.all([
+    db.from('processed_events').select('id').eq('guild_id', guildId).like('id', 'match:%:prepare'),
+    db
+      .from('workflow_runs')
+      .select('status, state, summary')
+      .eq('guild_id', guildId)
+      .order('started_at', { ascending: false })
+      .limit(50),
+  ]);
+  const preparedIds = new Set(
+    (prepared ?? []).map((r) => r.id.slice('match:'.length, -':prepare'.length)),
+  );
+  const runByMatch = new Map<string, string>();
+  for (const run of runs ?? []) {
+    const state = run.state as { variables?: { matchId?: unknown } } | null;
+    const summary = run.summary as { variables?: { matchId?: unknown } } | null;
+    const id = String(state?.variables?.matchId ?? summary?.variables?.matchId ?? '');
+    if (id && !runByMatch.has(id)) runByMatch.set(id, run.status);
+  }
+  const due = new Set(dueToPrepare(matches, now).map((m) => m.id));
+  return matches
+    .sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt))
+    .map((m) => {
+      const run = runByMatch.get(m.id);
+      const state: UpcomingMatch['state'] =
+        m.status === 'done' || run === 'done'
+          ? 'done'
+          : run === 'stopped' || run === 'failed'
+            ? 'stopped'
+            : run === 'running'
+              ? 'running'
+              : preparedIds.has(m.id) || due.has(m.id)
+                ? 'prepared'
+                : 'upcoming';
+      const [a, b] = m.teams;
+      return {
+        id: m.id,
+        line: `${a?.name ?? '?'} vs ${b?.name ?? '?'}, ${formatDate(m.scheduledAt)} ${startTimeIn(m.scheduledAt, timezone)}`,
+        scheduledAt: m.scheduledAt,
+        state,
+      };
+    });
 }
 
 /** What starts it, in words rather than in a shape. */

@@ -341,6 +341,9 @@ export function readBack(workflow: Workflow): string[] {
       case 'read_image':
         lines.push(`${pad}Read the picture ${step.url}: is it an end screen, and who won`);
         break;
+      case 'wait_clock':
+        lines.push(`${pad}Wait until ${step.until}`);
+        break;
       case 'stop':
         lines.push(`${pad}Stop: ${step.because}`);
         break;

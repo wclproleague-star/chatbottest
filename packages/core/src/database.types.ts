@@ -68,6 +68,7 @@ type GuildSettingsRow = {
   fallback_mode: FallbackMode;
   mod_role_id: string | null;
   mod_channel_id: string | null;
+  match_category: string | null;
   allowed_channel_ids: string[];
   indexed_channel_ids: string[];
   intro_channel_id: string | null;

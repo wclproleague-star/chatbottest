@@ -12,6 +12,7 @@ import { Button, GrowingInput, Panel, Section, Split, Switch } from '@kalvard/ui
 import { useActionState, useState } from 'react';
 import { adoptTemplate, describeWorkflow, keepWorkflow, rehearse, toggleWorkflow } from './actions';
 import type { DraftState } from './actions';
+import type { UpcomingMatch } from '@kalvard/core';
 
 export type Listed = {
   id: string;
@@ -42,12 +43,14 @@ export function Workflows({
   runs,
   templates,
   noticed,
+  upcoming = [],
 }: {
   guildId: string;
   workflows: Listed[];
   runs: Run[];
   /** A routine this server already keeps by hand, when there is one. */
   noticed?: string | null;
+  upcoming?: UpcomingMatch[];
   /** The shipped routines this server has not taken yet. */
   templates: { name: string; what: string; steps: number; brief?: string | null }[];
 }) {
@@ -71,6 +74,7 @@ export function Workflows({
         }
         right={
           <>
+            {upcoming.length > 0 && <Upcoming matches={upcoming} />}
             {templates.length > 0 && <Adopt guildId={guildId} templates={templates} />}
             <Runs runs={runs} />
           </>
@@ -224,6 +228,32 @@ function Kept({ guildId, workflows }: { guildId: string; workflows: Listed[] }) 
       )}
       {tried?.kind === 'saved' && <p className="text-ui text-ink-soft">{tried.note}</p>}
       {tried?.kind === 'error' && <p className="text-ui text-ink">{tried.error}</p>}
+    </Section>
+  );
+}
+
+/** What the calendar has coming, and where each match has got to here. */
+function Upcoming({ matches }: { matches: UpcomingMatch[] }) {
+  const word: Record<UpcomingMatch['state'], string> = {
+    upcoming: 'Waiting for its hour',
+    prepared: 'Channel ready, teams greeted',
+    running: 'Playing',
+    done: 'Done',
+    stopped: 'Stopped, see the run',
+  };
+  return (
+    <Section
+      heading="Matches"
+      lede="From the calendar. Five hours before each one Kalvard opens its channel and greets the teams; at the hour the series starts on its own."
+    >
+      <ul className="divide-hairline -my-4 divide-y">
+        {matches.map((m) => (
+          <li key={m.id} className="flex items-baseline justify-between gap-4 py-3">
+            <span className="text-thread text-ink">{m.line}</span>
+            <span className="text-ink-soft shrink-0 text-[13px]">{word[m.state]}</span>
+          </li>
+        ))}
+      </ul>
     </Section>
   );
 }

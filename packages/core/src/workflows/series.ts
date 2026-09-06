@@ -28,6 +28,15 @@ export type SeriesContext = {
   rules: string;
   /** Who is woken when a wait runs out. */
   mods: string;
+  /** When the series starts, as an ISO instant. Unset: it starts now. */
+  startAt?: string;
+  /** The same, as people read it: "21:00 CEST". */
+  startTime?: string;
+  /** The calendar's id for this match, when it came from there. */
+  matchId?: string;
+  /** The calendar's ids for the two teams, so the result can be reported. */
+  teamAId?: string;
+  teamBId?: string;
 };
 
 /** The context as the steps read it: counters and sides start empty. */
@@ -326,6 +335,17 @@ export const BO3_SERIES: Workflow = {
     say(
       '<@&{teamA.roleId}> <@&{teamB.roleId}> welcome to your best of three.\n{rules}\n\nOne member sends the end-of-game screenshots for the whole series: the first to do so.',
     ),
+    // From the calendar, the room opens hours ahead: the greeting now, the
+    // coin flip and the draft when the hour comes.
+    {
+      type: 'if',
+      when: '{startAt}',
+      then: [
+        say('The draft opens at {startTime}. Be here with your five.'),
+        { type: 'wait_clock', until: '{startAt}' },
+        say('<@&{teamA.roleId}> <@&{teamB.roleId}> it is time. Coin flip for side coming up.'),
+      ],
+    },
     {
       type: 'pick',
       from: ['{teamA.name}', '{teamB.name}'],
@@ -354,6 +374,31 @@ export const BO3_SERIES: Workflow = {
       as: 'draft',
     },
     say('gg. <@&{champion.roleId}> take it {score} over <@&{runnerUp.roleId}>.'),
+    // The calendar learns the result, when the match came from it.
+    {
+      type: 'if',
+      when: '{matchId}',
+      then: [
+        {
+          type: 'if',
+          when: '{champion.name} == {teamA.name}',
+          then: [{ type: 'set', var: 'championId', value: '{teamAId}' }],
+          else: [{ type: 'set', var: 'championId', value: '{teamBId}' }],
+        },
+        {
+          type: 'fetch',
+          source: 'rift_legends',
+          op: 'report',
+          with: {
+            id: '{matchId}',
+            winner: '{championId}',
+            score: '{score}',
+            screenshots: '{shotList}',
+          },
+          as: 'reported',
+        },
+      ],
+    },
     {
       type: 'do',
       action: 'post_message',

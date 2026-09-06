@@ -570,6 +570,92 @@ check(
   JSON.stringify(fetched.at(-1)),
 );
 
+console.log(['', 'a series from the calendar waits for its hour'].join(String.fromCharCode(10)));
+{
+  resetDraftFixture();
+  const kept = fetched.splice(0);
+  const n = posted.length;
+  const startAt = new Date('2026-09-12T19:00:00.000Z');
+  const timed = await runWorkflow({
+    guildId: '900000000000000001',
+    workflow: BO3_SERIES,
+    context: seriesContext({
+      teamA: A,
+      teamB: B,
+      channel: 'channel-match',
+      results: 'results',
+      rules: '',
+      mods: '@mods',
+      startAt: startAt.toISOString(),
+      startTime: '21:00 CEST',
+      matchId: 'm-401',
+      teamAId: 't-a',
+      teamBId: 't-b',
+    }),
+    effects,
+    allowedActions: [...WORKFLOW_ACTIONS],
+    now: new Date('2026-09-12T14:00:00.000Z'),
+  });
+  check(
+    'it greets the teams straight away',
+    posted.slice(n).some((p) => p.text.includes('welcome to your best of three')),
+    since(n),
+  );
+  check(
+    'and says when the draft opens',
+    posted.slice(n).some((p) => p.text.includes('21:00 CEST')),
+    since(n),
+  );
+  check(
+    'then waits on the clock',
+    timed.state?.wait?.kind === 'clock',
+    JSON.stringify(timed.state?.wait),
+  );
+  check(
+    'with no coin flip yet',
+    !posted.slice(n).some((p) => p.text.includes('Coin flip')),
+    since(n),
+  );
+  let timedState = timed.state as RunState;
+  const before = await resumeWorkflow(
+    timedState,
+    { kind: 'tick' },
+    {
+      guildId: '900000000000000001',
+      effects,
+      allowedActions: [...WORKFLOW_ACTIONS],
+      now: new Date('2026-09-12T18:30:00.000Z'),
+    },
+  );
+  check(
+    'half an hour early, nothing happens',
+    !before.taken || before.state.wait?.kind === 'clock',
+  );
+  if (before.taken) timedState = before.state;
+  const m = posted.length;
+  const after = await resumeWorkflow(
+    timedState,
+    { kind: 'tick' },
+    {
+      guildId: '900000000000000001',
+      effects,
+      allowedActions: [...WORKFLOW_ACTIONS],
+      now: new Date('2026-09-12T19:00:30.000Z'),
+    },
+  );
+  check(
+    'at the hour the coin is flipped',
+    after.taken && posted.slice(m).some((p) => p.text.includes('Coin flip')),
+    since(m),
+  );
+  check(
+    'and the draft links go out',
+    posted.slice(m).some((p) => p.text.includes('draft -')),
+    since(m),
+  );
+  fetched.splice(0, fetched.length, ...kept);
+}
+
 console.log(['', 'a series with what it needs missing'].join(String.fromCharCode(10)));
 resetDraftFixture();
 const plainContext = () =>

@@ -24,6 +24,8 @@ import { answersTheQuestion } from './conversation';
 import { aboutARole, asksForRole, namedRoles, nearest, whichRole } from './roles';
 import { appendVouch, onRoster, vouchDocument } from './vouch';
 import { findRepeat, offer } from './repeats';
+import { channelNameFor, dueToPrepare, teamRole } from './matches';
+import type { RiftMatch } from './fetchers/rift-legends';
 import { runWorkflow } from './workflows';
 import { isDue, lastDue, readSchedule } from './schedule';
 import { checkStep, readBack, whatChanged } from './workflow-author';
@@ -859,6 +861,57 @@ console.log(
   );
   check('nor is asking when a match is', !aboutARole('when do we play next', []));
   check('asking for one is', aboutARole('give me the ttk role', []));
+}
+
+console.log(
+  ['', 'the calendar: what is due, what it is called, which role a team is'].join(
+    String.fromCharCode(10),
+  ),
+);
+{
+  const at = '2026-09-10T19:00:00.000Z';
+  const match: RiftMatch = {
+    id: 'm-1',
+    scheduledAt: at,
+    status: 'scheduled',
+    teams: [
+      { id: 't-ff', name: 'Fast Forward', tag: 'FF' },
+      { id: 't-bag', name: 'Baguette & Bryndza', tag: 'BAG' },
+    ],
+  };
+  const hours = (n: number) => new Date(new Date(at).getTime() - n * 3_600_000);
+  check('six hours out it is not due', dueToPrepare([match], hours(6)).length === 0);
+  check('five hours out it is', dueToPrepare([match], hours(5)).length === 1);
+  check('at the hour it still is', dueToPrepare([match], hours(0)).length === 1);
+  check(
+    'four hours after, it is not: nobody wants an empty room',
+    dueToPrepare([match], hours(-4)).length === 0,
+  );
+  check(
+    'a played match never is',
+    dueToPrepare([{ ...match, status: 'done' }], hours(5)).length === 0,
+  );
+  check(
+    'the channel is named the way Discord will spell it',
+    channelNameFor(match) === 'fast-forward-vs-baguette-bryndza',
+    channelNameFor(match),
+  );
+  const roles = [
+    { id: 'r1', name: 'Fast Forward' },
+    { id: 'r2', name: 'Fast Forward Test' },
+    { id: 'r3', name: 'Baguette & Bryndza 🥖' },
+    { id: 'r4', name: 'Staff' },
+  ];
+  check('a team is the role with its name', teamRole(match.teams[0]!, roles)?.id === 'r1');
+  check('decoration on the role is ignored', teamRole(match.teams[1]!, roles)?.id === 'r3');
+  check(
+    "the calendar's own role id wins",
+    teamRole({ ...match.teams[0]!, discordRoleId: 'r2' }, roles)?.id === 'r2',
+  );
+  check(
+    'a team with no role is nobody, not a guess',
+    teamRole({ id: 't-x', name: 'Xenon Rising', tag: 'XR' }, roles) === null,
+  );
 }
 
 console.log(

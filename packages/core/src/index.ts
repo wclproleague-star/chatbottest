@@ -166,3 +166,14 @@ export type * from './database.types';
 export { searchKnowledge } from './agent';
 export { keep, guard, memoryOf, QUIET_MS } from './keeper';
 export type { KeeperInput, KeeperDecision } from './keeper';
+export {
+  dueToPrepare,
+  channelNameFor,
+  teamRole,
+  startTimeIn,
+  LEAD_HOURS,
+  DEFAULT_MATCH_CATEGORY,
+} from './matches';
+export type { UpcomingMatch } from './matches';
+export { riftMatchesBetween, reportResult } from './fetchers/rift-legends';
+export type { RiftMatch, RiftTeam } from './fetchers/rift-legends';
