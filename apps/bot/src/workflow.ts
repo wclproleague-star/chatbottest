@@ -459,11 +459,20 @@ export async function startSeries(input: {
 }): Promise<{ ok: true } | { ok: false; because: string }> {
   const { guild } = input;
   const { allowedActions } = await runSettings(guild.id);
-  const found = await searchKnowledge(guild.id, 'best of three rules sides draft', 0.4).catch(
+  // The rules line comes from the knowledge only when the knowledge actually
+  // has the Bo3 rules: a loose search once put a mod's answer about the prize
+  // pool at the bottom of every greeting.
+  const found = await searchKnowledge(guild.id, 'best of three match rules draft sides', 0.6).catch(
     () => [],
   );
+  const aboutTheFormat = (text: string): boolean =>
+    /(bo3|best of|draft|side|sides|game 1|game one|fearless|match rules|règles)/i.test(text) &&
+    !/^Q:/m.test(text);
   const rules =
-    found[0]?.content.trim().slice(0, 600) ||
+    found
+      .map((c) => c.content.trim())
+      .find(aboutTheFormat)
+      ?.slice(0, 600) ||
     'Best of three: first to two wins. Loser of a game picks side for the next.';
   const effects = workflowEffects(guild);
   let results = RESULTS_CHANNELS[0]!;
