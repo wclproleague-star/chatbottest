@@ -280,6 +280,72 @@ export type Database = {
         Update: { kind?: string };
         Relationships: [];
       };
+      playbooks: {
+        Row: {
+          id: string;
+          guild_id: string;
+          name: string;
+          trigger: Json;
+          steps: Json;
+          checks: Json;
+          enabled: boolean;
+          auto_run: boolean;
+          created_by: string | null;
+          last_run: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          guild_id: string;
+          name: string;
+          trigger?: Json;
+          steps?: Json;
+          checks?: Json;
+          enabled?: boolean;
+          auto_run?: boolean;
+          created_by?: string | null;
+          last_run?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          name?: string;
+          trigger?: Json;
+          steps?: Json;
+          checks?: Json;
+          enabled?: boolean;
+          auto_run?: boolean;
+          last_run?: string | null;
+        };
+        Relationships: [];
+      };
+      playbook_runs: {
+        Row: {
+          id: string;
+          guild_id: string;
+          playbook_id: string | null;
+          started_at: string;
+          finished_at: string | null;
+          mode: 'live' | 'dry_run';
+          status: 'running' | 'done' | 'stopped' | 'failed';
+          summary: Json;
+        };
+        Insert: {
+          id?: string;
+          guild_id: string;
+          playbook_id?: string | null;
+          started_at?: string;
+          finished_at?: string | null;
+          mode?: 'live' | 'dry_run';
+          status?: 'running' | 'done' | 'stopped' | 'failed';
+          summary?: Json;
+        };
+        Update: {
+          finished_at?: string | null;
+          status?: 'running' | 'done' | 'stopped' | 'failed';
+          summary?: Json;
+        };
+        Relationships: [];
+      };
       knowledge_conflicts: {
         Row: {
           id: string;

@@ -21,6 +21,7 @@ import {
 } from './guild';
 import { handleMention } from './mention';
 import { claim, sweepClaims } from './once';
+import { onButton } from './playbook';
 
 const client = new Client({
   intents: [
@@ -152,6 +153,16 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     await onTick(reaction, user, await loadSettings(guildId));
   } catch (err) {
     console.error(`sentry: reaction handler failed: ${String(err)}`);
+  }
+});
+
+client.on(Events.InteractionCreate, async (interaction) => {
+  try {
+    if (!interaction.isButton() || !interaction.guildId) return;
+    if (!(await isClaimed(interaction.guildId))) return;
+    await onButton(interaction);
+  } catch (err) {
+    console.error(`sentry: interaction handler failed: ${String(err)}`);
   }
 });
 

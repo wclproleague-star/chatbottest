@@ -1,5 +1,10 @@
 // The AI pipeline and the typed Supabase client. Server side and the bot only.
 
+export { runPlaybook, recordRun, PLAYBOOK_ACTIONS } from './playbooks';
+export type { Playbook, PlaybookEffects, RunResult, Step } from './playbooks';
+
+export { MATCH_DAY, matchDayContext } from './playbooks/match-day';
+
 export { onboard, missing, applyAnswer, toneSamples, DEFAULT_FORBIDDEN } from './onboard';
 export type { DraftConfig, OnboardMessage, OnboardResult } from './onboard';
 
