@@ -39,6 +39,7 @@ export function coverRect(width: number, height: number): Rect {
 
 export function Scene({
   light,
+  progress = 1,
   dark = 0,
   dawn = 0,
   changeMs,
@@ -51,6 +52,8 @@ export function Scene({
   children,
 }: {
   light: Light;
+  /** How much of the slit is lit, from the bottom, in fifths. Setup fills it; everywhere else 1. */
+  progress?: number;
   /** Night over the scene, 0 to 1. The thread screen uses 0.2. */
   dark?: number;
   /** Dawn progress, 0 to 1. */
@@ -127,7 +130,7 @@ export function Scene({
           density={density}
           parallax={parallax}
           horizon={horizon}
-          beacon={rect ? { frame: rect, x: meta.focusX, light, fade, changeMs } : null}
+          beacon={rect ? { frame: rect, x: meta.focusX, light, progress, fade, changeMs } : null}
           onReady={onReady}
         />
       </div>

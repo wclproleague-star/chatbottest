@@ -1,24 +1,35 @@
 'use client';
 
-// Setting a bot up, as one page with four moments.
+// Setting a bot up, on the headland, start to finish.
 //
-// 1. Night. The beacon centred, its slit dark: nothing has been decided.
-// 2. Paper. The conversation on the left, and on the right the beacon is the
-//    card: each thing decided lights one fifth of the slit in amber, with the
-//    value beside it in words.
-// 3. The test chat, slit full amber: it is configured and answering.
-// 4. Night again, the beacon large, the slit turning green: it is live.
+// One scene the whole way: the cliff, the coded sky, the beacon standing
+// right of centre with its shadow on the ground, and it never moves. The slit
+// is the progress. Dark at the door. One fifth in amber per thing decided —
+// name, voice, language, knowledge, scope — from the bottom up. Full amber
+// at the test. Green when the bot is live. Nothing else on the page says how
+// far along you are: the object does.
 //
-// One decision on screen at a time, a thin bar along the top, and no dashboard
-// chrome: this is the one place in the product that is not the dashboard.
+// Each step lives on smoked glass on the left half of the scene: the
+// conversation, the form, the test chat, the finish. What has been decided
+// stands on a second, smaller glass to the right of the beacon, as a card of
+// facts — only the fields that exist, never a greyed-out one. On a phone the
+// glass is the bottom of the screen and the beacon is behind it.
 
-import { Button, ButtonLink, Field, Input, Panel, Textarea, cx } from '@kalvard/ui';
+import { Field, Input, Textarea, cx } from '@kalvard/ui';
 import type { DraftConfig } from '@kalvard/core';
-import { useActionState, useEffect, useRef, useState } from 'react';
-import { Beacon } from '@/components/beacon/beacon';
+import type { ReactNode } from 'react';
+import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import { SupportChoice } from '@/components/dashboard/support-choice';
-import { Live, NightScene } from './night-scene';
-import { Travel } from './travel';
+import {
+  GLASS,
+  GLASS_LIGHT,
+  Glass,
+  LiveLine,
+  SCENE_BUTTON,
+  SCENE_LINK,
+  SetupScene,
+  TO_GREEN_MS,
+} from './night-scene';
 import { TestChat } from '@/app/g/[guildId]/test/test-chat';
 import {
   applyDraft,
@@ -33,7 +44,7 @@ import type { ChatState } from '@/app/g/[guildId]/onboarding/actions';
 type Step = 'entry' | 'chat' | 'form' | 'try' | 'bring' | 'finish' | 'live';
 type Named = { id: string; name: string };
 
-/** The five things setup decides, in the order it asks for them. */
+/** The five things setup decides, in the order it asks for them: one fifth of the slit each. */
 const AREAS: { key: keyof DraftConfig; label: string }[] = [
   { key: 'botName', label: 'Name' },
   { key: 'personaPrompt', label: 'Voice' },
@@ -66,27 +77,33 @@ export function Setup({
 }) {
   const [step, setStep] = useState<Step>(startAt ?? (installed && !completed ? 'finish' : 'entry'));
   const [sessionId, setSessionId] = useState('');
-  const [config, setConfig] = useState<DraftConfig>(preview ? PREVIEW_CONFIG : {});
+  const [config, setConfig] = useState<DraftConfig>(
+    preview && startAt && startAt !== 'entry' ? PREVIEW_CONFIG : {},
+  );
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
-  // The scene-to-console move, and where on the console the beacon lands.
-  const [travel, setTravel] = useState<'in' | 'out' | null>(null);
-  const slot = useRef<HTMLDivElement>(null);
-  const [slotBox, setSlotBox] = useState<{
-    left: number;
-    top: number;
-    width: number;
-    height: number;
-  } | null>(null);
+  const [green, setGreen] = useState(false);
+  const turnGreen = useCallback(() => setGreen(true), []);
 
   const done = AREAS.filter((area) => filled(config, area.key)).length;
-  const night = step === 'entry' || step === 'live';
+
+  // The light is the state of the whole thing.
+  const light = green
+    ? 'green'
+    : step === 'entry'
+      ? 'off'
+      : step === 'chat' || step === 'form'
+        ? done === 0
+          ? 'off'
+          : 'amber'
+        : 'amber';
+  const progress =
+    step === 'entry' ? 0 : step === 'chat' || step === 'form' ? done / AREAS.length : 1;
 
   async function begin(mode: 'chat' | 'form') {
     if (preview) {
       setSessionId('preview');
       setStep(mode);
-      startTravel('in');
       return;
     }
     const started = await startSession(guildId, mode);
@@ -96,30 +113,6 @@ export function Setup({
     }
     setSessionId(started.sessionId);
     setStep(mode);
-    startTravel('in');
-  }
-
-  /**
-   * The console is put on screen first and the scene is laid over it, so what
-   * the beacon travels to is a slot that exists and has been measured rather
-   * than a guess at where it will end up.
-   */
-  function startTravel(direction: 'in' | 'out') {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    requestAnimationFrame(() => {
-      const rect = slot.current?.getBoundingClientRect();
-      setSlotBox(
-        rect
-          ? { left: rect.left, top: rect.top, width: rect.width, height: rect.height }
-          : {
-              left: window.innerWidth / 2 - 48,
-              top: window.innerHeight / 2 - 130,
-              width: 96,
-              height: 260,
-            },
-      );
-      setTravel(direction);
-    });
   }
 
   async function finishDraft(draft: DraftConfig) {
@@ -136,51 +129,29 @@ export function Setup({
     setStep('try');
   }
 
+  const decided = AREAS.filter((area) => filled(config, area.key));
+
   return (
-    <main
-      data-theme="dark"
-      data-surface={night ? 'night' : 'paper'}
-      className={cx(
-        'min-h-screen transition-colors duration-700',
-        night ? 'bg-night text-star' : 'bg-paper text-ink',
-      )}
-    >
-      {/* One thin bar, and nothing else at the top. */}
-      <div className={cx('h-0.5 w-full', night ? 'bg-star/10' : 'bg-ink/10')}>
-        <div
-          className="bg-amber h-0.5 transition-[width] duration-500"
-          style={{ width: `${progressOf(step, done)}%` }}
-        />
-      </div>
-
-      {step === 'entry' && (
-        <NightScene light="off" label="Kalvard, unlit">
-          <p className="text-body text-star/80 max-w-[40ch] text-center">
-            Kalvard isn&apos;t set up yet.
-          </p>
-          <div className="mt-8">
-            <Button onClick={() => void begin('chat')} className="bg-star text-night">
-              Set it up
-            </Button>
-          </div>
-          <button
-            onClick={() => void begin('form')}
-            className="text-ui text-star/60 hover:text-star mt-4 underline underline-offset-4"
-          >
-            Fill it in instead
-          </button>
-          {error && <p className="text-ui text-star/80 mt-6">{error}</p>}
-        </NightScene>
-      )}
-
-      {(step === 'chat' || step === 'form') && (
-        <div className="mx-auto grid max-w-[1120px] gap-16 px-6 py-16 lg:grid-cols-[1fr_320px] lg:px-12">
-          <div className="min-w-0">
-            <p className="text-ui-sm text-ink-soft">
-              {AREAS[Math.min(done, AREAS.length - 1)]?.label} · {done} of {AREAS.length} decided ·
-              nothing reaches your server until you say so
+    <main data-theme="dark" data-surface="night" className="bg-night text-star">
+      <SetupScene light={light} progress={progress} changeMs={green ? TO_GREEN_MS : undefined}>
+        {/* The door: one line, one button, in the free space above the headland. */}
+        {step === 'entry' && (
+          <Centred>
+            <p className="text-star/85 text-center text-[22px] leading-snug">
+              Kalvard isn&apos;t set up yet.
             </p>
-            <div className="mt-6">
+            <div className="mt-8 flex justify-center">
+              <button className={SCENE_BUTTON} onClick={() => void begin('chat')}>
+                Set it up
+              </button>
+            </div>
+            {error && <p className="text-ui text-star/80 mt-6 text-center">{error}</p>}
+          </Centred>
+        )}
+
+        {(step === 'chat' || step === 'form') && (
+          <>
+            <Glass>
               {step === 'chat' ? (
                 <Chat
                   guildId={guildId}
@@ -188,6 +159,14 @@ export function Setup({
                   preview={preview}
                   onConfig={setConfig}
                   onDone={(draft) => void finishDraft(draft)}
+                  // The form is offered once, quietly, inside the first question.
+                  aside={
+                    done === 0 ? (
+                      <button className={SCENE_LINK} onClick={() => setStep('form')}>
+                        Rather fill in a form?
+                      </button>
+                    ) : null
+                  }
                 />
               ) : (
                 <Form
@@ -199,128 +178,121 @@ export function Setup({
                   onDone={(draft) => void finishDraft(draft)}
                 />
               )}
-            </div>
-            <button
-              className="text-ui-sm text-ink-soft hover:text-ink mt-8 underline underline-offset-4"
-              onClick={() => setStep(step === 'chat' ? 'form' : 'chat')}
-            >
-              {step === 'chat' ? 'Fill it in instead' : 'Talk it through instead'}
-            </button>
-          </div>
+            </Glass>
+            {decided.length > 0 && <Card config={config} areas={decided} />}
+          </>
+        )}
 
-          {/* The card is the beacon: what is decided is what is lit. */}
-          <aside className="min-w-0 lg:sticky lg:top-16 lg:self-start">
-            <div className="flex min-w-0 gap-6">
-              <div ref={slot} className="h-[260px] w-[96px] shrink-0">
-                <Beacon
-                  light={done === 0 ? 'off' : 'amber'}
-                  progress={done / AREAS.length}
-                  className={cx('h-full w-full', travel === 'in' && 'opacity-0')}
-                  label={`${done} of ${AREAS.length} decided`}
-                />
-              </div>
-              <dl className="min-w-0 flex-1 space-y-4">
-                {AREAS.map((area) => (
-                  <div key={String(area.key)}>
-                    <dt className="text-ui-sm text-ink-soft">{area.label}</dt>
-                    <dd
-                      className={cx(
-                        'text-ui mt-0.5 [overflow-wrap:anywhere]',
-                        filled(config, area.key) ? 'text-ink' : 'border-hairline border-b',
-                      )}
-                    >
-                      {valueOf(config, area.key)}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
-          </aside>
-        </div>
-      )}
-
-      {step === 'try' && (
-        <div className="mx-auto max-w-[1120px] px-6 py-16 lg:px-12">
-          <div className="flex items-start gap-6">
-            <Beacon light="amber" className="h-[180px] w-[70px] shrink-0" label="Kalvard, ready" />
-            <div>
-              <h1 className="display text-ink" style={{ ['--display-size' as string]: '32px' }}>
-                Try it
-              </h1>
-              <p className="text-body text-ink-soft mt-2 max-w-[52ch]">
+        {step === 'try' && (
+          <Glass wide>
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <h1 className="text-star text-[22px] leading-snug">Try it</h1>
+              <p className="text-body text-star/70 mt-2 max-w-[52ch]">
                 This is your bot, answering from what it knows. Nothing it says here touches your
                 server.
               </p>
-              {warning && <p className="text-ui text-ink-soft mt-3 max-w-[52ch]">{warning}</p>}
+              {warning && <p className="text-ui text-star/70 mt-3 max-w-[52ch]">{warning}</p>}
+              <div className="mt-8">
+                <TestChat guildId={guildId} botName={config.botName ?? 'Kalvard'} />
+              </div>
             </div>
-          </div>
-          <div className="mt-10">
-            <TestChat guildId={guildId} botName={config.botName ?? 'Kalvard'} />
-          </div>
-          <div className="mt-12 flex items-center gap-6">
-            <Button onClick={() => setStep(installed ? 'finish' : 'bring')}>
-              {installed ? 'Continue' : 'Bring it to Discord'}
-            </Button>
-            {installed && (
-              <p className="text-ui-sm text-ink-soft">
-                Kalvard is already in your server, so the invite is skipped.
+            <div className="mt-6 flex items-center gap-6">
+              <button
+                className={SCENE_BUTTON}
+                onClick={() => setStep(installed ? 'finish' : 'bring')}
+              >
+                {installed ? 'Continue' : 'Bring it to Discord'}
+              </button>
+              {installed && (
+                <p className="text-ui-sm text-star/60">
+                  Already in your server; the invite is skipped.
+                </p>
+              )}
+            </div>
+          </Glass>
+        )}
+
+        {step === 'bring' && (
+          <Glass>
+            <BringIt
+              guildId={guildId}
+              inviteUrl={inviteUrl}
+              preview={preview}
+              onArrived={() => setStep('finish')}
+            />
+          </Glass>
+        )}
+
+        {step === 'finish' && (
+          <Glass wide>
+            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+              <h1 className="text-star text-[22px] leading-snug">Where it may answer</h1>
+              <p className="text-body text-star/70 mt-2 max-w-[52ch]">
+                It is in {guildName}. Say where it may answer, who it wakes, and where it reports
+                quietly.
               </p>
-            )}
-          </div>
-        </div>
-      )}
+              <Finish
+                guildId={guildId}
+                channels={channels}
+                roles={roles}
+                onDone={() => setStep('live')}
+              />
+            </div>
+          </Glass>
+        )}
 
-      {step === 'bring' && (
-        <BringIt
-          guildId={guildId}
-          inviteUrl={inviteUrl}
-          preview={preview}
-          onArrived={() => setStep('finish')}
-        />
-      )}
-
-      {step === 'finish' && (
-        <div className="mx-auto max-w-[1120px] px-6 py-16 lg:px-12">
-          <h1 className="display text-ink" style={{ ['--display-size' as string]: '32px' }}>
-            Where it may answer
-          </h1>
-          <p className="text-body text-ink-soft mt-2 max-w-[52ch]">
-            It is in {guildName}. Say where it may answer, who it wakes, and where it reports
-            quietly.
-          </p>
-          <Finish
-            guildId={guildId}
-            channels={channels}
-            roles={roles}
-            onDone={() => {
-              setStep('live');
-              startTravel('out');
-            }}
-          />
-        </div>
-      )}
-
-      {step === 'live' && travel !== 'out' && <Live guildId={guildId} guildName={guildName} />}
-
-      {travel && (
-        <Travel
-          direction={travel}
-          light={travel === 'in' ? (done === 0 ? 'off' : 'amber') : 'amber'}
-          slot={slotBox}
-          onDone={() => setTravel(null)}
-        />
-      )}
+        {step === 'live' && (
+          <Centred>
+            <LiveLine guildName={guildName} onGreen={turnGreen}>
+              <a href={`/g/${guildId}/overview`} className={cx(SCENE_BUTTON, 'fade-in')}>
+                Open the dashboard
+              </a>
+            </LiveLine>
+          </Centred>
+        )}
+      </SetupScene>
     </main>
   );
 }
 
-function progressOf(step: Step, done: number): number {
-  if (step === 'entry') return 0;
-  if (step === 'chat' || step === 'form') return 10 + (done / AREAS.length) * 50;
-  if (step === 'try') return 70;
-  if (step === 'bring') return 85;
-  if (step === 'finish') return 95;
-  return 100;
+/** Text and a button, centred in the sky above the headland. */
+function Centred({ children }: { children: ReactNode }) {
+  return (
+    <div className="absolute inset-x-0 top-[18vh] mx-auto max-w-[44ch] px-6 md:top-[22vh]">
+      {children}
+    </div>
+  );
+}
+
+/**
+ * What has been decided, on glass to the right of the beacon. Only fields
+ * that exist: an empty one is not a row in grey, it is not there.
+ */
+function Card({
+  config,
+  areas,
+}: {
+  config: DraftConfig;
+  areas: { key: keyof DraftConfig; label: string }[];
+}) {
+  return (
+    <aside
+      className="text-star absolute right-[4vw] top-[8vh] hidden w-[260px] rounded-2xl p-6 lg:block"
+      style={GLASS}
+      aria-label="Decided so far"
+    >
+      <dl className="space-y-4">
+        {areas.map((area) => (
+          <div key={String(area.key)}>
+            <dt className="text-ui-sm text-star/55">{area.label}</dt>
+            <dd className="text-ui text-star mt-0.5 [overflow-wrap:anywhere]">
+              {valueOf(config, area.key)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </aside>
+  );
 }
 
 function filled(config: DraftConfig, key: keyof DraftConfig): boolean {
@@ -366,25 +338,68 @@ const PREVIEW_TURNS: { role: 'user' | 'model'; text: string }[] = [
 ];
 const PREVIEW_REPLIES = ['Not yet, I will add it later'];
 
-/** The conversation. Kalvard left with a green rule, the owner right on white. */
+/** The 52px input inside the glass: transparent, a hairline that turns amber on focus, Send inside it. */
+function GlassInput({
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  disabled?: boolean;
+  placeholder: string;
+}) {
+  return (
+    <form
+      className="border-star/25 focus-within:border-amber flex h-[52px] items-center rounded-xl border pl-4 pr-1.5 transition-colors"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit();
+      }}
+    >
+      <input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className="text-star placeholder:text-star/40 h-full min-w-0 flex-1 bg-transparent text-[16px] outline-none"
+      />
+      <button
+        type="submit"
+        disabled={disabled}
+        className="bg-star text-night h-10 shrink-0 rounded-lg px-4 text-[15px] font-medium transition-[filter,transform] hover:brightness-[1.06] active:scale-[0.98] disabled:opacity-40"
+      >
+        Send
+      </button>
+    </form>
+  );
+}
+
+/** The conversation: Kalvard's question at 22px with the green rule, the owner's answers as smaller bubbles on lighter glass. */
 function Chat({
   guildId,
   sessionId,
   preview,
   onConfig,
   onDone,
+  aside,
 }: {
   guildId: string;
   sessionId: string;
   preview?: boolean;
   onConfig: (config: DraftConfig) => void;
   onDone: (config: DraftConfig) => void;
+  aside?: ReactNode;
 }) {
   const [state, action, pending] = useActionState<ChatState | null, FormData>(say, null);
   const [turns, setTurns] = useState(preview ? PREVIEW_TURNS : []);
   const [draft, setDraft] = useState('');
   const opened = useRef(false);
   const seen = useRef(0);
+  const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (preview || !sessionId || opened.current) return;
@@ -404,6 +419,10 @@ function Chat({
       setTurns((all) => [...all, { role: 'model' as const, text: state.message! }]);
   }, [state, onConfig]);
 
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end' });
+  }, [turns.length, pending]);
+
   function send(text: string) {
     const said = text.trim();
     if (!said || pending || preview) return;
@@ -419,77 +438,68 @@ function Chat({
   const replies = preview ? PREVIEW_REPLIES : (state?.quickReplies ?? []);
 
   return (
-    <div>
-      <div className="space-y-5">
+    <>
+      <div className="min-h-0 flex-1 space-y-5 overflow-y-auto pr-1">
         {turns.map((turn, i) =>
           turn.role === 'model' ? (
             <p
               key={i}
               className={cx(
-                'text-ink border-green max-w-full border-l-2 pl-4 lg:max-w-[60ch]',
-                // The last thing Kalvard said is the question you are answering,
-                // so it is the biggest thing on the screen.
+                'text-star border-green border-l-2 pl-4',
+                // The last thing Kalvard said is the question you are answering.
                 i === turns.length - 1 && !pending
-                  ? 'display [--display-size:26px]'
-                  : 'text-thread',
+                  ? 'text-[22px] leading-snug'
+                  : 'text-thread text-star/70',
               )}
             >
               {turn.text}
             </p>
           ) : (
             <div key={i} className="flex justify-end">
-              <Panel className="max-w-full shadow-none lg:max-w-[60ch]">
-                <p className="text-thread text-ink">{turn.text}</p>
-              </Panel>
+              <div className="max-w-[80%] rounded-xl px-4 py-2.5" style={GLASS_LIGHT}>
+                <p className="text-thread text-star">{turn.text}</p>
+              </div>
             </div>
           ),
         )}
-        {pending && <p className="text-ui text-ink-soft">Thinking</p>}
+        {pending && <p className="text-ui text-star/55">Thinking</p>}
+        {replies.length > 0 && !pending && (
+          <div className="flex flex-wrap gap-2">
+            {replies.map((reply) => (
+              <button
+                key={reply}
+                onClick={() => send(reply)}
+                className="text-ui border-star/25 text-star hover:bg-star/10 h-9 rounded-full border px-4 transition-colors"
+              >
+                {reply}
+              </button>
+            ))}
+          </div>
+        )}
+        <div ref={end} />
       </div>
 
-      {replies.length > 0 && !pending && (
-        <div className="mt-6 flex flex-wrap gap-2">
-          {replies.map((reply) => (
-            <button
-              key={reply}
-              onClick={() => send(reply)}
-              className="text-ui border-hairline text-ink hover:bg-ink/5 h-9 rounded-full border px-4"
-            >
-              {reply}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {state?.done ? (
-        <div className="mt-8">
-          <Button onClick={() => onDone(state.config ?? {})}>Save and try it</Button>
-        </div>
-      ) : (
-        <form
-          className="mt-8 flex gap-3"
-          onSubmit={(event) => {
-            event.preventDefault();
-            send(draft);
-          }}
-        >
-          <Input
+      <div className="mt-6">
+        {state?.done ? (
+          <button className={SCENE_BUTTON} onClick={() => onDone(state.config ?? {})}>
+            Save and try it
+          </button>
+        ) : (
+          <GlassInput
             value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder="Type your answer"
-            aria-label="Your answer"
-            className="flex-1"
+            onChange={setDraft}
+            onSubmit={() => send(draft)}
+            disabled={pending || !draft.trim()}
+            placeholder="Your answer"
           />
-          <Button type="submit" disabled={pending || !draft.trim()}>
-            Send
-          </Button>
-        </form>
-      )}
-    </div>
+        )}
+        {aside && <div className="mt-4">{aside}</div>}
+      </div>
+    </>
   );
 }
 
-/** The same five things, as a form. */
+/** The same five things, as a form, on the glass. */
 function Form({
   guildId,
   sessionId,
@@ -511,7 +521,7 @@ function Form({
 
   return (
     <form
-      className="max-w-[60ch] space-y-6"
+      className="min-h-0 flex-1 space-y-6 overflow-y-auto pr-1"
       onSubmit={async (event) => {
         event.preventDefault();
         setSaving(true);
@@ -576,10 +586,10 @@ function Form({
               onClick={() => set({ scope: value })}
               aria-pressed={config.scope === value}
               className={cx(
-                'text-ui h-9 rounded-full border px-4',
+                'text-ui h-9 rounded-full border px-4 transition-colors',
                 config.scope === value
-                  ? 'border-ink bg-ink text-paper'
-                  : 'border-hairline text-ink hover:bg-ink/5',
+                  ? 'border-star bg-star text-night'
+                  : 'border-star/25 text-star hover:bg-star/10',
               )}
             >
               {label}
@@ -587,9 +597,11 @@ function Form({
           ))}
         </div>
       </Field>
-      <Button type="submit" disabled={!ready || saving}>
-        {saving ? 'Saving' : 'Save and try it'}
-      </Button>
+      <div className="pt-2">
+        <button type="submit" className={SCENE_BUTTON} disabled={!ready || saving}>
+          {saving ? 'Saving' : 'Save and try it'}
+        </button>
+      </div>
     </form>
   );
 }
@@ -626,25 +638,29 @@ function BringIt({
     : '';
 
   return (
-    <div className="mx-auto max-w-[60ch] px-6 py-24">
-      <h1 className="display text-ink" style={{ ['--display-size' as string]: '32px' }}>
-        Bring it to Discord
-      </h1>
-      <p className="text-body text-ink-soft mt-2">
+    <div>
+      <h1 className="text-star text-[22px] leading-snug">Bring it to Discord</h1>
+      <p className="text-body text-star/70 mt-2">
         Add it to your server, then come back. This page notices when it arrives.
       </p>
       <div className="mt-8">
         {url ? (
-          <ButtonLink href={url} target="_blank" rel="noreferrer" onClick={() => setWaiting(true)}>
+          <a
+            href={url}
+            target="_blank"
+            rel="noreferrer"
+            onClick={() => setWaiting(true)}
+            className={SCENE_BUTTON}
+          >
             Bring it to Discord
-          </ButtonLink>
+          </a>
         ) : (
-          <p className="text-ui text-ink">
+          <p className="text-ui text-star">
             No invite link is configured. Set DISCORD_BOT_INVITE_URL and reload.
           </p>
         )}
       </div>
-      {waiting && <p className="text-ui text-ink-soft mt-4">Waiting for it to appear</p>}
+      {waiting && <p className="text-ui text-star/60 mt-4">Waiting for it to appear</p>}
     </div>
   );
 }
@@ -668,15 +684,18 @@ function Finish({
 
   if (channels.length === 0 && roles.length === 0) {
     return (
-      <p className="text-body text-ink-soft mt-10 max-w-[60ch]">
+      <p className="text-body text-star/70 mt-10 max-w-[60ch]">
         Kalvard has not read your channels and roles yet. Give it a moment and reload.
       </p>
     );
   }
 
+  const select =
+    'border-star/25 text-star h-11 w-full rounded-lg border bg-transparent px-3 text-ui focus:border-amber outline-none';
+
   return (
     <>
-      <form action={action} className="mt-10 max-w-[60ch] space-y-6">
+      <form action={action} className="mt-8 space-y-6">
         <input type="hidden" name="guild_id" value={guildId} />
         <Field
           label="Where may it answer?"
@@ -684,18 +703,14 @@ function Finish({
         >
           <div className="space-y-2">
             {channels.map((channel) => (
-              <label key={channel.id} className="text-ui text-ink flex items-center gap-2">
+              <label key={channel.id} className="text-ui text-star flex items-center gap-2">
                 <input type="checkbox" name="answer_in" value={channel.id} />#{channel.name}
               </label>
             ))}
           </div>
         </Field>
         <Field label="Who does it wake when it is not sure?">
-          <select
-            name="mod_role"
-            defaultValue=""
-            className="border-field-line text-ui text-ink bg-field h-11 w-full rounded-lg border px-3"
-          >
+          <select name="mod_role" defaultValue="" className={select}>
             <option value="">Choose a role</option>
             {roles.map((role) => (
               <option key={role.id} value={role.id}>
@@ -708,11 +723,7 @@ function Finish({
           label="Where should it report quietly?"
           help="Harassment, slurs and scams are never answered in public. They go here instead."
         >
-          <select
-            name="mod_channel"
-            defaultValue=""
-            className="border-field-line text-ui text-ink bg-field h-11 w-full rounded-lg border px-3"
-          >
+          <select name="mod_channel" defaultValue="" className={select}>
             <option value="">Nowhere, just record it</option>
             {channels.map((channel) => (
               <option key={channel.id} value={channel.id}>
@@ -721,16 +732,14 @@ function Finish({
             ))}
           </select>
         </Field>
-        {state?.error && <p className="text-ui text-ink">{state.error}</p>}
-        <Button type="submit" disabled={pending}>
+        {state?.error && <p className="text-ui text-star">{state.error}</p>}
+        <button type="submit" className={SCENE_BUTTON} disabled={pending}>
           {pending ? 'Saving' : 'Save changes'}
-        </Button>
+        </button>
       </form>
-      <div className="mt-16 max-w-[60ch]">
-        <h2 className="display text-ink" style={{ ['--display-size' as string]: '24px' }}>
-          Where members get help
-        </h2>
-        <p className="text-body text-ink-soft mt-2">
+      <div className="mt-12">
+        <h2 className="text-star text-[22px] leading-snug">Where members get help</h2>
+        <p className="text-body text-star/70 mt-2">
           One of three. Kalvard asks what it needs, one thing at a time, shows the plan, and creates
           nothing until you say yes. You can change it later in Settings.
         </p>
