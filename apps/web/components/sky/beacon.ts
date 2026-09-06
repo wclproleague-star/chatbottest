@@ -27,7 +27,12 @@ import * as THREE from 'three';
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
 import ground from '../../../../assets/beacon/ground.png';
 
-export type Light = 'amber' | 'green' | 'off';
+/**
+ * What the light is doing. `amber` is the sentry watching, `green` is the
+ * result of an answer, `off` is unconfigured, and `working` is amber with a
+ * slow pulse, for the seconds while something is actually being carried out.
+ */
+export type Light = 'amber' | 'green' | 'off' | 'working';
 
 /** Where the beacon stands: the photograph's rect over the canvas, and the beacon's centre across it. */
 export type BeaconPlacement = {
@@ -36,6 +41,11 @@ export type BeaconPlacement = {
   /** The beacon's centre as a fraction of the frame's width. */
   x: number;
   light: Light;
+  /**
+   * How much of the slit is lit, from the bottom, in fifths. Setup lights one
+   * fifth per thing decided; everywhere else it is 1.
+   */
+  progress?: number;
   /** Opacity, driven by dawn. */
   fade: number;
 };
@@ -71,6 +81,11 @@ const MAX_PARALLAX_PX = 12;
 const BEACON_PARALLAX_PX = 4;
 /** The slit's colour change, ms. */
 const LIGHT_MS = 240;
+/** The slit is lit in fifths, so setup can light one per thing decided. */
+const SEGMENTS = 5;
+/** The working pulse: one slow breath, and shallow enough to read as alive. */
+const PULSE_MS = 1400;
+const PULSE_DEPTH = 0.22;
 
 /**
  * The strip shows its state colour exactly: its linear value is the inverse of
@@ -196,13 +211,25 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   );
   liner.position.set(slitX, slitY, front - (recess + chamfer) / 2 + chamfer * 0.5);
   group.add(liner);
-  const stripMaterial = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false });
-  const strip = new THREE.Mesh(
-    new THREE.PlaneGeometry(slitW - 2 * chamfer - 0.002, slitH - 2 * chamfer - 0.002),
-    stripMaterial,
-  );
-  strip.position.set(slitX, slitY, front - recess + 0.0006);
-  group.add(strip);
+  // The strip is five stacked pieces rather than one, so setup can light a
+  // fifth of it at a time from the bottom. At full progress they are one line:
+  // the seams are a thousandth of the slit's height.
+  const stripW = slitW - 2 * chamfer - 0.002;
+  const stripH = (slitH - 2 * chamfer - 0.002) / SEGMENTS;
+  const stripGeometry = new THREE.PlaneGeometry(stripW, stripH);
+  const stripMaterials: THREE.MeshBasicMaterial[] = [];
+  for (let i = 0; i < SEGMENTS; i++) {
+    const material = new THREE.MeshBasicMaterial({ color: 0x000000, toneMapped: false });
+    const piece = new THREE.Mesh(stripGeometry, material);
+    // i = 0 is the bottom: the slit fills upward.
+    piece.position.set(
+      slitX,
+      slitY - (slitH - 2 * chamfer - 0.002) / 2 + stripH * (i + 0.5),
+      front - recess + 0.0006,
+    );
+    group.add(piece);
+    stripMaterials.push(material);
+  }
 
   // The slit as a light: a rect area light at the recess floor, facing out.
   const slitLight = new THREE.RectAreaLight(0xffffff, 0, slitW, slitH);
@@ -278,18 +305,24 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   // The light state, eased over LIGHT_MS.
   const colors: Record<Light, THREE.Color> = {
     amber: linear(AMBER),
+    working: linear(AMBER),
     green: linear(GREEN),
     off: new THREE.Color(0, 0, 0),
   };
   // What the strip must hold so it displays the hex exactly.
   const shown: Record<Light, THREE.Color> = {
     amber: throughAces(AMBER),
+    working: throughAces(AMBER),
     green: throughAces(GREEN),
     off: new THREE.Color(0, 0, 0),
   };
   const fromShown = shown.amber.clone();
   const currentShown = shown.amber.clone();
-  const amount: Record<Light, number> = { amber: 1, green: 1, off: 0 };
+  const amount: Record<Light, number> = { amber: 1, working: 1, green: 1, off: 0 };
+  /** How much of the slit is lit, eased like the colour. */
+  let progressNow = 1;
+  let fromProgress = 1;
+  let currentProgress = 1;
   let lightNow: Light = 'amber';
   const fromColor = colors.amber.clone();
   let fromAmount = 1;
@@ -298,12 +331,14 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   let changedAt = -1;
   let fade = 1;
 
-  function setLight(next: Light, now: number) {
-    if (next === lightNow) return;
+  function setLight(next: Light, nextProgress: number, now: number) {
+    if (next === lightNow && nextProgress === progressNow) return;
     lightNow = next;
+    progressNow = nextProgress;
     fromColor.copy(current);
     fromShown.copy(currentShown);
     fromAmount = currentAmount;
+    fromProgress = currentProgress;
     changedAt = now;
   }
 
@@ -313,13 +348,29 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     current.lerpColors(fromColor, colors[lightNow], k);
     currentShown.lerpColors(fromShown, shown[lightNow], k);
     currentAmount = fromAmount + (amount[lightNow] - fromAmount) * k;
+    currentProgress = fromProgress + (progressNow - fromProgress) * k;
     if (k >= 1) changedAt = -1;
-    stripMaterial.color.copy(currentShown).multiplyScalar(currentAmount);
+
+    // Working breathes; everything else is steady. Reduced motion is handled
+    // by the caller, which stops ticking and leaves the end state showing.
+    const pulse =
+      lightNow === 'working' && Number.isFinite(now)
+        ? 1 - PULSE_DEPTH * (0.5 - 0.5 * Math.cos((now / PULSE_MS) * Math.PI * 2))
+        : 1;
+    const shownNow = currentAmount * pulse;
+
+    // The slit fills from the bottom, a fifth at a time; a segment part way
+    // through the fifth being lit fades rather than snapping on.
+    for (let i = 0; i < SEGMENTS; i++) {
+      const lit = Math.min(1, Math.max(0, currentProgress * SEGMENTS - i));
+      stripMaterials[i]!.color.copy(currentShown).multiplyScalar(shownNow * lit);
+    }
+    const litNow = shownNow * currentProgress;
     slitLight.color.copy(current);
-    slitLight.intensity = 24 * currentAmount;
+    slitLight.intensity = 24 * litNow;
     spillLight.color.copy(current);
-    spillLight.intensity = 0.072 * currentAmount;
-    spillMaterial.color.copy(current).multiplyScalar(0.066 * currentAmount);
+    spillLight.intensity = 0.072 * litNow;
+    spillMaterial.color.copy(current).multiplyScalar(0.066 * litNow);
   }
 
   /** Lay the camera's frustum over the photograph's rect and stand the beacon at x. */
@@ -335,7 +386,7 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
       parallax.y * k * unit,
       -depth,
     );
-    setLight(p.light, performance.now());
+    setLight(p.light, p.progress ?? 1, performance.now());
     fade = p.fade;
   }
 
@@ -453,12 +504,12 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     dispose() {
       prism.geometry.dispose();
       floor.geometry.dispose();
-      strip.geometry.dispose();
+      stripGeometry.dispose();
+      for (const material of stripMaterials) material.dispose();
       shadow.geometry.dispose();
       spill.geometry.dispose();
       body.dispose();
       roughnessMap.dispose();
-      stripMaterial.dispose();
       shadowMaterial.dispose();
       occlusionMaterial.dispose();
       occlusion.geometry.dispose();

@@ -16,7 +16,7 @@ import {
   parseLimits,
 } from './limits';
 import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
-import { applyAnswer, missing } from './onboard';
+import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { summarise } from './fetchers/http-json';
@@ -170,39 +170,67 @@ console.log(['', 'what a guild may spend'].join(String.fromCharCode(10)));
 
 console.log(['', 'setting a bot up'].join(String.fromCharCode(10)));
 {
-  // The loop a real owner hit: clicking a tone sample was read as pasting a
-  // schedule, so the field never filled and the same question came back.
-  const asked = missing({});
-  check('it asks for the name first', asked[0] === 'botName');
+  // Five things, in order, because the beacon's slit lights a fifth per thing
+  // decided: what an owner watches fill up is exactly what they have settled.
+  check('it asks for the name first', missing({})[0] === 'botName');
+  check('nothing decided lights nothing', decided({}) === 0);
+  check(
+    'the five are the five',
+    AREAS.map((a) => a.key).join(',') === 'botName,personaPrompt,language,knowledge,scope',
+  );
 
   const named = applyAnswer({}, 'botName', 'bogoss');
   check('a typed name is taken as the name', named.botName === 'bogoss');
-  check('the name is no longer missing', !missing(named).includes('botName'));
+  check('and lights one fifth', decided(named) === 1);
 
-  const toned = applyAnswer(named, 'toneSample', 'Next match is Saturday at 1500.');
+  const voiced = applyAnswer(named, 'personaPrompt', 'Funny but short. Esports server.');
+  const spoken = applyAnswer(voiced, 'language', 'The language each member writes in');
+  check('a picked language counts as answered', !missing(spoken).includes('language'));
+  check('three decided lights three fifths', decided(spoken) === 3);
+
+  const skipped = applyAnswer(spoken, 'knowledge', 'Not yet, I will add it later');
+  check('putting knowledge off is still a decision', decided(skipped) === 4);
+  check('and nothing was invented to fill it', (skipped.knowledge ?? []).length === 0);
+
+  const paste = ['Match schedule', 'Tuesdays at 19:00 CET.'].join(String.fromCharCode(10));
+  const pasted = applyAnswer(spoken, 'knowledge', paste);
+  check('a paste becomes a document', (pasted.knowledge ?? []).length === 1);
+  check('titled by its first line', pasted.knowledge?.[0]?.title === 'Match schedule');
+
+  const open = applyAnswer(skipped, 'scope', 'Yes, general questions too');
+  check('scope is answered', open.scope === 'open');
+  check('and the slit is full', decided(open) === 5);
+  check('nothing is left to ask', missing(open).length === 0);
+
+  const shut = applyAnswer(skipped, 'scope', 'This server only');
+  check('the other answer is heard too', shut.scope === 'server_only');
+
+  const renamed = applyAnswer(open, 'botName', 'ignored');
+  check('the name is not overwritten once given', renamed.botName === 'bogoss');
+
+  const topics = applyAnswer({}, 'forbiddenTopics', 'bans and appeals');
+  check('a picked topic is kept', (topics.forbiddenTopics ?? []).includes('bans and appeals'));
+  const none = applyAnswer({}, 'forbiddenTopics', 'Nothing, it can answer anything it knows');
+  check('choosing nothing forbidden forbids nothing', (none.forbiddenTopics ?? []).length === 0);
+}
+
+console.log(['', 'what a guild may spend'].join(String.fromCharCode(10)));
+{
+  const limits = parseLimits({ monthlyAnswers: 5, maxDocumentChars: 1000, maxGuildChunks: 10 });
+  check('a quota can be set', limits.monthlyAnswers === 5);
+  check('a document cap can be set', limits.maxDocumentChars === 1000);
+  check('a guild cap can be set', limits.maxGuildChunks === 10);
+  check('the defaults are generous, not zero', DEFAULT_LIMITS.monthlyAnswers > 100);
+  const start = monthStart(new Date('2026-09-17T13:45:00.000Z'));
   check(
-    'a picked tone is taken as the tone',
-    toned.toneSample === 'Next match is Saturday at 1500.',
+    'the month starts at its first instant',
+    start.toISOString() === '2026-09-01T00:00:00.000Z',
   );
-  check('the tone is no longer asked for', !missing(toned).includes('toneSample'));
-
-  const language = applyAnswer(toned, 'language', 'The language each member writes in');
-  check('a picked language counts as answered', !missing(language).includes('language'));
-
-  const none = applyAnswer(language, 'forbiddenTopics', 'Nothing, it can answer anything it knows');
-  check('choosing nothing forbidden still answers it', !missing(none).includes('forbiddenTopics'));
-  check('and forbids nothing', (none.forbiddenTopics ?? []).length === 0);
-
-  const one = applyAnswer(language, 'forbiddenTopics', 'bans and appeals');
-  check('a picked topic is kept', (one.forbiddenTopics ?? []).includes('bans and appeals'));
-
-  const full = applyAnswer(
-    applyAnswer(none, 'personaPrompt', 'Funny but short. Esports server.'),
-    'botName',
-    'ignored',
+  const january = monthStart(new Date('2026-01-01T00:00:00.000Z'));
+  check(
+    'the first of the month is its own start',
+    january.toISOString() === '2026-01-01T00:00:00.000Z',
   );
-  check('the name is not overwritten once given', full.botName === 'bogoss');
-  check('nothing is left to ask', missing(full).length === 0);
 }
 
 console.log(['', 'what a source may be pointed at'].join(String.fromCharCode(10)));

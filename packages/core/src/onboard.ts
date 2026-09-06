@@ -23,6 +23,8 @@ export type DraftConfig = {
   forbiddenTopics?: string[];
   /** Knowledge pasted during the conversation, kept until the session is saved. */
   knowledge?: { title: string; text: string }[];
+  /** Whether it answers anything beyond this server. */
+  scope?: 'open' | 'server_only';
   /**
    * The questions the owner has actually answered. Kept because an answer can
    * be "nothing at all", which is a decision and not a gap: without this,
@@ -51,13 +53,32 @@ export const DEFAULT_FORBIDDEN = [
   'staff-only info',
 ];
 
+/**
+ * The five things setup asks for, in order. They are five because the beacon's
+ * slit lights a fifth at a time: what an owner sees fill up is exactly what
+ * they have decided.
+ */
 const REQUIRED: (keyof DraftConfig)[] = [
   'botName',
   'personaPrompt',
   'language',
-  'toneSample',
-  'forbiddenTopics',
+  'knowledge',
+  'scope',
 ];
+
+/** The five, named as the setup screen names them. */
+export const AREAS: { key: keyof DraftConfig; label: string }[] = [
+  { key: 'botName', label: 'Name' },
+  { key: 'personaPrompt', label: 'Voice' },
+  { key: 'language', label: 'Language' },
+  { key: 'knowledge', label: 'Knowledge' },
+  { key: 'scope', label: 'Scope' },
+];
+
+/** How many of the five are decided, which is how much of the slit is lit. */
+export function decided(config: DraftConfig): number {
+  return AREAS.length - missing(config).length;
+}
 
 /** What is still missing, in the order it is asked for. */
 export function missing(config: DraftConfig): (keyof DraftConfig)[] {
@@ -99,6 +120,34 @@ export function applyAnswer(
       return { ...config, language: text, answered };
     case 'toneSample':
       return { ...config, toneSample: text, answered };
+    case 'scope': {
+      const first =
+        text
+          .toLowerCase()
+          .split(/[^a-zà-ÿ]+/)
+          .filter(Boolean)[0] ?? '';
+      const serverOnly = ['this', 'server', 'seulement', 'serveur', 'no', 'non'].includes(first);
+      return { ...config, scope: serverOnly ? 'server_only' : 'open', answered };
+    }
+    case 'knowledge': {
+      // "Not yet" is a decision: the owner can paste later, and setup is done.
+      const skipped = /^(not yet|nothing|skip|later|rien|pas maintenant|plus tard|no|non)/i.test(
+        text,
+      );
+      return skipped
+        ? { ...config, answered }
+        : {
+            ...config,
+            knowledge: [
+              ...(config.knowledge ?? []),
+              {
+                title: firstLine(text) || 'What the server knows',
+                text,
+              },
+            ],
+            answered,
+          };
+    }
     case 'forbiddenTopics': {
       // "Nothing" is an answer, and it is the one that used to loop.
       const first =
@@ -321,9 +370,23 @@ async function ask(
       quickReplies: await tones(config, guildName),
     };
   }
+  if (field === 'knowledge') {
+    return {
+      message: say(
+        'Paste something it should know: your rules, your schedule, anything members ask about. You can add more later.',
+      ),
+      quickReplies: ['Not yet, I will add it later'],
+    };
+  }
+  if (field === 'scope') {
+    return {
+      message: say('Last one: should it answer questions that are not about this server?'),
+      quickReplies: ['Yes, general questions too', 'This server only'],
+    };
+  }
   if (field === 'forbiddenTopics') {
     return {
-      message: say('Last one: anything it should leave to people rather than answer?'),
+      message: say('Anything it should leave to people rather than answer?'),
       quickReplies: [...DEFAULT_FORBIDDEN, 'Nothing, it can answer anything it knows'],
     };
   }
@@ -373,6 +436,11 @@ const FALLBACK_TONES = [
   'Sunday 18:00 CET. Check in by 17:00.',
   'Sunday, 18:00 CET. Set an alarm, check-in shuts at 17:00.',
 ];
+
+/** The first line of a paste, for its title. */
+function firstLine(text: string): string {
+  return (text.split(String.fromCharCode(10))[0] ?? '').trim().slice(0, 80);
+}
 
 async function nameOf(guildId: string): Promise<string> {
   const { data } = await serviceClient()

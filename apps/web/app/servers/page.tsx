@@ -86,7 +86,7 @@ export default async function Page({
                 </div>
                 <div className="shrink-0">
                   {claimed ? (
-                    <TextLink href={`/g/${g.guild_id}/onboarding`}>Open</TextLink>
+                    <TextLink href={`/setup/${g.guild_id}`}>Open</TextLink>
                   ) : g.can_manage ? (
                     <ClaimButton guildId={g.guild_id} />
                   ) : null}
