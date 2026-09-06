@@ -374,7 +374,17 @@ export function commandEffects(guild: Guild): CommandEffects {
       const me = guild.members.me;
       if (!member || !role) throw new Error('That member or role is gone.');
       if (!me?.permissions.has(PermissionFlagsBits.ManageRoles)) {
-        throw new Error('I do not have permission to manage roles here.');
+        throw new Error(
+          'I do not have the Manage Roles permission here. Give it to my role in Server Settings, then ask again.',
+        );
+      }
+      // Discord only lets a bot give roles below its own highest one. Saying
+      // "Missing Permissions" back is what Discord says; the fix is a role
+      // order, and the moderator is told which.
+      if (role.position >= me.roles.highest.position) {
+        throw new Error(
+          `${role.name} sits above my role in the list, so Discord will not let me give it. Move my role above ${role.name} in Server Settings, then ask again.`,
+        );
       }
       await member.roles.add(role);
     },
