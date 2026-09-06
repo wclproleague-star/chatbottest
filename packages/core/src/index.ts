@@ -35,7 +35,7 @@ export {
   CONVERSATION_TTL_MS,
 } from './agent';
 export { sweepConversations } from './agent';
-export type { ConversationInput, ConversationResult, Effects, RoleProof } from './agent';
+export type { ConversationInput, ConversationResult, Effects, RoleProof, WouldHave } from './agent';
 
 export { ingest } from './ingest';
 export type { IngestInput, IngestResult } from './ingest';

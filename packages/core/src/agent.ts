@@ -76,14 +76,33 @@ export type ConversationInput = {
   /** The recent messages of the channel, when this is the first turn. */
   history?: HistoryTurn[];
   effects: Effects;
+  /**
+   * A rehearsal, for the owner trying their bot on the web. Reads run for
+   * real: the knowledge is searched, the roles are listed, a roster proof is
+   * checked against the actual document. Writes never happen; each one is
+   * reported as what would have been done, with the values it would have used.
+   */
+  dryRun?: boolean;
 };
 
 /** What the bot should do when the turn ends. */
+/** A write that did not happen, and what it would have been. */
+export type WouldHave = {
+  /** The tool, as it is named in the loop: assign_role, point_to_channel. */
+  tool: string;
+  /** The values it would have been called with, for the owner to check. */
+  args: Record<string, string>;
+  /** One line saying what it would have done, in plain words. */
+  description: string;
+};
+
 export type ConversationResult = {
   /** What the turn did, in Sentry's words, for the log and the mod summary. */
   steps: string[];
   /** The tools it used, in order, so a turn can be audited by what it called. */
   calls: string[];
+  /** In a dry run, the writes that were described rather than carried out. */
+  wouldHave?: WouldHave[];
 } & (
   | { outcome: 'reply'; text: string; graded?: AnswerResult }
   | { outcome: 'ask'; text: string }
@@ -172,7 +191,14 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   const flag = await screen(input.message);
   if (flag) {
     await closeConversation(guildId, conversationId);
-    return { outcome: 'flagged', category: flag.category, note: flag.note, steps: [], calls: [] };
+    return {
+      outcome: 'flagged',
+      category: flag.category,
+      note: flag.note,
+      steps: [],
+      calls: [],
+      wouldHave: [],
+    };
   }
 
   // The language is the member's, for the whole conversation, unless the
@@ -181,6 +207,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
 
   const steps: string[] = [];
   const called: string[] = [];
+  const wouldHave: WouldHave[] = [];
   // A role may only be assigned after its own proof passed in this turn.
   const proven = new Set<string>();
   // The role this turn gave out, if any; the loop reports it once it is done.
@@ -216,6 +243,16 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         reason: `check_membership has not passed for "${roleName}" in this conversation. Call it now; this is not a failure and not for the moderators.`,
       };
     }
+    if (input.dryRun) {
+      wouldHave.push({
+        tool: 'assign_role',
+        args: { roleId, role: roleName, member: input.askerName ?? userId },
+        description: `Give ${input.askerName ?? 'them'} the ${roleName} role`,
+      });
+      steps.push(`would have given them the ${roleName} role`);
+      assigned = roleId;
+      return { ok: true, role: roleName, note: 'Tell them it is done, in one short line.' };
+    }
     const done = await effects.assignRole(userId, roleId);
     if (!done.ok) {
       steps.push(`could not give them the role: ${done.reason}`);
@@ -241,11 +278,42 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     const allowed = settings.selfServeRoleIds.includes(wanted.id);
     called.push('check_membership');
     const check = allowed
-      ? await checkMembership({ guildId, userId, roleId: wanted.id, proof, effects })
+      ? await checkMembership({
+          guildId,
+          userId,
+          roleId: wanted.id,
+          proof,
+          effects,
+          dryRun: input.dryRun,
+        })
       : { ok: false as const, reason: 'that role is not one the owner lets me give out' };
     steps.push(`checked whether they may have that role: ${check.reason}`);
+    if ('onlyInDiscord' in check && check.onlyInDiscord) {
+      wouldHave.push({
+        tool: 'check_membership',
+        args: { roleId: wanted.id, role: wanted.name },
+        description: `Check in Discord whether they may have ${wanted.name}`,
+      });
+    }
     if (check.ok) {
       called.push('assign_role');
+      if (input.dryRun) {
+        wouldHave.push({
+          tool: 'assign_role',
+          args: { roleId: wanted.id, role: wanted.name, member: input.askerName ?? userId },
+          description: `Give ${input.askerName ?? 'them'} the ${wanted.name} role`,
+        });
+        steps.push(`would have given them the ${wanted.name} role`);
+        await closeConversation(guildId, conversationId);
+        return {
+          outcome: 'assigned',
+          roleId: wanted.id,
+          text: await inLanguage(`Done, you have the ${wanted.name} role.`, language),
+          steps,
+          calls: called,
+          wouldHave,
+        };
+      }
       const done = await effects.assignRole(userId, wanted.id);
       if (done.ok) {
         steps.push('gave them the role');
@@ -256,6 +324,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           text: await inLanguage(`Done, you have the ${wanted.name} role.`, language),
           steps,
           calls: called,
+          wouldHave,
         };
       }
       // Sentry is allowed to give this role and cannot. That is not the
@@ -269,6 +338,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         summary: `${input.askerName ?? 'A member'} qualified for ${wanted.name}, but Sentry could not give it: ${done.reason}.`,
         steps,
         calls: called,
+        wouldHave,
       };
     }
     // A failed check is never forced and never argued with: it goes to a mod.
@@ -280,6 +350,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       summary,
       steps,
       calls: called,
+      wouldHave,
     };
   }
 
@@ -302,6 +373,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           roleId: assigned,
           steps,
           calls: called,
+          wouldHave,
         };
       }
 
@@ -316,6 +388,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           text: await inLanguage(step.text, language),
           steps,
           calls: called,
+          wouldHave,
         };
       }
 
@@ -355,6 +428,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           text: await inLanguage(replyOf(graded), language),
           steps,
           calls: called,
+          wouldHave,
           graded,
         };
       }
@@ -363,6 +437,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         text: await inLanguage(step.text || 'Done.', language),
         steps,
         calls: called,
+        wouldHave,
       };
     }
 
@@ -378,6 +453,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
         roleId: assigned,
         steps,
         calls: called,
+        wouldHave,
       };
     }
     calls++;
@@ -414,6 +490,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           text: await inLanguage(question || step.text, language),
           steps,
           calls: called,
+          wouldHave,
         };
       }
 
@@ -428,6 +505,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           summary,
           steps,
           calls: called,
+          wouldHave,
         };
       }
 
@@ -449,7 +527,21 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       case 'check_membership': {
         const roleId = String(call.args.roleId ?? '');
         const proof = settings.roleProofs[roleId];
-        const result = await checkMembership({ guildId, userId, roleId, proof, effects });
+        const result = await checkMembership({
+          guildId,
+          userId,
+          roleId,
+          proof,
+          effects,
+          dryRun: input.dryRun,
+        });
+        if (result.onlyInDiscord) {
+          wouldHave.push({
+            tool: 'check_membership',
+            args: { roleId },
+            description: 'Check in Discord whether they may have that role',
+          });
+        }
         if (result.ok) proven.add(roleId);
         steps.push(`checked whether they may have that role: ${result.reason}`);
         turns.push({ role: 'tool', name: call.name, result });
@@ -771,10 +863,25 @@ async function checkMembership(input: {
   roleId: string;
   proof: RoleProof | undefined;
   effects: Effects;
-}): Promise<{ ok: boolean; reason: string }> {
+  /** A rehearsal on the web, where Discord itself is out of reach. */
+  dryRun?: boolean;
+}): Promise<{ ok: boolean; reason: string; onlyInDiscord?: boolean }> {
   const { proof, effects, userId } = input;
   if (!proof) {
     return { ok: false, reason: 'no proof is configured for that role, so I cannot verify it' };
+  }
+  // A roster is a document, so it is read for real even in a rehearsal. Who
+  // holds which Discord role is only knowable from Discord, so on the web it
+  // is reported as a check that would run there rather than guessed at.
+  if (input.dryRun && proof.kind !== 'roster_document') {
+    return {
+      ok: true,
+      onlyInDiscord: true,
+      reason:
+        proof.kind === 'has_role'
+          ? 'whether they hold the qualifying role is checked in Discord'
+          : 'whether they can see the qualifying channel is checked in Discord',
+    };
   }
   switch (proof.kind) {
     case 'has_role': {

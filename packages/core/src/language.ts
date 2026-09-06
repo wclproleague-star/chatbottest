@@ -38,7 +38,9 @@ export async function inLanguage(text: string, language: string): Promise<string
       system: [
         `Is this message written in ${language}?`,
         'If it is, ok is true and rewritten is empty.',
-        `If it is not, ok is false and rewritten is the same message in ${language}, keeping its meaning, its tone and anything in braces such as {mods} exactly as it is.`,
+        `If it is not, ok is false and rewritten is the same message in ${language}, keeping its meaning and its tone.`,
+        'Names are never translated: a role, a channel, a team, a person or a tournament keeps the exact spelling it had, and so does anything in braces such as {mods}. "the Fast Forward Test role" stays "Fast Forward Test" in every language.',
+        'In French, tutoie: the assistant is one of the moderators, not a support desk.',
       ].join(' '),
       messages: [{ role: 'user', text }],
       schema: {
