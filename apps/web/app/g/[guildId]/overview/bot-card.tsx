@@ -8,5 +8,5 @@ import { BotCard } from '@sentrybot/ui';
 import type { BotCardValues } from '@sentrybot/ui';
 
 export function OwnerBotCard({ values }: { values: BotCardValues }) {
-  return <BotCard values={values} filled className="max-w-[420px]" />;
+  return <BotCard values={values} filled bare />;
 }

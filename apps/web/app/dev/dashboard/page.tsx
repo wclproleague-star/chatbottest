@@ -5,6 +5,10 @@ import { Inbox } from '@/app/g/[guildId]/inbox/inbox-rows';
 import { PersonalityForm } from '@/app/g/[guildId]/personality/personality-form';
 import { SettingsForm } from '@/app/g/[guildId]/settings/settings-form';
 import { Commands } from '@/app/g/[guildId]/commands/commands-form';
+import { Overview } from '@/app/g/[guildId]/overview/overview';
+import { Knowledge } from '@/app/g/[guildId]/knowledge/knowledge';
+import { TestChat } from '@/app/g/[guildId]/test/test-chat';
+import { Section } from '@sentrybot/ui';
 
 // The dashboard screens with fixed data, so they can be looked at and checked
 // against the design without a Discord session. The forms post to the real
@@ -32,6 +36,9 @@ export default async function Page({
       <Sidebar guildId="900000000000000001" guildName="Wild Champions League" />
       <main className="min-w-0 flex-1 px-6 pb-24 pt-10 lg:px-12">
         <Column>
+          {p === 'overview' && <OverviewPreview />}
+          {p === 'knowledge' && <KnowledgePreview />}
+          {p === 'test' && <TestPreview />}
           {p === 'inbox' && <InboxPreview openAt={open} />}
           {p === 'personality' && <PersonalityPreview />}
           {p === 'settings' && <SettingsPreview />}
@@ -39,6 +46,92 @@ export default async function Page({
         </Column>
       </main>
     </Surface>
+  );
+}
+
+function OverviewPreview() {
+  return (
+    <Overview
+      data={{
+        guildId: '900000000000000001',
+        guildName: 'Wild Champions League',
+        received: 46,
+        answered: 39,
+        toMods: 7,
+        waiting: 2,
+        pending: ['can my duo miss check-in?', 'rules for subs?'],
+        nudge: {
+          line: 'Somebody has been waiting since Sat 5 Sep: "can my duo miss check-in?"',
+          href: '#',
+          label: 'Answer it',
+        },
+        knowledge: {
+          word: 'Decent',
+          line: 'It answers the common questions and asks about the rest.',
+        },
+        bot: {
+          name: 'Sentry',
+          tone: 'Sunday 18:00 CET, in #announcements. Check-in closes an hour before.',
+          language: 'the language each member writes in',
+          wontTouch: 'bans and appeals, payments and refunds',
+          wakes: 'your mod role',
+        },
+      }}
+    />
+  );
+}
+
+function KnowledgePreview() {
+  return (
+    <Knowledge
+      guildId="900000000000000001"
+      chunks={34}
+      documents={[
+        {
+          id: '1',
+          title: 'Server rules',
+          sourceType: 'paste',
+          status: 'ready',
+          chunkCount: 18,
+          error: null,
+          addedAt: 'Thu 3 Sep',
+        },
+        {
+          id: '2',
+          title: 'Week one schedule',
+          sourceType: 'upload',
+          status: 'ready',
+          chunkCount: 12,
+          error: null,
+          addedAt: 'Wed 2 Sep',
+        },
+        {
+          id: '3',
+          title: 'When is check-in?',
+          sourceType: 'mod_answer',
+          status: 'processing',
+          chunkCount: null,
+          error: null,
+          addedAt: 'Wed 2 Sep',
+        },
+      ]}
+    />
+  );
+}
+
+function TestPreview() {
+  return (
+    <div>
+      <PageTitle
+        title="Test"
+        lede="Ask what a member would ask. Sentry answers from the knowledge, or shows where it would ask a mod."
+      />
+      <div className="mt-10">
+        <Section heading="Ask it something">
+          <TestChat guildId="900000000000000001" botName="Sentry" />
+        </Section>
+      </div>
+    </div>
   );
 }
 

@@ -1,12 +1,8 @@
 import { serviceClient } from '@sentrybot/core';
-import { Panel } from '@sentrybot/ui';
-import { PageTitle } from '@/components/dashboard/page-title';
 import { requireMember } from '@/lib/guild';
-import { OwnerBotCard } from './bot-card';
+import { Overview, score } from './overview';
 
-// The week, in four numbers and one nudge. Nothing here is a chart: an owner
-// wants to know whether anything is waiting on them and whether the bot is
-// getting better, and both of those are sentences.
+// The queries behind the overview. What it looks like is in ./overview.
 
 const WEEK = 7 * 24 * 60 * 60 * 1000;
 const DAY = 24 * 60 * 60 * 1000;
@@ -73,107 +69,37 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
     : false;
 
   return (
-    <div className="max-w-[880px]">
-      <PageTitle
-        title="Overview"
-        lede={`How ${guild.name ?? 'your server'} used Sentry this week.`}
-      />
-
-      {(stale || quiet) && (
-        <Panel className="border-amber mt-10 max-w-[60ch] border-l-2 shadow-none">
-          <p className="text-thread text-ink">
-            {stale
-              ? `Somebody has been waiting since ${new Date(oldestPending!.created_at).toDateString()}: "${oldestPending!.question}"`
-              : 'Sentry has not been asked anything in a fortnight. Members may not know it is there.'}
-          </p>
-          <a
-            href={stale ? `/g/${guildId}/inbox` : `/g/${guildId}/settings`}
-            className="text-ui text-ink mt-2 inline-block underline underline-offset-[3px]"
-          >
-            {stale ? 'Answer it' : 'Introduce it again'}
-          </a>
-        </Panel>
-      )}
-
-      <dl className="mt-10 grid grid-cols-2 gap-x-10 gap-y-6 sm:grid-cols-4">
-        <Count label="Asked" value={received} />
-        <Count label="Answered" value={answeredCount} />
-        <Count label="Sent to mods" value={modsCount} />
-        <Count label="Awaiting you" value={waitingCount} />
-      </dl>
-
-      <section className="mt-16 max-w-[60ch]">
-        <h2 className="text-ui-sm text-ink-soft">What nobody has answered yet</h2>
-        {(oldest.data ?? []).length === 0 ? (
-          <p className="text-body text-ink-soft mt-2">
-            Nothing is waiting. What Sentry could not answer, somebody already did.
-          </p>
-        ) : (
-          <ul className="mt-3 space-y-2">
-            {(oldest.data ?? []).map((q) => (
-              <li key={q.created_at} className="text-thread text-ink">
-                {q.question}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="mt-16 max-w-[60ch]">
-        <h2 className="text-ui-sm text-ink-soft">What it knows</h2>
-        <p className="display text-ink mt-2" style={{ ['--display-size' as string]: '32px' }}>
-          {knowledge.word}
-        </p>
-        <p className="text-body text-ink-soft mt-1">{knowledge.line}</p>
-      </section>
-
-      <section className="mt-16">
-        <h2 className="text-ui-sm text-ink-soft mb-3">Your bot</h2>
-        <OwnerBotCard
-          values={{
-            name: settings.data?.bot_name ?? 'Sentry',
-            tone: settings.data?.tone_sample ?? settings.data?.persona_prompt ?? '',
-            language: settings.data?.language ?? 'the language each member writes in',
-            knows: knowledge.word,
-            wontTouch: (settings.data?.forbidden_topics ?? []).join(', '),
-            wakes: settings.data?.mod_role_id ? 'your mod role' : 'nobody yet',
-          }}
-        />
-      </section>
-    </div>
+    <Overview
+      data={{
+        guildId,
+        guildName: guild.name ?? 'your server',
+        received,
+        answered: answeredCount,
+        toMods: modsCount,
+        waiting: waitingCount,
+        pending: (oldest.data ?? []).map((q) => q.question),
+        nudge: stale
+          ? {
+              line: `Somebody has been waiting since ${new Date(oldestPending!.created_at).toDateString()}: "${oldestPending!.question}"`,
+              href: `/g/${guildId}/inbox`,
+              label: 'Answer it',
+            }
+          : quiet
+            ? {
+                line: 'Sentry has not been asked anything in a fortnight. Members may not know it is there.',
+                href: `/g/${guildId}/settings`,
+                label: 'Introduce it again',
+              }
+            : null,
+        knowledge,
+        bot: {
+          name: settings.data?.bot_name ?? 'Sentry',
+          tone: settings.data?.tone_sample ?? settings.data?.persona_prompt ?? '',
+          language: settings.data?.language ?? 'the language each member writes in',
+          wontTouch: (settings.data?.forbidden_topics ?? []).join(', '),
+          wakes: settings.data?.mod_role_id ? 'your mod role' : 'nobody yet',
+        },
+      }}
+    />
   );
-}
-
-function Count({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <dt className="text-ui-sm text-ink-soft">{label}</dt>
-      <dd
-        className="display text-ink mt-1 tabular-nums"
-        style={{ ['--display-size' as string]: '32px' }}
-      >
-        {value}
-      </dd>
-    </div>
-  );
-}
-
-/** The knowledge score, as a word and the sentence that explains it. */
-function score(chunks: number): { word: string; line: string } {
-  if (chunks < 10) {
-    return {
-      word: 'Thin',
-      line: 'Sentry will send most questions to a moderator. Add your rules and your schedule.',
-    };
-  }
-  if (chunks <= 50) {
-    return {
-      word: 'Decent',
-      line: 'It answers the common questions and asks about the rest.',
-    };
-  }
-  return {
-    word: 'Solid',
-    line: 'It answers most of what members ask without waking anyone.',
-  };
 }

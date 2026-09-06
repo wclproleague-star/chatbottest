@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Field, Input, Textarea, Toast, cx } from '@sentrybot/ui';
+import { Button, Field, Input, Section, Textarea, Toast, cx } from '@sentrybot/ui';
 import { useActionState, useState } from 'react';
 import { addAnswer, pasteDocument, uploadDocument } from './actions';
 import type { KnowledgeState } from './actions';
@@ -34,7 +34,7 @@ export function KnowledgeForms({ guildId }: { guildId: string }) {
     .sort((a, b) => b.id - a.id)[0];
 
   return (
-    <section className="mt-12">
+    <Section heading="Add what it should know">
       <div role="tablist" aria-label="How to add knowledge" className="flex gap-6">
         {TABS.map((t) => (
           <button
@@ -55,9 +55,9 @@ export function KnowledgeForms({ guildId }: { guildId: string }) {
         ))}
       </div>
 
-      <div className="border-hairline mt-0 border-t pt-6">
+      <div className="border-hairline -mt-px border-t pt-6">
         {tab === 'upload' && (
-          <form action={uploadAction} className="max-w-[60ch] space-y-5">
+          <form action={uploadAction} className="space-y-5">
             <input type="hidden" name="guild_id" value={guildId} />
             <Field label="File" help="A .txt, .md or .pdf, up to 20 MB.">
               <Input
@@ -72,7 +72,7 @@ export function KnowledgeForms({ guildId }: { guildId: string }) {
           </form>
         )}
         {tab === 'paste' && (
-          <form action={pasteAction} className="max-w-[60ch] space-y-5">
+          <form action={pasteAction} className="space-y-5">
             <input type="hidden" name="guild_id" value={guildId} />
             <Field label="Title" help="Optional. The first line stands in if you leave it empty.">
               <Input name="title" maxLength={120} placeholder="Server rules" />
@@ -89,10 +89,16 @@ export function KnowledgeForms({ guildId }: { guildId: string }) {
           </form>
         )}
         {tab === 'qa' && (
-          <form action={qaAction} className="max-w-[60ch] space-y-5">
+          <form action={qaAction} className="space-y-5">
             <input type="hidden" name="guild_id" value={guildId} />
             <Field label="A member asks">
-              <Input name="question" required maxLength={300} placeholder="When is check-in?" />
+              <Input
+                name="question"
+                width="full"
+                required
+                maxLength={300}
+                placeholder="When is check-in?"
+              />
             </Field>
             <Field label="Sentry answers">
               <Textarea
@@ -105,18 +111,18 @@ export function KnowledgeForms({ guildId }: { guildId: string }) {
             <Submit pending={adding} idle="Add answer" busy="Reading it" />
           </form>
         )}
-        {state?.error && <p className="text-ui mt-4 max-w-[60ch]">{state.error}</p>}
+        {state?.error && <p className="text-ui mt-4">{state.error}</p>}
       </div>
 
       <Toast id={latest?.id ?? 0} message={latest?.ok ?? null} />
-    </section>
+    </Section>
   );
 }
 
 function Submit({ pending, idle, busy }: { pending: boolean; idle: string; busy: string }) {
   return (
     <div className="flex justify-end">
-      <Button type="submit" disabled={pending} className="disabled:opacity-40">
+      <Button type="submit" disabled={pending}>
         {pending ? busy : idle}
       </Button>
     </div>

@@ -1,3 +1,4 @@
+import { Section } from '@sentrybot/ui';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { requireMember } from '@/lib/guild';
 import { TestChat } from './test-chat';
@@ -14,12 +15,16 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
     .maybeSingle();
 
   return (
-    <div className="max-w-[880px]">
+    <div>
       <PageTitle
         title="Test"
         lede="Ask what a member would ask. Sentry answers from the knowledge, or shows where it would ask a mod."
       />
-      <TestChat guildId={guildId} botName={settings?.bot_name?.trim() || 'Sentry'} />
+      <div className="mt-10">
+        <Section heading="Ask it something">
+          <TestChat guildId={guildId} botName={settings?.bot_name?.trim() || 'Sentry'} />
+        </Section>
+      </div>
     </div>
   );
 }

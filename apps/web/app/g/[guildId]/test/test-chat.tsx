@@ -118,6 +118,7 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
         }}
       >
         <Input
+          width="full"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           placeholder="Ask what a member would ask"
@@ -125,7 +126,7 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
           maxLength={500}
           disabled={pending}
         />
-        <Button type="submit" disabled={pending || !draft.trim()} className="disabled:opacity-40">
+        <Button type="submit" disabled={pending || !draft.trim()}>
           Ask
         </Button>
       </form>

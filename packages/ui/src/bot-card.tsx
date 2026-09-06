@@ -30,10 +30,13 @@ const FIELDS: { key: keyof BotCardValues; label: string }[] = [
 export function BotCard({
   values,
   filled: filledProp,
+  bare,
   className,
 }: {
   values: BotCardValues;
   filled?: boolean;
+  /** Inside a panel already: no border of its own, no padding. A card in a card is two cards. */
+  bare?: boolean;
   className?: string;
 }) {
   const [count, setCount] = useState(filledProp ? FIELDS.length : 0);
@@ -58,7 +61,8 @@ export function BotCard({
   return (
     <div
       className={cx(
-        'rounded-panel border-(color:--surface-hairline) bg-panel text-ink border p-6',
+        'text-ink',
+        bare ? '' : 'rounded-panel border-(color:--surface-hairline) bg-panel border p-6',
         className,
       )}
     >
