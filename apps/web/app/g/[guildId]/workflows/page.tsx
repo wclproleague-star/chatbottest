@@ -1,4 +1,4 @@
-import { listRuns, listWorkflows, readBack } from '@kalvard/core';
+import { listRuns, listWorkflows, readBack, TEMPLATES } from '@kalvard/core';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { formatDate } from '@/lib/format';
 import { requireMember } from '@/lib/guild';
@@ -41,7 +41,16 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
         title="Workflows"
         lede="Routines this server runs. Describe one in your own words; Kalvard reads it back before it keeps it."
       />
-      <Workflows guildId={guildId} workflows={workflows} runs={listed} />
+      <Workflows
+        guildId={guildId}
+        workflows={workflows}
+        runs={listed}
+        templates={TEMPLATES.filter((t) => !flows.some((w) => w.name === t.name)).map((t) => ({
+          name: t.name,
+          what: triggerLine(t.trigger),
+          steps: t.steps.length,
+        }))}
+      />
     </div>
   );
 }

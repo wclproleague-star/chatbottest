@@ -10,7 +10,7 @@
 
 import { Button, GrowingInput, Section, Split, Switch } from '@kalvard/ui';
 import { useActionState, useState } from 'react';
-import { describeWorkflow, keepWorkflow, rehearse, toggleWorkflow } from './actions';
+import { adoptTemplate, describeWorkflow, keepWorkflow, rehearse, toggleWorkflow } from './actions';
 import type { DraftState } from './actions';
 
 export type Listed = {
@@ -36,10 +36,13 @@ export function Workflows({
   guildId,
   workflows,
   runs,
+  templates,
 }: {
   guildId: string;
   workflows: Listed[];
   runs: Run[];
+  /** The shipped routines this server has not taken yet. */
+  templates: { name: string; what: string; steps: number }[];
 }) {
   return (
     <div className="mt-10">
@@ -50,7 +53,12 @@ export function Workflows({
             <Kept guildId={guildId} workflows={workflows} />
           </>
         }
-        right={<Runs runs={runs} />}
+        right={
+          <>
+            {templates.length > 0 && <Adopt guildId={guildId} templates={templates} />}
+            <Runs runs={runs} />
+          </>
+        }
       />
     </div>
   );
@@ -192,6 +200,44 @@ function Kept({ guildId, workflows }: { guildId: string; workflows: Listed[] }) 
       )}
       {tried?.kind === 'saved' && <p className="text-ui text-ink-soft">{tried.note}</p>}
       {tried?.kind === 'error' && <p className="text-ui text-ink">{tried.error}</p>}
+    </Section>
+  );
+}
+
+function Adopt({
+  guildId,
+  templates,
+}: {
+  guildId: string;
+  templates: { name: string; what: string; steps: number }[];
+}) {
+  const [taken, adopt, adopting] = useActionState<DraftState, FormData>(adoptTemplate, null);
+  return (
+    <Section
+      heading="Or take one that exists"
+      lede="A starting point, not a product. Adopt it, read it back, and change the parts that are not how you do it."
+    >
+      <ul className="divide-hairline -my-4 divide-y">
+        {templates.map((t) => (
+          <li key={t.name} className="flex items-start justify-between gap-4 py-4">
+            <div className="min-w-0">
+              <p className="text-ui text-ink">{t.name}</p>
+              <p className="text-ink-faint mt-1 text-[13px]">
+                {t.what} · {t.steps} step{t.steps === 1 ? '' : 's'}
+              </p>
+            </div>
+            <form action={adopt}>
+              <input type="hidden" name="guild_id" value={guildId} />
+              <input type="hidden" name="template" value={t.name} />
+              <Button type="submit" variant="secondary" disabled={adopting}>
+                Adopt
+              </Button>
+            </form>
+          </li>
+        ))}
+      </ul>
+      {taken?.kind === 'saved' && <p className="text-ui text-ink-soft">{taken.note}</p>}
+      {taken?.kind === 'error' && <p className="text-ui text-ink">{taken.error}</p>}
     </Section>
   );
 }

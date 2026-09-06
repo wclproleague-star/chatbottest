@@ -199,6 +199,10 @@ function WorkflowsPreview() {
             stoppedBecause: 'There is no channel called #resultats.',
           },
         ]}
+        templates={[
+          { name: 'Tournament week', what: 'Runs every Monday at 10:00', steps: 4 },
+          { name: 'Member onboarding', what: 'When a member joins', steps: 3 },
+        ]}
       />
     </div>
   );

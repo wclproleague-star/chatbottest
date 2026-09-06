@@ -19,6 +19,7 @@ import {
   serviceClient,
   setWorkflowEnabled,
   runDryEffects,
+  TEMPLATES,
 } from '@kalvard/core';
 import type { Draft, Workflow } from '@kalvard/core';
 import { revalidatePath } from 'next/cache';
@@ -111,6 +112,24 @@ export async function rehearse(_prev: DraftState, form: FormData): Promise<Draft
     note: result.stoppedBecause
       ? `It would stop: ${result.stoppedBecause}`
       : `It would take ${result.entries.length} step${result.entries.length === 1 ? '' : 's'}. Nothing was done.`,
+    id: Date.now(),
+  };
+}
+
+/** Takes one of the shipped routines as it stands, to be edited from here. */
+export async function adoptTemplate(_prev: DraftState, form: FormData): Promise<DraftState> {
+  const guildId = String(form.get('guild_id') ?? '');
+  const name = String(form.get('template') ?? '');
+  const { user } = await requireMember(guildId);
+  const template = TEMPLATES.find((t) => t.name === name);
+  if (!template) return { kind: 'error', error: 'That template is gone.', id: Date.now() };
+
+  const outcome = await saveWorkflow({ guildId, workflow: template, createdBy: user.id });
+  if (!outcome.ok) return { kind: 'error', error: outcome.message, id: Date.now() };
+  revalidatePath(`/g/${guildId}/workflows`);
+  return {
+    kind: 'saved',
+    note: `Adopted. "${template.name}" is switched on and yours to edit.`,
     id: Date.now(),
   };
 }

@@ -33,6 +33,12 @@ export {
 export type { Workflow, WorkflowEffects, RunResult, Step } from './workflows';
 
 export { MATCH_DAY, matchDayContext } from './workflows/match-day';
+export {
+  TEMPLATES,
+  TOURNAMENT_WEEK,
+  WEEKLY_ANNOUNCEMENT,
+  MEMBER_ONBOARDING,
+} from './workflows/templates';
 
 export { authorWorkflow, checkStep, readBack, whatChanged } from './workflow-author';
 export { isDue, lastDue, readSchedule } from './schedule';
