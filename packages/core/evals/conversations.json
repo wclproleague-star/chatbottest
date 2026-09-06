@@ -544,5 +544,63 @@
         }
       }
     ]
+  },
+  {
+    "name": "a word that resembles a role name is not a request for it",
+    "why": "Live, 'other roles' came back as 'You mean Other Content?' three times, because code matched the word and answered before the model read the conversation. Interpretation is the model's, with the real role list; code only decides the plain case.",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      },
+      {
+        "id": "role_chroma",
+        "name": "Chromanova Test"
+      },
+      {
+        "id": "role_other",
+        "name": "Other Content"
+      },
+      {
+        "id": "role_piggs",
+        "name": "Crying Piggs"
+      }
+    ],
+    "selfServe": ["role_ff", "role_chroma"],
+    "membership": {
+      "role_ff": true,
+      "role_chroma": true
+    },
+    "turns": [
+      {
+        "message": "actually give me ff role please",
+        "expect": {
+          "outcome": "ask",
+          "notCalls": ["assign_role"],
+          "textHas": ["Fast Forward"],
+          "textNot": ["who"]
+        },
+        "why": "ff is Fast Forward, put back as a question; it is for themselves, so it never asks who"
+      },
+      {
+        "message": "no you can also give the others no ??",
+        "expect": {
+          "outcomeOneOf": ["ask", "reply"],
+          "notCalls": ["assign_role"],
+          "textHas": ["Chromanova"],
+          "textNot": ["Other Content"]
+        },
+        "why": "'the others' is the rest of the list, not a role called Other Content"
+      },
+      {
+        "message": "NO OTHER ROLES I KEEP SAYING IT",
+        "expect": {
+          "outcomeOneOf": ["ask", "reply"],
+          "notCalls": ["assign_role"],
+          "textNot": ["Other Content"]
+        },
+        "why": "somebody repeating themselves louder has been misread; the same question is never put back"
+      }
+    ]
   }
 ]

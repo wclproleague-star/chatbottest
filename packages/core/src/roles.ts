@@ -215,6 +215,25 @@ const STOP = new Set([
   'une',
   'rôle',
   'role',
+  // Words that point at the list, not at a name on it.
+  'other',
+  'others',
+  'autre',
+  'autres',
+  'which',
+  'else',
+  'all',
+  'any',
+  'mean',
+  'yes',
+  'yeah',
+  'nope',
+  'non',
+  'oui',
+  'not',
+  'pas',
+  'keep',
+  'saying',
 ]);
 
 /**

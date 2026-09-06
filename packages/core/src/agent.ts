@@ -25,7 +25,8 @@ import './fetchers/weather';
 import './fetchers/rift-legends';
 import './fetchers/http-json';
 import { detectLanguage, inLanguage } from './language';
-import { aboutARole, asksForRole, whichRole } from './roles';
+import { answersTheQuestion } from './conversation';
+import { aboutARole, asksForRole, nearest, whichRole } from './roles';
 import { isVouched } from './vouch-store';
 import { fetchFrom, parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
@@ -188,6 +189,16 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   const { guildId, conversationId, userId, effects } = input;
   const settings = await loadAgentSettings(guildId);
   const stored = await loadConversation(guildId, conversationId);
+
+  // What was said before is always kept: a member should never have to repeat
+  // themselves, and Kalvard reading back three messages is the difference
+  // between a conversation and a form.
+  //
+  // What does not carry over is the pending question. A greeting or a new
+  // subject does not answer what was last asked, so nothing downstream may
+  // treat it as though it did — which is what made "salut bg" come back as
+  // "what tournament role do you want?".
+  const continues = answersTheQuestion(input.message, stored.turns);
   const earlier = stored.turns;
   const turns: ToolTurn[] = [
     ...earlier,
@@ -288,31 +299,15 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   const selfServe = allRoles.filter((r) => settings.selfServeRoleIds.includes(r.id));
   const wanted = await roleTheyAskedFor(input.message, turns, selfServe);
 
-  // A role this server really has, that the owner has not put on the list.
-  // Saying "that is not something I do" would be false: it is something
-  // somebody does, and the useful answer says so and records the request.
+  // A role this server really has, named in full, that the owner has not put
+  // on the list. Saying "that is not something I do" would be false: it is
+  // something somebody does, and the useful answer says so and records the
+  // request. This is the only role question code answers on its own. Anything
+  // less plain than a whole name — initials, a typo, "the other roles", a
+  // member pushing back — is interpretation, and interpretation is the
+  // model's job, with the whole conversation in front of it.
   if (!wanted) {
     const match = whichRole(input.message, selfServe, allRoles);
-
-    // Nothing named exactly, but one or a few roles are the obvious reading.
-    // Put the reading back rather than answering a request nobody made: the
-    // conversation stays open, so their next message is the answer to it.
-    if (match.kind === 'did_you_mean' && asksForRole(input.message)) {
-      const names = match.candidates.map((c) => c.name);
-      const line =
-        names.length === 1
-          ? `You mean ${names[0]}?`
-          : `Which one do you mean: ${names.slice(0, -1).join(', ')} or ${names.at(-1)}?`;
-      turns.push({ role: 'model', text: line });
-      await saveConversation(guildId, conversationId, turns, language);
-      return {
-        outcome: 'ask',
-        text: await inLanguage(line, language),
-        steps: [...steps, `nothing named exactly; offered ${names.join(', ')}`],
-        calls: called,
-        wouldHave,
-      };
-    }
 
     if (
       match.kind === 'not_mine' &&
@@ -428,9 +423,12 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   while (calls <= MAX_TOOL_CALLS) {
     const budget = MAX_TOOL_CALLS - calls;
     const step = await generateWithTools({
-      system: systemPrompt(settings, budget, language),
+      system: systemPrompt(settings, budget, language, stored.turns.length > 0 && !continues),
       turns,
       tools: TOOLS,
+      // Deciding what to do is not where the variety belongs. The words can
+      // vary; whether "the others" means the rest of the list should not.
+      temperature: 0.3,
     });
 
     if (step.calls.length === 0) {
@@ -603,8 +601,19 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           ...role,
           canGive: settings.selfServeRoleIds.includes(role.id),
         }));
+        // What they wrote, read against the real names: initials, a piece of
+        // a name, a near spelling. A hint for the model, never its words.
+        const closest = nearest(input.message, allRoles).map((r) => r.name);
         steps.push("listed the server's roles, and which it can give out");
-        turns.push({ role: 'tool', name: call.name, result: roles });
+        turns.push({
+          role: 'tool',
+          name: call.name,
+          result: {
+            roles,
+            closestToWhatTheyWrote: closest.length > 0 ? closest : 'nothing in particular',
+            note: 'closestToWhatTheyWrote is a reading of their message, not what they said. Use it to ask "you mean X?" when it fits the conversation; ignore it when it does not.',
+          },
+        });
         break;
       }
 
@@ -1081,7 +1090,13 @@ function replyOf(result: AnswerResult): string {
   }
 }
 
-function systemPrompt(s: AgentSettings, budget: number, language: string): string {
+function systemPrompt(
+  s: AgentSettings,
+  budget: number,
+  language: string,
+  /** The member changed the subject, and the question last put to them is dropped. */
+  newSubject = false,
+): string {
   return [
     `You are ${s.botName}, the assistant for a Discord server. You are talking to a member in a channel, in character, in your own words.`,
     s.persona ?? '',
@@ -1111,8 +1126,14 @@ function systemPrompt(s: AgentSettings, budget: number, language: string): strin
     '- Do not put one option to them as though it were what they said. If they have not named a thing, ask which one, and name everything on offer.',
     '- Never say what you are about to do. Do it in this turn and report what happened: "Done, you have the Fast Forward role", or why it did not work. "Let me check" is only ever said alongside the check itself.',
     '- When the member confirms the thing you just asked them about, act on it there and then. Do not ask the same question again in other words.',
+    '- Read the whole conversation before you answer, and read the member the way a person would. "the ff role" is Fast Forward; "the one you mentioned" is the role named in your last message; "other roles" or "the others" means the roles apart from the ones already mentioned, so list them. When they say no, correct you, or repeat themselves louder, you misread them: say in a few words what you understood, and ask what they actually want. Never put the same question back a second time.',
+    '- A member asking for a role is asking for themselves unless they name somebody else. Never ask who it is for.',
+    '- Somebody annoyed, shouting or repeating themselves is not a reason to call the moderators. They are telling you that you misread them: answer the message, better.',
     '- Confirm before you act on a name the member did not write in full. Initials, an abbreviation, a nickname or a partial name all need one short ask_user first ("FF, you mean Fast Forward?"), even when only one role could match. Act straight away only when they wrote the role name as it is.',
     '- When the member did write the role name as it is, asking them to confirm it is asking the same question twice: run the check and the assignment in that turn.',
+    newSubject
+      ? '- Their latest message does not answer what you last asked. It is a new subject: drop that question, and do not steer them back to it.'
+      : '',
     `- You have ${budget} tool call(s) left in this turn. When they run out you must escalate_to_mod.`,
     '',
     'When you have nothing left to do, reply to the member in one or two short sentences.',
@@ -1134,7 +1155,8 @@ const TOOLS: FunctionDeclaration[] = [
   },
   {
     name: 'list_roles',
-    description: 'The roles you are allowed to give out on this server, with their ids and names.',
+    description:
+      'Every role this server has, with which of them you may give out, and which names look closest to what the member wrote.',
     parameters: { type: Type.OBJECT, properties: {} },
   },
   {

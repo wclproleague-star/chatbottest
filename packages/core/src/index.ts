@@ -43,6 +43,7 @@ export {
 export { authorWorkflow, checkStep, readBack, whatChanged } from './workflow-author';
 export { isDue, lastDue, readSchedule } from './schedule';
 export { answersHere } from './answers-here';
+export { answersTheQuestion } from './conversation';
 export { aboutARole, asksForRole, whichRole } from './roles';
 export { appendVouch, onRoster, rosterTitle, vouchDocument } from './vouch';
 export { isVouched, recordVouch } from './vouch-store';

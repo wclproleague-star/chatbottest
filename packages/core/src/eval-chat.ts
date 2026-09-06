@@ -33,6 +33,8 @@ type Turn = {
     roleId?: string;
     calls?: string[];
     notCalls?: string[];
+    textHas?: string[];
+    textNot?: string[];
     /** The escalation must carry a summary a moderator could act on. */
     summaryAbout?: boolean;
     /** The language the reply has to be written in. */
@@ -163,6 +165,14 @@ function problems(turn: Turn, result: ConversationResult, trace: Trace): string[
   }
   for (const call of turn.expect.notCalls ?? []) {
     if (trace.calls.includes(call)) out.push(`${call} actually happened, and must not`);
+  }
+  // What the reply must and must not say, as substrings, case aside.
+  const said = ('text' in result ? result.text : '').toLowerCase();
+  for (const phrase of turn.expect.textHas ?? []) {
+    if (!said.includes(phrase.toLowerCase())) out.push(`the reply does not mention "${phrase}"`);
+  }
+  for (const phrase of turn.expect.textNot ?? []) {
+    if (said.includes(phrase.toLowerCase())) out.push(`the reply says "${phrase}", and must not`);
   }
   if (
     turn.expect.summaryAbout &&

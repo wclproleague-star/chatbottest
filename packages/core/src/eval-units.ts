@@ -20,6 +20,7 @@ import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { answersHere } from './answers-here';
+import { answersTheQuestion } from './conversation';
 import { aboutARole, asksForRole, whichRole } from './roles';
 import { appendVouch, onRoster, vouchDocument } from './vouch';
 import { findRepeat, offer } from './repeats';
@@ -845,6 +846,31 @@ console.log(
   // answer to the question before it, not a new subject.
   const asked = [{ role: 'user' as const, text: 'can i have a role?' }];
   check('a conversation that started on roles stays on them', aboutARole('yes please', asked));
+}
+
+console.log(['', 'an open conversation is not a leash'].join(String.fromCharCode(10)));
+{
+  const asked = [
+    { role: 'user' as const, text: 'how do i register to tournament' },
+    {
+      role: 'model' as const,
+      text: 'Which tournament role do you want, Fast Forward Test or Chromanova Test?',
+    },
+  ];
+
+  // Live: "salut bg" came back as "Hey man, what tournament role do you want?"
+  // because the thread before it was still open. A greeting is a new subject.
+  check('a greeting starts fresh', !answersTheQuestion('salut bg', asked));
+  check('and so does an unrelated question', !answersTheQuestion('when do we play next', asked));
+
+  // What actually is an answer stays one.
+  check('yes is an answer', answersTheQuestion('yes please', asked));
+  check('so is oui', answersTheQuestion('oui exactement', asked));
+  check('and naming one of the options is', answersTheQuestion('fast forward test', asked));
+  check('as is picking up its words', answersTheQuestion('the tournament one', asked));
+
+  // With nothing open, everything is a fresh start and nothing to continue.
+  check('nothing open continues nothing', !answersTheQuestion('yes please', []));
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);
