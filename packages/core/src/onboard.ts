@@ -21,8 +21,13 @@ export type DraftConfig = {
   language?: string;
   toneSample?: string;
   forbiddenTopics?: string[];
-  /** Knowledge pasted during the conversation, kept until the session is saved. */
-  knowledge?: { title: string; text: string }[];
+  /**
+   * Knowledge added during the conversation. A pasted entry carries its text
+   * and becomes a document when the session is saved; one that came from a
+   * file is already a document, and carries its id instead so it is counted
+   * here without being written twice.
+   */
+  knowledge?: { title: string; text: string; documentId?: string; pieces?: number }[];
   /** Whether it answers anything beyond this server. */
   scope?: 'open' | 'server_only';
   /**
@@ -449,4 +454,38 @@ async function nameOf(guildId: string): Promise<string> {
     .eq('guild_id', guildId)
     .maybeSingle();
   return data?.name || 'your server';
+}
+
+/**
+ * The biggest hole in what was just added, in one sentence, or nothing.
+ *
+ * Said once per document, right after it is read: an owner who has just
+ * pasted their rules learns that the schedule is missing while they are
+ * still in the mood to paste it. It names what is absent, never what is
+ * there, and it never invents a gap to have something to say.
+ */
+export async function gapIn(text: string, guildName: string): Promise<string> {
+  const sample = text.slice(0, 6000);
+  try {
+    const out = await generateJson<{ gap: string }>({
+      system: [
+        `An owner has just given their Discord server's assistant something to know, for ${guildName}.`,
+        'Name in one short sentence the most obvious thing members will ask about that this does not cover, so they can add it now.',
+        'Only what is genuinely absent. If it covers its subject well enough, leave gap empty rather than inventing a hole.',
+        'Speak to the owner, in their own language, in the second person: "Nothing here says when matches are played."',
+      ].join(' '),
+      messages: [{ role: 'user', text: sample }],
+      schema: {
+        type: Type.OBJECT,
+        properties: { gap: { type: Type.STRING } },
+        required: ['gap'],
+        propertyOrdering: ['gap'],
+      },
+      temperature: 0.2,
+      maxOutputTokens: 120,
+    });
+    return out.gap.trim();
+  } catch {
+    return '';
+  }
 }

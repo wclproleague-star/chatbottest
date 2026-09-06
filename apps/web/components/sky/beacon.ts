@@ -29,10 +29,11 @@ import ground from '../../../../assets/beacon/ground.png';
 
 /**
  * What the light is doing. `amber` is the vard watching, `green` is the
- * result of an answer, `off` is unconfigured, and `working` is amber with a
- * slow pulse, for the seconds while something is actually being carried out.
+ * result of an answer, `off` is unconfigured, `working` is amber with a slow
+ * pulse for the seconds while something is carried out, and `loading` is the
+ * faint breath a page shows while it is getting ready to be looked at.
  */
-export type Light = 'amber' | 'green' | 'off' | 'working';
+export type Light = 'amber' | 'green' | 'off' | 'working' | 'loading';
 
 /** Where the beacon stands: the photograph's rect over the canvas, and the beacon's centre across it. */
 export type BeaconPlacement = {
@@ -95,9 +96,15 @@ const MSAA_SAMPLES = 4;
 const LIGHT_MS = 240;
 /** The slit is lit in fifths, so setup can light one per thing decided. */
 const SEGMENTS = 5;
-/** The working pulse: one slow breath, and shallow enough to read as alive. */
-const PULSE_MS = 1400;
-const PULSE_DEPTH = 0.22;
+/**
+ * The pulses. Working is one slow breath, shallow enough to read as alive.
+ * Loading is slower and deeper against a much fainter light: the object is
+ * there, and it is not ready yet.
+ */
+const PULSE: Partial<Record<Light, { ms: number; depth: number }>> = {
+  working: { ms: 1400, depth: 0.22 },
+  loading: { ms: 1600, depth: 0.55 },
+};
 
 /**
  * The strip shows its state colour exactly: its linear value is the inverse of
@@ -209,11 +216,13 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   );
   floor.position.set(slitX, slitY, front - recess - floorDepth / 2);
   group.add(floor);
-  // The recess is lined in a lighter matte grey, seen from inside, so the
-  // strip's light shows on its walls and the lip catches a faint edge.
+  // The recess is lined in the body's own near-black, seen from inside. A
+  // lighter liner read as an outline around the whole slit when only part of
+  // it was lit; dark, the unlit part is simply dark, and the light in the
+  // bottom fifths is the only light there is.
   const linerMaterial = new THREE.MeshStandardMaterial({
-    color: linear('#262b32'),
-    roughness: 0.9,
+    color: linear('#0b0d10'),
+    roughness: 0.95,
     metalness: 0,
     side: THREE.BackSide,
   });
@@ -318,6 +327,7 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   const colors: Record<Light, THREE.Color> = {
     amber: linear(AMBER),
     working: linear(AMBER),
+    loading: linear(AMBER),
     green: linear(GREEN),
     off: new THREE.Color(0, 0, 0),
   };
@@ -325,12 +335,20 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   const shown: Record<Light, THREE.Color> = {
     amber: throughAces(AMBER),
     working: throughAces(AMBER),
+    loading: throughAces(AMBER),
     green: throughAces(GREEN),
     off: new THREE.Color(0, 0, 0),
   };
   const fromShown = shown.amber.clone();
   const currentShown = shown.amber.clone();
-  const amount: Record<Light, number> = { amber: 1, working: 1, green: 1, off: 0 };
+  // Loading is a fifteenth of the light: present, and plainly not ready.
+  const amount: Record<Light, number> = {
+    amber: 1,
+    working: 1,
+    loading: 0.15,
+    green: 1,
+    off: 0,
+  };
   /** How much of the slit is lit, eased like the colour. */
   let progressNow = 1;
   let fromProgress = 1;
@@ -376,9 +394,10 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
 
     // Working breathes; everything else is steady. Reduced motion is handled
     // by the caller, which stops ticking and leaves the end state showing.
+    const breath = PULSE[lightNow];
     const pulse =
-      lightNow === 'working' && Number.isFinite(now)
-        ? 1 - PULSE_DEPTH * (0.5 - 0.5 * Math.cos((now / PULSE_MS) * Math.PI * 2))
+      breath && Number.isFinite(now)
+        ? 1 - breath.depth * (0.5 - 0.5 * Math.cos((now / breath.ms) * Math.PI * 2))
         : 1;
     const shownNow = currentAmount * pulse;
 

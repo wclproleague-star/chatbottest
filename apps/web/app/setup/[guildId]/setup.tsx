@@ -17,7 +17,7 @@
 
 import { Field, Input, Textarea, cx } from '@kalvard/ui';
 import type { DraftConfig } from '@kalvard/core';
-import type { ReactNode } from 'react';
+import type { DragEvent, ReactNode } from 'react';
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
 import { SupportChoice } from '@/components/dashboard/support-choice';
 import {
@@ -25,11 +25,21 @@ import {
   GLASS_LIGHT,
   Glass,
   LiveLine,
+  Reveal,
   SCENE_BUTTON,
   SCENE_LINK,
   SetupScene,
   TO_GREEN_MS,
 } from './night-scene';
+import { useReady } from '@/components/hero/ready';
+import { TYPE_MS } from '@/components/hero/script';
+import meta from '../../../../../assets/beacon/meta.json';
+import { coverRect } from '@/components/hero/scene';
+import { PHOTO } from '@/components/sky/beacon';
+import {
+  addKnowledgeFile,
+  addKnowledgePaste,
+} from '@/app/g/[guildId]/onboarding/knowledge-actions';
 import { TestChat } from '@/app/g/[guildId]/test/test-chat';
 import {
   applyDraft,
@@ -63,6 +73,7 @@ export function Setup({
   roles,
   preview = false,
   startAt,
+  previewProgress,
 }: {
   guildId: string;
   guildName: string;
@@ -74,6 +85,8 @@ export function Setup({
   /** The design preview: no session, a stub conversation. */
   preview?: boolean;
   startAt?: Step;
+  /** The preview's slit, in fifths, to look at one state on its own. */
+  previewProgress?: number;
 }) {
   const [step, setStep] = useState<Step>(startAt ?? (installed && !completed ? 'finish' : 'entry'));
   const [sessionId, setSessionId] = useState('');
@@ -84,21 +97,34 @@ export function Setup({
   const [warning, setWarning] = useState<string | null>(null);
   const [green, setGreen] = useState(false);
   const turnGreen = useCallback(() => setGreen(true), []);
+  // Nothing is shown until the photograph, the fonts and the scene are all
+  // ready; until then the beacon breathes and the screen is otherwise empty.
+  const { ready, onSceneReady } = useReady();
+  // While something is on its way, the sky gives the main thread back.
+  const [busy, setBusy] = useState(false);
+  // Files dropped before the knowledge step is reached are kept, not lost.
+  const [dropping, setDropping] = useState(false);
+  const [waitingFiles, setWaitingFiles] = useState<File[]>([]);
+  const takeFiles = useRef<((files: File[]) => void) | null>(null);
 
   const done = AREAS.filter((area) => filled(config, area.key)).length;
 
   // The light is the state of the whole thing.
-  const light = green
-    ? 'green'
-    : step === 'entry'
-      ? 'off'
-      : step === 'chat' || step === 'form'
-        ? done === 0
+  const light = !ready
+    ? 'loading'
+    : green
+      ? 'green'
+      : (step === 'chat' || step === 'form') && done === 0
+        ? 'off'
+        : step === 'entry'
           ? 'off'
-          : 'amber'
-        : 'amber';
-  const progress =
-    step === 'entry' ? 0 : step === 'chat' || step === 'form' ? done / AREAS.length : 1;
+          : 'amber';
+  const progress = !ready
+    ? 1
+    : (previewProgress ??
+      (step === 'entry' ? 0 : step === 'chat' || step === 'form' ? done / AREAS.length : 1));
+  /** Growing a fifth takes 400ms; the turn to green keeps its own pace. */
+  const changeMs = green ? TO_GREEN_MS : 400;
 
   async function begin(mode: 'chat' | 'form') {
     if (preview) {
@@ -129,37 +155,71 @@ export function Setup({
     setStep('try');
   }
 
+  /** A file dropped anywhere on the panel, at any step. */
+  function onDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setDropping(false);
+    const files = [...(event.dataTransfer?.files ?? [])];
+    if (files.length === 0) return;
+    if (step === 'chat' && takeFiles.current) takeFiles.current(files);
+    else setWaitingFiles((all) => [...all, ...files]);
+  }
+
   const decided = AREAS.filter((area) => filled(config, area.key));
+  const onPanel = step !== 'entry' && step !== 'live';
 
   return (
     <main data-theme="dark" data-surface="night" className="bg-night text-star">
-      <SetupScene light={light} progress={progress} changeMs={green ? TO_GREEN_MS : undefined}>
-        {/* The door: one line, one button, in the free space above the headland. */}
-        {step === 'entry' && (
-          <Centred>
-            <p className="text-star/85 text-center text-[22px] leading-snug">
-              Kalvard isn&apos;t set up yet.
-            </p>
-            <div className="mt-8 flex justify-center">
-              <button className={SCENE_BUTTON} onClick={() => void begin('chat')}>
-                Set it up
-              </button>
-            </div>
-            {error && <p className="text-ui text-star/80 mt-6 text-center">{error}</p>}
-          </Centred>
-        )}
+      <SetupScene
+        light={light}
+        progress={progress}
+        changeMs={changeMs}
+        onSceneReady={onSceneReady}
+        fps={busy ? 30 : 0}
+      >
+        <Reveal ready={ready}>
+          {/* The door: one line, one button, in the free space above the headland. */}
+          {step === 'entry' && (
+            <Centred>
+              <p className="text-star/85 text-center text-[26px] leading-snug">
+                Kalvard isn&apos;t set up yet.
+              </p>
+              <div className="mt-8 flex justify-center">
+                <button className={SCENE_BUTTON} onClick={() => void begin('chat')}>
+                  Set it up
+                </button>
+              </div>
+              {error && <p className="text-ui text-star/80 mt-6 text-center">{error}</p>}
+            </Centred>
+          )}
 
-        {(step === 'chat' || step === 'form') && (
-          <>
-            <Glass>
-              {step === 'chat' ? (
+          {/* One panel for the whole flow: what is in it changes, it does not. */}
+          {onPanel && (
+            <Glass
+              fadeKey={step}
+              wide={step === 'try' || step === 'finish'}
+              dropping={dropping}
+              onDragOver={(event) => {
+                event.preventDefault();
+                setDropping(true);
+              }}
+              onDragLeave={() => setDropping(false)}
+              onDrop={onDrop}
+            >
+              {step === 'chat' && (
                 <Chat
                   guildId={guildId}
                   sessionId={sessionId}
                   preview={preview}
+                  config={config}
                   onConfig={setConfig}
+                  onBusy={setBusy}
+                  waiting={waitingFiles}
+                  onTook={() => setWaitingFiles([])}
+                  bindDrop={(fn) => {
+                    takeFiles.current = fn;
+                  }}
                   onDone={(draft) => void finishDraft(draft)}
-                  // The form is offered once, quietly, inside the first question.
                   aside={
                     done === 0 ? (
                       <button className={SCENE_LINK} onClick={() => setStep('form')}>
@@ -168,7 +228,9 @@ export function Setup({
                     ) : null
                   }
                 />
-              ) : (
+              )}
+
+              {step === 'form' && (
                 <Form
                   guildId={guildId}
                   sessionId={sessionId}
@@ -178,78 +240,77 @@ export function Setup({
                   onDone={(draft) => void finishDraft(draft)}
                 />
               )}
-            </Glass>
-            {decided.length > 0 && <Card config={config} areas={decided} />}
-          </>
-        )}
 
-        {step === 'try' && (
-          <Glass wide>
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <h1 className="text-star text-[22px] leading-snug">Try it</h1>
-              <p className="text-body text-star/70 mt-2 max-w-[52ch]">
-                This is your bot, answering from what it knows. Nothing it says here touches your
-                server.
-              </p>
-              {warning && <p className="text-ui text-star/70 mt-3 max-w-[52ch]">{warning}</p>}
-              <div className="mt-8">
-                <TestChat guildId={guildId} botName={config.botName ?? 'Kalvard'} />
-              </div>
-            </div>
-            <div className="mt-6 flex items-center gap-6">
-              <button
-                className={SCENE_BUTTON}
-                onClick={() => setStep(installed ? 'finish' : 'bring')}
-              >
-                {installed ? 'Continue' : 'Bring it to Discord'}
-              </button>
-              {installed && (
-                <p className="text-ui-sm text-star/60">
-                  Already in your server; the invite is skipped.
-                </p>
+              {step === 'try' && (
+                <>
+                  <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                    <h1 className="text-star text-[26px] leading-snug">Try it</h1>
+                    <p className="text-body text-star/70 mt-2 max-w-[52ch]">
+                      This is your bot, answering from what it knows. Nothing it says here touches
+                      your server.
+                    </p>
+                    {warning && <p className="text-ui text-star/70 mt-3 max-w-[52ch]">{warning}</p>}
+                    <div className="mt-8">
+                      <TestChat guildId={guildId} botName={config.botName ?? 'Kalvard'} />
+                    </div>
+                  </div>
+                  <div className="mt-6 flex flex-wrap items-center gap-6">
+                    <button
+                      className={SCENE_BUTTON}
+                      onClick={() => setStep(installed ? 'finish' : 'bring')}
+                    >
+                      {installed ? 'Continue' : 'Bring it to Discord'}
+                    </button>
+                    <button
+                      className={SCENE_LINK}
+                      onClick={() => setStep(installed ? 'finish' : 'bring')}
+                    >
+                      Skip this
+                    </button>
+                  </div>
+                </>
               )}
-            </div>
-          </Glass>
-        )}
 
-        {step === 'bring' && (
-          <Glass>
-            <BringIt
-              guildId={guildId}
-              inviteUrl={inviteUrl}
-              preview={preview}
-              onArrived={() => setStep('finish')}
-            />
-          </Glass>
-        )}
+              {step === 'bring' && (
+                <BringIt
+                  guildId={guildId}
+                  inviteUrl={inviteUrl}
+                  preview={preview}
+                  onArrived={() => setStep('finish')}
+                  onSkip={() => setStep('finish')}
+                />
+              )}
 
-        {step === 'finish' && (
-          <Glass wide>
-            <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <h1 className="text-star text-[22px] leading-snug">Where it may answer</h1>
-              <p className="text-body text-star/70 mt-2 max-w-[52ch]">
-                It is in {guildName}. Say where it may answer, who it wakes, and where it reports
-                quietly.
-              </p>
-              <Finish
-                guildId={guildId}
-                channels={channels}
-                roles={roles}
-                onDone={() => setStep('live')}
-              />
-            </div>
-          </Glass>
-        )}
+              {step === 'finish' && (
+                <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+                  <h1 className="text-star text-[26px] leading-snug">Where it may answer</h1>
+                  <p className="text-body text-star/70 mt-2 max-w-[52ch]">
+                    It is in {guildName}. Say where it may answer, who it wakes, and where it
+                    reports quietly.
+                  </p>
+                  <Finish
+                    guildId={guildId}
+                    channels={channels}
+                    roles={roles}
+                    onDone={() => setStep('live')}
+                  />
+                </div>
+              )}
+            </Glass>
+          )}
 
-        {step === 'live' && (
-          <Centred>
-            <LiveLine guildName={guildName} onGreen={turnGreen}>
-              <a href={`/g/${guildId}/overview`} className={cx(SCENE_BUTTON, 'fade-in')}>
-                Open the dashboard
-              </a>
-            </LiveLine>
-          </Centred>
-        )}
+          {onPanel && decided.length > 0 && <Card config={config} areas={decided} />}
+
+          {step === 'live' && (
+            <Centred>
+              <LiveLine guildName={guildName} onGreen={turnGreen}>
+                <a href={`/g/${guildId}/overview`} className={cx(SCENE_BUTTON, 'fade-in')}>
+                  Open the dashboard
+                </a>
+              </LiveLine>
+            </Centred>
+          )}
+        </Reveal>
       </SetupScene>
     </main>
   );
@@ -265,8 +326,10 @@ function Centred({ children }: { children: ReactNode }) {
 }
 
 /**
- * What has been decided, on glass to the right of the beacon. Only fields
- * that exist: an empty one is not a row in grey, it is not there.
+ * What has been decided, on glass directly under the beacon and centred on
+ * it, so the object and its description read as one thing. Laid out from the
+ * numbers the scene stands the beacon with. Only fields that exist: an empty
+ * one is not a row in grey, it is not there.
  */
 function Card({
   config,
@@ -275,10 +338,12 @@ function Card({
   config: DraftConfig;
   areas: { key: keyof DraftConfig; label: string }[];
 }) {
+  const at = useBeaconFoot();
+  if (!at) return null;
   return (
     <aside
-      className="text-star absolute right-[4vw] top-[8vh] hidden w-[260px] rounded-2xl p-6 lg:block"
-      style={GLASS}
+      className="text-star absolute hidden w-[320px] rounded-2xl p-6 lg:block"
+      style={{ ...GLASS, left: at.x - 160, top: at.y + 20 }}
       aria-label="Decided so far"
     >
       <dl className="space-y-4">
@@ -293,6 +358,24 @@ function Card({
       </dl>
     </aside>
   );
+}
+
+/** Where the beacon's base is on screen, from the scene's own layout. */
+function useBeaconFoot(): { x: number; y: number } | null {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+  useEffect(() => {
+    const measure = () => {
+      const frame = coverRect(window.innerWidth, window.innerHeight);
+      setAt({
+        x: frame.left + meta.focusX * frame.width,
+        y: frame.top + PHOTO.beaconBase * frame.height,
+      });
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+  return at;
 }
 
 function filled(config: DraftConfig, key: keyof DraftConfig): boolean {
@@ -343,34 +426,71 @@ function GlassInput({
   value,
   onChange,
   onSubmit,
-  disabled,
+  onFiles,
+  sending,
   placeholder,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  disabled?: boolean;
+  /** The paperclip: the same door as dropping a file on the panel. */
+  onFiles?: (files: File[]) => void;
+  sending?: boolean;
   placeholder: string;
 }) {
+  const picker = useRef<HTMLInputElement>(null);
   return (
     <form
-      className="border-star/25 focus-within:border-amber flex h-[52px] items-center rounded-xl border pl-4 pr-1.5 transition-colors"
+      className="border-star/25 focus-within:border-amber flex h-[52px] items-center rounded-xl border pl-2 pr-1.5 transition-colors"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
       }}
     >
+      {onFiles && (
+        <>
+          <button
+            type="button"
+            onClick={() => picker.current?.click()}
+            aria-label="Add a file"
+            title="Add a file: .txt, .md or .pdf"
+            className="text-star/60 hover:text-star hover:bg-star/10 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg transition-colors"
+          >
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" aria-hidden>
+              <path
+                d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.5 3.5 0 0 1 5 5l-8 8a2 2 0 0 1-3-3l7.5-7.5"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </button>
+          <input
+            ref={picker}
+            type="file"
+            accept=".txt,.md,.markdown,.pdf"
+            multiple
+            className="hidden"
+            onChange={(event) => {
+              const files = [...(event.target.files ?? [])];
+              event.target.value = '';
+              if (files.length > 0) onFiles(files);
+            }}
+          />
+        </>
+      )}
       <input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         aria-label={placeholder}
-        className="text-star placeholder:text-star/40 h-full min-w-0 flex-1 bg-transparent text-[16px] outline-none"
+        className="text-star placeholder:text-star/40 h-full min-w-0 flex-1 bg-transparent px-2 text-[16px] outline-none"
       />
       <button
         type="submit"
-        disabled={disabled}
-        className="bg-star text-night h-10 shrink-0 rounded-lg px-4 text-[15px] font-medium transition-[filter,transform] hover:brightness-[1.06] active:scale-[0.98] disabled:opacity-40"
+        disabled={sending}
+        className="bg-star text-night h-10 shrink-0 rounded-[10px] px-5 text-[15px] font-medium shadow-[inset_0_1px_0_rgb(255_255_255/0.35)] transition-[filter,transform] hover:brightness-[1.06] active:scale-[0.98] disabled:opacity-40"
       >
         Send
       </button>
@@ -378,28 +498,61 @@ function GlassInput({
   );
 }
 
-/** The conversation: Kalvard's question at 22px with the green rule, the owner's answers as smaller bubbles on lighter glass. */
+/** A paste this long is not an answer to a question; it is the knowledge itself. */
+const PASTE_IS_KNOWLEDGE = 200;
+
+/** One file on its way in: named, with a thin amber bar, then read. */
+type Upload = { id: number; name: string; state: 'reading' | 'ready' | 'failed'; note?: string };
+
+/**
+ * The conversation. Kalvard's question at 26px with the green rule, the
+ * owner's answers as smaller bubbles on lighter glass, and at the knowledge
+ * step three ways to hand it something to know: the paperclip, a long paste,
+ * or a file dropped on the panel.
+ *
+ * What the owner types appears the instant they press Enter, before anything
+ * is sent; the reply types itself out at the hero's rhythm, into space the
+ * panel has already made for it.
+ */
 function Chat({
   guildId,
   sessionId,
   preview,
+  config,
   onConfig,
   onDone,
+  onBusy,
+  waiting,
+  onTook,
+  bindDrop,
   aside,
 }: {
   guildId: string;
   sessionId: string;
   preview?: boolean;
+  config: DraftConfig;
   onConfig: (config: DraftConfig) => void;
   onDone: (config: DraftConfig) => void;
+  /** True while something is on its way: the scene slows down for it. */
+  onBusy?: (busy: boolean) => void;
+  /** Files dropped before this step was reached. */
+  waiting?: File[];
+  onTook?: () => void;
+  /** Hands the panel a way to pass files dropped on it. */
+  bindDrop?: (fn: (files: File[]) => void) => void;
   aside?: ReactNode;
 }) {
   const [state, action, pending] = useActionState<ChatState | null, FormData>(say, null);
   const [turns, setTurns] = useState(preview ? PREVIEW_TURNS : []);
   const [draft, setDraft] = useState('');
+  const [uploads, setUploads] = useState<Upload[]>([]);
+  // How much of the last thing Kalvard said has been typed out.
+  const [typed, setTyped] = useState<number | null>(null);
   const opened = useRef(false);
   const seen = useRef(0);
   const end = useRef<HTMLDivElement>(null);
+  const configRef = useRef(config);
+  configRef.current = config;
 
   useEffect(() => {
     if (preview || !sessionId || opened.current) return;
@@ -415,17 +568,99 @@ function Chat({
     if (!state || state.id === seen.current) return;
     seen.current = state.id;
     if (state.config) onConfig(state.config);
-    if (state.message)
+    if (state.message) {
       setTurns((all) => [...all, { role: 'model' as const, text: state.message! }]);
+      setTyped(0);
+    }
   }, [state, onConfig]);
+
+  // The reply arrives whole and is typed out, at the hero's rhythm.
+  useEffect(() => {
+    const last = turns.at(-1);
+    if (typed === null || !last || last.role !== 'model' || typed >= last.text.length) return;
+    const timer = window.setTimeout(() => setTyped((n) => (n ?? 0) + 1), TYPE_MS);
+    return () => window.clearTimeout(timer);
+  }, [typed, turns]);
+
+  useEffect(() => {
+    onBusy?.(pending || uploads.some((u) => u.state === 'reading'));
+  }, [pending, uploads, onBusy]);
 
   useEffect(() => {
     end.current?.scrollIntoView({ block: 'end' });
-  }, [turns.length, pending]);
+  }, [turns.length, typed, pending, uploads.length]);
+
+  /** Reads one thing the owner handed over, and says what it found. */
+  const take = useCallback(
+    async (input: { file?: File; text?: string }) => {
+      if (preview) return;
+      const id = Date.now() + Math.random();
+      const name = input.file?.name ?? 'what you pasted';
+      setUploads((all) => [...all, { id, name, state: 'reading' }]);
+      const data = new FormData();
+      data.set('guild_id', guildId);
+      if (input.file) data.set('file', input.file);
+      if (input.text) data.set('text', input.text);
+      const added = input.file ? await addKnowledgeFile(data) : await addKnowledgePaste(data);
+      if (!added.ok) {
+        setUploads((all) =>
+          all.map((u) => (u.id === id ? { ...u, state: 'failed', note: added.error } : u)),
+        );
+        return;
+      }
+      setUploads((all) => all.map((u) => (u.id === id ? { ...u, state: 'ready' } : u)));
+      // The fifth lights as soon as the first document is read.
+      onConfig({
+        ...configRef.current,
+        knowledge: [
+          ...(configRef.current.knowledge ?? []),
+          { title: added.title, text: '', documentId: added.documentId, pieces: added.pieces },
+        ],
+      });
+      const said = [
+        `Read ${added.title}, ${added.pieces} piece${added.pieces === 1 ? '' : 's'}.`,
+        added.gap,
+      ]
+        .filter(Boolean)
+        .join(' ');
+      setTurns((all) => [...all, { role: 'model' as const, text: said }]);
+      setTyped(0);
+    },
+    [guildId, preview, onConfig],
+  );
+
+  const takeFiles = useCallback(
+    (files: File[]) => {
+      for (const file of files) void take({ file });
+    },
+    [take],
+  );
+
+  // The panel hands over what was dropped on it, wherever it was dropped.
+  useEffect(() => {
+    bindDrop?.(takeFiles);
+  }, [bindDrop, takeFiles]);
+
+  // Files dropped before this step was reached were kept; they are read now.
+  const tookWaiting = useRef(false);
+  useEffect(() => {
+    if (tookWaiting.current || !waiting || waiting.length === 0) return;
+    tookWaiting.current = true;
+    takeFiles(waiting);
+    onTook?.();
+  }, [waiting, takeFiles, onTook]);
 
   function send(text: string) {
     const said = text.trim();
     if (!said || pending || preview) return;
+    // A long paste is knowledge, not an answer to the question on screen.
+    if (said.length >= PASTE_IS_KNOWLEDGE) {
+      setTurns((all) => [...all, { role: 'user' as const, text: said.slice(0, 140) + '…' }]);
+      setDraft('');
+      void take({ text: said });
+      return;
+    }
+    // What they typed is on screen before anything is sent.
     setTurns((all) => [...all, { role: 'user' as const, text: said }]);
     setDraft('');
     const data = new FormData();
@@ -436,6 +671,7 @@ function Chat({
   }
 
   const replies = preview ? PREVIEW_REPLIES : (state?.quickReplies ?? []);
+  const last = turns.length - 1;
 
   return (
     <>
@@ -445,24 +681,76 @@ function Chat({
             <p
               key={i}
               className={cx(
-                'text-star border-green border-l-2 pl-4',
-                // The last thing Kalvard said is the question you are answering.
-                i === turns.length - 1 && !pending
-                  ? 'text-[22px] leading-snug'
-                  : 'text-thread text-star/70',
+                'border-green border-l-2 pl-4',
+                // The last thing Kalvard said is the question you are
+                // answering: 26px, star white, the dominant thing on screen.
+                // What came before is 16px and quieter.
+                i === last && !pending
+                  ? 'text-star text-[26px] leading-snug'
+                  : 'text-ink-soft text-[16px] leading-normal',
               )}
             >
-              {turn.text}
+              {i === last && typed !== null ? turn.text.slice(0, typed) : turn.text}
+              {i === last && typed !== null && typed < turn.text.length && (
+                <span aria-hidden className="bg-star ml-0.5 inline-block h-[0.9em] w-px" />
+              )}
             </p>
           ) : (
             <div key={i} className="flex justify-end">
               <div className="max-w-[80%] rounded-xl px-4 py-2.5" style={GLASS_LIGHT}>
-                <p className="text-thread text-star">{turn.text}</p>
+                <p className="text-ink-soft text-[16px] leading-normal">{turn.text}</p>
               </div>
             </div>
           ),
         )}
-        {pending && <p className="text-ui text-star/55">Thinking</p>}
+
+        {/* While it thinks: the space the reply will take, and a cursor in it. */}
+        {pending && (
+          <p className="border-green text-star min-h-[2.4em] border-l-2 pl-4 text-[26px] leading-snug">
+            <span aria-hidden className="bg-star cursor inline-block h-[0.9em] w-px" />
+            <span className="sr-only">Thinking</span>
+          </p>
+        )}
+
+        {uploads.length > 0 && (
+          <ul className="space-y-3">
+            {uploads.map((upload) => (
+              <li key={upload.id}>
+                <div className="text-ui text-star/70 flex items-baseline justify-between gap-4">
+                  <span className="truncate">{upload.name}</span>
+                  <span className="text-ui-sm text-star/55 shrink-0">
+                    {upload.state === 'reading'
+                      ? 'Reading'
+                      : upload.state === 'ready'
+                        ? 'Ready'
+                        : 'Could not read it'}
+                  </span>
+                </div>
+                <div className="bg-star/10 mt-1.5 h-[2px] w-full overflow-hidden rounded-full">
+                  <div
+                    className={cx(
+                      'bg-amber h-full transition-[width] duration-500',
+                      upload.state === 'reading' && 'reading-bar',
+                    )}
+                    style={{ width: upload.state === 'reading' ? '40%' : '100%' }}
+                  />
+                </div>
+                {upload.note && (
+                  <p className="text-ui-sm text-star/70 mt-1">
+                    {upload.note}{' '}
+                    <button
+                      className={SCENE_LINK}
+                      onClick={() => setUploads((all) => all.filter((u) => u.id !== upload.id))}
+                    >
+                      Try another
+                    </button>
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
         {replies.length > 0 && !pending && (
           <div className="flex flex-wrap gap-2">
             {replies.map((reply) => (
@@ -479,7 +767,7 @@ function Chat({
         <div ref={end} />
       </div>
 
-      <div className="mt-6">
+      <div className="mt-5">
         {state?.done ? (
           <button className={SCENE_BUTTON} onClick={() => onDone(state.config ?? {})}>
             Save and try it
@@ -489,8 +777,9 @@ function Chat({
             value={draft}
             onChange={setDraft}
             onSubmit={() => send(draft)}
-            disabled={pending || !draft.trim()}
-            placeholder="Your answer"
+            onFiles={takeFiles}
+            sending={pending}
+            placeholder="Your answer, or paste what it should know"
           />
         )}
         {aside && <div className="mt-4">{aside}</div>}
@@ -611,11 +900,13 @@ function BringIt({
   inviteUrl,
   preview,
   onArrived,
+  onSkip,
 }: {
   guildId: string;
   inviteUrl: string;
   preview?: boolean;
   onArrived: () => void;
+  onSkip?: () => void;
 }) {
   const [waiting, setWaiting] = useState(false);
 
@@ -661,6 +952,13 @@ function BringIt({
         )}
       </div>
       {waiting && <p className="text-ui text-star/60 mt-4">Waiting for it to appear</p>}
+      {onSkip && (
+        <div className="mt-6">
+          <button className={SCENE_LINK} onClick={onSkip}>
+            Skip this
+          </button>
+        </div>
+      )}
     </div>
   );
 }

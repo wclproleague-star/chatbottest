@@ -127,6 +127,10 @@ export async function applyDraft(
   if (!outcome.ok) return { error: outcome.message };
 
   for (const doc of config.knowledge ?? []) {
+    // A file added during the conversation is already a document, read and
+    // chunked: writing it again here would give the guild the same knowledge
+    // twice.
+    if (doc.documentId) continue;
     const { data: created } = await db
       .from('documents')
       .insert({

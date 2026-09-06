@@ -67,6 +67,8 @@ type Handle = {
   setContrast: (c: number) => void;
   setHorizon: (px: number | null) => void;
   setBeacon: (b: BeaconPlacement | null) => void;
+  /** Frames per second while the page is busy; 0 for as fast as it can. */
+  setFrameCap: (fps: number) => void;
   dispose: () => void;
 };
 
@@ -78,6 +80,7 @@ export function Sky({
   beacon = null,
   density = 1,
   parallax = true,
+  fps = 0,
   onReady,
 }: {
   dawn?: number;
@@ -94,6 +97,11 @@ export function Sky({
   density?: number;
   /** Whether the stars follow the cursor. Off where nothing else moves. */
   parallax?: boolean;
+  /**
+   * A ceiling on the frame rate, while the page is waiting on something that
+   * matters more than the drift of the stars. 0 is as fast as the display.
+   */
+  fps?: number;
   onReady?: () => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -102,6 +110,10 @@ export function Sky({
   readyRef.current = onReady;
   const initial = useRef({ dawn, boost, contrast, horizon, beacon });
   initial.current = { dawn, boost, contrast, horizon, beacon };
+
+  useEffect(() => {
+    handle.current?.setFrameCap(fps);
+  }, [fps]);
 
   useEffect(() => {
     const canvas = ref.current;
@@ -343,6 +355,10 @@ function mount(
     if (reduced && ready) render();
   }
 
+  function setFrameCap(fps: number) {
+    minFrameMs = fps > 0 ? 1000 / fps : 0;
+  }
+
   function setBeacon(b: BeaconPlacement | null) {
     placement = b;
     applyBeacon();
@@ -363,8 +379,20 @@ function mount(
     onReady();
   }
 
+  /**
+   * A frame budget, in ms. Set while the page is waiting on the network: the
+   * sky drifting is not worth a millisecond of the main thread that a reply
+   * could have had, so it drops to thirty frames a second until the answer is
+   * in. Zero is as fast as the display.
+   */
+  let minFrameMs = 0;
+  let lastFrame = 0;
+
   function frame() {
     raf = requestAnimationFrame(frame);
+    const now = performance.now();
+    if (minFrameMs > 0 && now - lastFrame < minFrameMs) return;
+    lastFrame = now;
     const dt = Math.min(clock.getDelta(), 0.1);
     nebulaMaterial.uniforms.uTime!.value += dt;
     points.rotation.z += DRIFT * dt;
@@ -425,6 +453,7 @@ function mount(
     setContrast,
     setHorizon,
     setBeacon,
+    setFrameCap,
     dispose() {
       stop();
       window.removeEventListener('resize', resize);

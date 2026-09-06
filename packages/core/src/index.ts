@@ -188,3 +188,4 @@ export {
 export type { SupportMode, SupportAnswers, SupportQuestion, SupportSetup } from './support';
 export { SUPPORT_ACTIONS } from './command';
 export type { SupportAction } from './command';
+export { gapIn } from './onboard';

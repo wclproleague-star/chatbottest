@@ -223,3 +223,22 @@
     animation: none;
   }
 }
+
+/* A file being read: a thin amber bar that travels while there is no
+   percentage to report, since reading is one step and not a download. */
+.reading-bar {
+  animation: reading-bar 1.4s var(--ease-standard) infinite;
+}
+@keyframes reading-bar {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-bar {
+    animation: none;
+  }
+}

@@ -15,10 +15,11 @@
 // the photograph is darker and further defocused than on the hero, with half
 // its stars and nothing following the cursor.
 
-import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useState } from 'react';
+import type { CSSProperties, DragEvent, ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { cx } from '@kalvard/ui';
 import { Scene } from '@/components/hero/scene';
+import { useReveal } from '@/components/hero/ready';
 import type { Light } from '@/components/hero/script';
 
 const PHOTO = { brightness: 0.35, blur: 8 };
@@ -31,6 +32,13 @@ export const GLASS: CSSProperties = {
   WebkitBackdropFilter: 'blur(6px)',
   boxShadow:
     'inset 0 1px 0 rgba(242, 238, 230, 0.22), inset 0 -1px 0 rgba(7, 10, 16, 0.4), 0 32px 80px rgba(0, 0, 0, 0.45)',
+};
+
+/** The same, with the amber edge a panel takes while something is over it. */
+const GLASS_DROP: CSSProperties = {
+  ...GLASS,
+  boxShadow:
+    'inset 0 0 0 1px rgba(217, 162, 27, 0.7), inset 0 1px 0 rgba(242, 238, 230, 0.22), 0 32px 80px rgba(0, 0, 0, 0.45)',
 };
 
 /** A lighter glass, for the member's own words inside the panel. */
@@ -54,12 +62,18 @@ export function SetupScene({
   light,
   progress,
   changeMs,
+  fps,
+  onSceneReady,
   children,
 }: {
   light: Light;
   /** Fifths of the slit lit, from the bottom. */
   progress: number;
   changeMs?: number;
+  /** A ceiling on the frame rate while the page is waiting on something. */
+  fps?: number;
+  /** Called when the canvas has compiled and drawn: half of the ready gate. */
+  onSceneReady?: () => void;
   children: ReactNode;
 }) {
   return (
@@ -71,6 +85,8 @@ export function SetupScene({
         density={DENSITY}
         parallax={false}
         changeMs={changeMs}
+        fps={fps}
+        onReady={onSceneReady}
       >
         <div className="relative h-full">{children}</div>
       </Scene>
@@ -78,32 +94,105 @@ export function SetupScene({
   );
 }
 
+/** The panel's own bounds: it is as tall as what is in it, within these. */
+const MIN_H = 220;
+const MAX_VH = 0.7;
+/** The height moves in 300ms; what is new inside fades over 200ms after it. */
+const GROW_MS = 300;
+const CONTENT_MS = 200;
+
 /**
- * The glass panel a step lives in. Left half of the scene, max 620 wide,
- * vertically centred, 32px padding; on a phone, full width along the bottom
- * with the beacon behind it. Its inside scrolls when a step is long.
+ * The glass panel every step lives in. One element for the whole flow: its
+ * height follows its content rather than the viewport, moving over 300ms, and
+ * the contents of a new step fade in over 200ms once the height has settled.
+ * Left half of the scene, max 620 wide, vertically centred; on a phone, full
+ * width along the bottom with the beacon behind it.
  */
 export function Glass({
   children,
   className,
   wide = false,
+  fadeKey,
+  dropping = false,
+  onDragOver,
+  onDragLeave,
+  onDrop,
 }: {
   children: ReactNode;
   className?: string;
   /** Wider panels for the forms that need the room. */
   wide?: boolean;
+  /** Changes when the step does: the body fades rather than snapping. */
+  fadeKey?: string;
+  /** Something is being dragged over it. */
+  dropping?: boolean;
+  onDragOver?: (event: DragEvent<HTMLDivElement>) => void;
+  onDragLeave?: (event: DragEvent<HTMLDivElement>) => void;
+  onDrop?: (event: DragEvent<HTMLDivElement>) => void;
 }) {
+  const inner = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  const [shown, setShown] = useState(true);
+  const first = useRef(true);
+
+  // The panel is exactly as tall as its content, between the two bounds. The
+  // padding lives on the measured box, so the height is the whole of it.
+  useLayoutEffect(() => {
+    const el = inner.current;
+    if (!el) return;
+    const measure = () => {
+      const max = window.innerHeight * MAX_VH;
+      setHeight(Math.max(MIN_H, Math.min(max, el.scrollHeight)));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    window.addEventListener('resize', measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, []);
+
+  // A new step: its contents are laid out at once so the height can move to
+  // them, and they show themselves only when the move is over.
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    setShown(false);
+    const timer = window.setTimeout(() => setShown(true), GROW_MS);
+    return () => window.clearTimeout(timer);
+  }, [fadeKey]);
+
   return (
     <div
       className={cx(
-        'text-star absolute inset-x-0 bottom-0 flex max-h-[72dvh] flex-col rounded-t-2xl p-6',
-        'md:inset-x-auto md:left-[5vw] md:top-1/2 md:max-h-[84dvh] md:w-[calc(50vw-5vw)] md:-translate-y-1/2 md:rounded-2xl md:p-8',
+        'text-star absolute inset-x-0 bottom-0 overflow-hidden rounded-t-2xl',
+        'md:inset-x-auto md:left-[5vw] md:top-1/2 md:w-[calc(50vw-5vw)] md:-translate-y-1/2 md:rounded-2xl',
         wide ? 'md:max-w-[680px]' : 'md:max-w-[620px]',
         className,
       )}
-      style={GLASS}
+      style={{
+        ...(dropping ? GLASS_DROP : GLASS),
+        height: height ?? undefined,
+        transition: `height ${GROW_MS}ms var(--ease-standard)`,
+      }}
+      onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
+      onDrop={onDrop}
     >
-      {children}
+      <div
+        ref={inner}
+        className="flex max-h-[70dvh] flex-col overflow-y-auto p-6 md:p-8"
+        style={{
+          opacity: shown ? 1 : 0,
+          transition: `opacity ${CONTENT_MS}ms var(--ease-standard)`,
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -167,7 +256,7 @@ export function LiveLine({
 
   return (
     <>
-      <p className="text-star min-h-[1.6em] text-center text-[22px] leading-snug">
+      <p className="text-star min-h-[1.6em] text-center text-[26px] leading-snug">
         {line.slice(0, typed)}
         {typed > 0 && typed < line.length && (
           <span aria-hidden className="bg-star ml-0.5 inline-block h-[1em] w-px align-[-0.1em]" />
@@ -175,5 +264,20 @@ export function LiveLine({
       </p>
       <div className="mt-8 flex h-[52px] justify-center">{done && children}</div>
     </>
+  );
+}
+
+/**
+ * Everything that is not the scene itself, revealed in one fade when the
+ * screen is ready. It is laid out from the first paint, so revealing it moves
+ * nothing, and it is invisible and unclickable until then, so nothing appears
+ * twice or arrives late.
+ */
+export function Reveal({ ready, children }: { ready: boolean; children: ReactNode }) {
+  const style = useReveal(ready);
+  return (
+    <div className="absolute inset-0" style={style} aria-hidden={!ready}>
+      {children}
+    </div>
   );
 }

@@ -9,8 +9,12 @@ import { Setup } from '@/app/setup/[guildId]/setup';
 type Step = 'entry' | 'chat' | 'form' | 'try' | 'bring' | 'finish' | 'live';
 const STEPS: Step[] = ['entry', 'chat', 'form', 'try', 'bring', 'finish', 'live'];
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ step?: string }> }) {
-  const { step } = await searchParams;
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ step?: string; progress?: string }>;
+}) {
+  const { step, progress } = await searchParams;
   const startAt = STEPS.includes(step as Step) ? (step as Step) : 'entry';
   return (
     <Setup
@@ -30,6 +34,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ s
       ]}
       preview
       startAt={startAt}
+      previewProgress={progress === undefined ? undefined : Number(progress)}
     />
   );
 }

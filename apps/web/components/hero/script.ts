@@ -68,7 +68,11 @@ export const LINES: Line[] = [
   },
 ];
 
-export type Light = 'green' | 'amber' | 'off';
+// The same states the object itself has: the thread only ever asks for three
+// of them, but a caller that holds one of these must be able to name any.
+import type { Light as SkyLight } from '@/components/sky/beacon';
+
+export type Light = SkyLight;
 
 /**
  * The beacon's light: amber at rest, the vard watching, and through "Asking

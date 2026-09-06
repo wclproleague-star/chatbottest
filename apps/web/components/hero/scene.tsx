@@ -47,6 +47,7 @@ export function Scene({
   photo = null,
   density = 1,
   parallax = true,
+  fps = 0,
   onReady,
   behind,
   children,
@@ -71,6 +72,8 @@ export function Scene({
   density?: number;
   /** Whether the stars follow the cursor. */
   parallax?: boolean;
+  /** A ceiling on the frame rate while the page is busy. 0 is uncapped. */
+  fps?: number;
   onReady?: () => void;
   /** Rendered between the sky and the beacon: the wordmark. */
   behind?: ReactNode;
@@ -129,6 +132,7 @@ export function Scene({
           contrast={CONTRAST}
           density={density}
           parallax={parallax}
+          fps={fps}
           horizon={horizon}
           beacon={rect ? { frame: rect, x: meta.focusX, light, progress, fade, changeMs } : null}
           onReady={onReady}
