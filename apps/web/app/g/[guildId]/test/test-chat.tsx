@@ -1,13 +1,13 @@
 'use client';
 
-import { MODS } from '@sentrybot/core/tokens';
-import type { AnswerResult, ConversationResult, HistoryTurn, WouldHave } from '@sentrybot/core';
-import { Button, Input, Panel, ThreadMessage } from '@sentrybot/ui';
+import { MODS } from '@kalvard/core/tokens';
+import type { AnswerResult, ConversationResult, HistoryTurn, WouldHave } from '@kalvard/core';
+import { Button, Input, Panel, ThreadMessage } from '@kalvard/ui';
 import { useEffect, useRef, useState } from 'react';
 import { ask, suggest } from './actions';
 
 // The test chat, on paper: your messages in a white panel on the right,
-// Sentry's as plain text on the left with the 2px green rule.
+// Kalvard's as plain text on the left with the 2px green rule.
 //
 // It runs the whole bot, not a simplified version of it: the same loop, the
 // same tools, the same knowledge. Reads happen for real. Writes do not: each
@@ -17,7 +17,7 @@ import { ask, suggest } from './actions';
 
 type Turn =
   | { id: number; role: 'user'; text: string }
-  | { id: number; role: 'sentry'; result: ConversationResult };
+  | { id: number; role: 'kalvard'; result: ConversationResult };
 
 export function TestChat({ guildId, botName }: { guildId: string; botName: string }) {
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -57,7 +57,7 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
       setError(outcome.error);
       return;
     }
-    setTurns((all) => [...all, { id: Date.now() + 1, role: 'sentry', result: outcome.result }]);
+    setTurns((all) => [...all, { id: Date.now() + 1, role: 'kalvard', result: outcome.result }]);
   }
 
   async function generate() {
@@ -70,7 +70,7 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
       return;
     }
     if (outcome.questions.length === 0) {
-      setSuggestNote('Add some knowledge first, then Sentry can suggest questions.');
+      setSuggestNote('Add some knowledge first, then Kalvard can suggest questions.');
       return;
     }
     setSuggestions(outcome.questions);
@@ -79,7 +79,7 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
   return (
     <div className="mt-10 max-w-[760px]">
       <p className="text-ui-sm text-ink-soft border-amber mb-8 border-l-2 pl-3">
-        <span className="text-ink font-medium">Dry run.</span> Sentry reads your knowledge and your
+        <span className="text-ink font-medium">Dry run.</span> Kalvard reads your knowledge and your
         roles for real. Anything it would do to your server is shown, never done.
       </p>
 
@@ -102,7 +102,7 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
           ),
         )}
         {pending && (
-          <ThreadMessage role="sentry" name={botName} state="answered" typing>
+          <ThreadMessage role="kalvard" name={botName} state="answered" typing>
             {''}
           </ThreadMessage>
         )}
@@ -167,7 +167,7 @@ function mods(text: string): string {
   return text.split(MODS).join('@Mods');
 }
 
-/** What Sentry said, for the next turn's context. */
+/** What Kalvard said, for the next turn's context. */
 function said(result: ConversationResult): string[] {
   if (result.outcome === 'flagged') return [];
   if (result.outcome === 'reply' && result.graded) {
@@ -180,7 +180,7 @@ function said(result: ConversationResult): string[] {
   return [mods(result.text)];
 }
 
-/** One turn: what Sentry said, then anything it would have done. */
+/** One turn: what Kalvard said, then anything it would have done. */
 function Turn({ result, botName }: { result: ConversationResult; botName: string }) {
   return (
     <div className="space-y-3">
@@ -224,13 +224,13 @@ function Outcome({ result, botName }: { result: ConversationResult; botName: str
       );
     case 'ask':
       return (
-        <ThreadMessage role="sentry" name={botName} state="waiting">
+        <ThreadMessage role="kalvard" name={botName} state="waiting">
           {mods(result.text)}
         </ThreadMessage>
       );
     case 'assigned':
       return (
-        <ThreadMessage role="sentry" name={botName} state="answered">
+        <ThreadMessage role="kalvard" name={botName} state="answered">
           {mods(result.text)}
         </ThreadMessage>
       );
@@ -250,7 +250,7 @@ function Outcome({ result, botName }: { result: ConversationResult; botName: str
       return result.graded ? (
         <Graded result={result.graded} botName={botName} />
       ) : (
-        <ThreadMessage role="sentry" name={botName} state="answered">
+        <ThreadMessage role="kalvard" name={botName} state="answered">
           {mods(result.text)}
         </ThreadMessage>
       );
@@ -264,14 +264,14 @@ function Outcome({ result, botName }: { result: ConversationResult; botName: str
 function Graded({ result, botName }: { result: AnswerResult; botName: string }) {
   if (result.tier === 'answer') {
     return (
-      <ThreadMessage role="sentry" name={botName} state="answered">
+      <ThreadMessage role="kalvard" name={botName} state="answered">
         {mods(result.answer)}
       </ThreadMessage>
     );
   }
   if (result.tier === 'partial') {
     return (
-      <ThreadMessage role="sentry" name={botName} state="waiting">
+      <ThreadMessage role="kalvard" name={botName} state="waiting">
         {mods(result.reply)}
       </ThreadMessage>
     );
@@ -292,14 +292,14 @@ function Graded({ result, botName }: { result: AnswerResult; botName: string }) 
   if (result.tier === 'ignore') {
     return (
       <p className="text-ui-sm text-ink-soft">
-        In Discord, Sentry would say nothing: that message was for someone else.
+        In Discord, Kalvard would say nothing: that message was for someone else.
       </p>
     );
   }
   if (result.tier === 'sensitive') {
     return (
       <div className="max-w-[80%]">
-        <ThreadMessage role="sentry" name={botName} state="waiting">
+        <ThreadMessage role="kalvard" name={botName} state="waiting">
           {result.reply}
         </ThreadMessage>
         <p className="text-ui-sm text-ink-soft mt-2">
@@ -310,21 +310,21 @@ function Graded({ result, botName }: { result: AnswerResult; botName: string }) 
   }
   if (result.tier === 'quota') {
     return (
-      <ThreadMessage role="sentry" name={botName} state="waiting">
+      <ThreadMessage role="kalvard" name={botName} state="waiting">
         {result.reply}
       </ThreadMessage>
     );
   }
   if (result.tier === 'clarify') {
     return (
-      <ThreadMessage role="sentry" name={botName} state="waiting">
+      <ThreadMessage role="kalvard" name={botName} state="waiting">
         {result.question}
       </ThreadMessage>
     );
   }
   const next =
     result.reason === 'refused'
-      ? `It touches a topic Sentry is told to leave to people${result.refusalReason ? `: ${result.refusalReason}` : '.'}`
+      ? `It touches a topic Kalvard is told to leave to people${result.refusalReason ? `: ${result.refusalReason}` : '.'}`
       : result.found;
   return (
     <div data-state="waiting" className="max-w-[80%]">

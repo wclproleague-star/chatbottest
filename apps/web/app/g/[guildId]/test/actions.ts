@@ -8,8 +8,8 @@
 // values it would have used, and the page shows it as a "would have" line.
 // Nothing here can change the server, which is what makes it safe to try.
 
-import { converse, serviceClient, suggestQuestions } from '@sentrybot/core';
-import type { ConversationResult, Effects, HistoryTurn } from '@sentrybot/core';
+import { converse, serviceClient, suggestQuestions } from '@kalvard/core';
+import type { ConversationResult, Effects, HistoryTurn } from '@kalvard/core';
 import { displayName, requireMember } from '@/lib/guild';
 
 export type AskResult = { result: ConversationResult } | { error: string };
@@ -41,7 +41,7 @@ export async function ask(
     });
     return { result };
   } catch {
-    return { error: 'Sentry could not answer just now. Try again in a moment.' };
+    return { error: 'Kalvard could not answer just now. Try again in a moment.' };
   }
 }
 

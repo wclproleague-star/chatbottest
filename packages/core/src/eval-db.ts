@@ -4,7 +4,7 @@
 // somebody's phone number. Both are things you cannot test with a pure
 // function and should not have to test by hand.
 //
-//   pnpm --filter @sentrybot/core eval:db
+//   pnpm --filter @kalvard/core eval:db
 
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';

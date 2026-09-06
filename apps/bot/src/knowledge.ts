@@ -1,8 +1,8 @@
 // Turning a moderator's answer into knowledge, and finding the question that
 // was already asked.
 
-import { embed, ingest } from '@sentrybot/core';
-import { serviceClient } from '@sentrybot/core/supabase';
+import { embed, ingest } from '@kalvard/core';
+import { serviceClient } from '@kalvard/core/supabase';
 
 /** Two questions this close in meaning are the same question. */
 const SAME_QUESTION = 0.92;
@@ -10,7 +10,7 @@ const SAME_QUESTION = 0.92;
 /**
  * Stores a moderator's answer on the pending question, files it as a
  * `mod_answer` document and reads it into chunks, so the next member who asks
- * gets it from Sentry. Returns the answer that was stored.
+ * gets it from Kalvard. Returns the answer that was stored.
  */
 export async function recordAnswer(input: {
   guildId: string;
@@ -51,13 +51,13 @@ export async function recordAnswer(input: {
     .select('id')
     .single();
   if (doc.error || !doc.data) {
-    console.error(`sentry: could not file the mod answer: ${doc.error?.message}`);
+    console.error(`kalvard: could not file the mod answer: ${doc.error?.message}`);
     return;
   }
   try {
     await ingest({ guildId: input.guildId, documentId: doc.data.id });
   } catch (err) {
-    console.error(`sentry: could not read the mod answer: ${String(err)}`);
+    console.error(`kalvard: could not read the mod answer: ${String(err)}`);
   }
 }
 

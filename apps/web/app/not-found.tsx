@@ -1,4 +1,4 @@
-import { Display, Surface, TextLink } from '@sentrybot/ui';
+import { Display, Surface, TextLink } from '@kalvard/ui';
 
 /** 404: paper, the headline, and a link home. */
 export default function NotFound() {

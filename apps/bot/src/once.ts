@@ -5,7 +5,7 @@
 // event that leads to a write is claimed by id first: the claim is a primary
 // key, so two workers racing on the same event have exactly one winner.
 
-import { serviceClient } from '@sentrybot/core/supabase';
+import { serviceClient } from '@kalvard/core/supabase';
 
 /**
  * Claims this event. True means it is ours to handle; false means it has been
@@ -20,10 +20,10 @@ export async function claim(id: string, kind: string, guildId?: string): Promise
     if (!error) return true;
     // 23505 is the unique violation: somebody else already has this one.
     if ((error as { code?: string }).code === '23505') return false;
-    console.error(`sentry: could not claim ${kind} ${id}: ${error.message}`);
+    console.error(`kalvard: could not claim ${kind} ${id}: ${error.message}`);
     return true;
   } catch (err) {
-    console.error(`sentry: could not claim ${kind} ${id}: ${String(err)}`);
+    console.error(`kalvard: could not claim ${kind} ${id}: ${String(err)}`);
     return true;
   }
 }

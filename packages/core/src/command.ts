@@ -1,13 +1,13 @@
 // Command mode: say what you want, read what it will do, then decide.
 //
-// An owner or moderator writes a sentence. Sentry turns it into a plan of
+// An owner or moderator writes a sentence. Kalvard turns it into a plan of
 // allowlisted actions with the real names, roles and permissions filled in,
 // asks one question when something it needs is missing, and then waits. Until
 // somebody confirms, nothing has happened.
 //
 // Three rules hold the whole thing up. Only actions the owner has switched on,
 // checked here rather than asked of the model. Nothing is ever deleted: the
-// closest thing Sentry does is archive, and a request to delete comes back as
+// closest thing Kalvard does is archive, and a request to delete comes back as
 // that. And every plan is written out in plain sentences with exact names, so
 // confirming is a decision rather than a leap of faith.
 
@@ -40,7 +40,7 @@ export type Plan =
   | { kind: 'plan'; steps: PlannedStep[]; touches: number }
   /** Something needed is missing, and one question settles it. */
   | { kind: 'question'; question: string; because: string }
-  /** Nothing here is something Sentry does. */
+  /** Nothing here is something Kalvard does. */
   | { kind: 'refused'; because: string };
 
 /** What the guild actually has, so a plan can be checked against it. */
@@ -50,7 +50,7 @@ export type GuildShape = {
   roles: { id: string; name: string }[];
   /** The actions this guild has switched on. */
   allowedActions: string[];
-  /** The role Sentry wakes. It is let into every private channel it makes. */
+  /** The role Kalvard wakes. It is let into every private channel it makes. */
   modRole?: { id: string; name: string };
 };
 
@@ -92,7 +92,7 @@ export async function planCommand(input: {
   if (!input.by.isOwner && !input.by.isStaff) {
     return {
       kind: 'refused',
-      because: 'Only the owner and the moderators can ask Sentry to change the server.',
+      because: 'Only the owner and the moderators can ask Kalvard to change the server.',
     };
   }
 
@@ -103,7 +103,7 @@ export async function planCommand(input: {
   for (const step of raw.steps) {
     const action = step.action as CommandAction;
     if (!COMMAND_ACTIONS.includes(action)) {
-      return { kind: 'refused', because: `Sentry does not do "${step.action}".` };
+      return { kind: 'refused', because: `Kalvard does not do "${step.action}".` };
     }
     if (!input.shape.allowedActions.includes(action)) {
       return {
@@ -166,7 +166,7 @@ export async function planCommand(input: {
   settleVisibility(steps, input.request, input.shape.modRole?.name);
 
   if (steps.length === 0) {
-    return { kind: 'refused', because: 'Nothing in that is something Sentry can do.' };
+    return { kind: 'refused', because: 'Nothing in that is something Kalvard can do.' };
   }
   return { kind: 'plan', steps, touches: steps.length };
 }
@@ -234,7 +234,7 @@ async function propose(
       'You turn a moderator request into a plan for a Discord bot. You never carry anything out.',
       `The only actions are: create_channel (name, category), allow_roles (channel, roles), set_private (channel, roles: who keeps access), archive_channel (channel), post_message (channel, text), pin_message (channel), assign_role (member, roles).`,
       'Making an existing channel private, or hiding it from everyone but some roles, is set_private.',
-      'Sentry never deletes anything. A request to delete or remove a channel becomes archive_channel, and say so in impossible if that is not what they meant.',
+      'Kalvard never deletes anything. A request to delete or remove a channel becomes archive_channel, and say so in impossible if that is not what they meant.',
       'Use the exact names the request uses. Do not invent a category, a role or a channel that was not asked for; leave the field empty and let the caller ask.',
       'impossible is one sentence, and only when nothing in the request is one of those actions. Otherwise it is empty.',
       `This server has these channels: ${names(shape.channels)}. Categories: ${names(shape.categories)}. Roles: ${names(shape.roles)}.`,
@@ -457,13 +457,48 @@ function find<T extends { name: string }>(list: T[], name: string): T | undefine
   return list.find((item) => clean(item.name) === wanted);
 }
 
+/**
+ * The accented letters a model actually hands back as named entities. It is
+ * not the whole HTML table and does not need to be: these are the ones that
+ * turn up in the names of channels, categories and roles.
+ */
+const NAMED: Record<string, string> = {
+  amp: '&',
+  quot: '"',
+  apos: "'",
+  nbsp: ' ',
+  agrave: 'à',
+  aacute: 'á',
+  acirc: 'â',
+  auml: 'ä',
+  ccedil: 'ç',
+  egrave: 'è',
+  eacute: 'é',
+  ecirc: 'ê',
+  euml: 'ë',
+  igrave: 'ì',
+  iacute: 'í',
+  icirc: 'î',
+  iuml: 'ï',
+  ntilde: 'ñ',
+  ograve: 'ò',
+  oacute: 'ó',
+  ocirc: 'ô',
+  ouml: 'ö',
+  ugrave: 'ù',
+  uacute: 'ú',
+  ucirc: 'û',
+  uuml: 'ü',
+};
+
 function clean(name: string): string {
-  // Models sometimes hand back "Comp&#233;tition" for "Compétition", and a
-  // category that exists must not look missing over an encoding.
+  // Models hand back "Comp&#233;tition" and "Comp&eacute;tition" for
+  // "Compétition", and a category that exists must not look missing over an
+  // encoding. Both spellings of an entity are decoded, numeric and named.
   const decoded = name
     .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
     .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
-    .replace(/&amp;/g, '&');
+    .replace(/&([a-z]+);/gi, (whole, word: string) => NAMED[word.toLowerCase()] ?? whole);
   return decoded.trim().replace(/^#/, '').toLowerCase().normalize('NFC');
 }
 

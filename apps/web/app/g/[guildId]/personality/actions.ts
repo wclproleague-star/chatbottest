@@ -7,7 +7,7 @@
 // and a forbidden list broad enough to refuse everything comes back as a
 // warning rather than a silent surprise later.
 
-import { saveSettings, serviceClient, suggestQuestions, toneSamples } from '@sentrybot/core';
+import { saveSettings, serviceClient, suggestQuestions, toneSamples } from '@kalvard/core';
 import { revalidatePath } from 'next/cache';
 import { requireMember } from '@/lib/guild';
 
@@ -25,7 +25,7 @@ export async function savePersonality(_prev: SaveState, form: FormData): Promise
   const outcome = await saveSettings(
     guildId,
     {
-      bot_name: String(form.get('bot_name') ?? '').trim() || 'Sentry',
+      bot_name: String(form.get('bot_name') ?? '').trim() || 'Kalvard',
       persona_prompt: String(form.get('persona_prompt') ?? '').trim() || null,
       language: String(form.get('language') ?? '').trim() || null,
       tone_sample: String(form.get('tone_sample') ?? '').trim() || null,

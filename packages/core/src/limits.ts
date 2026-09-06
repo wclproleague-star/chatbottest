@@ -7,14 +7,14 @@
 
 /** What a guild may do, and what one member may do to it. */
 export type Limits = {
-  /** Messages one member may send in the window before Sentry stops replying. */
+  /** Messages one member may send in the window before Kalvard stops replying. */
   memberBurst: number;
   memberWindowMs: number;
   /** How long the member is ignored once they pass it. */
   memberCooldownMs: number;
   /** The longest member message the model ever sees. */
   maxMessageChars: number;
-  /** How many questions Sentry answers for one guild in a calendar month. */
+  /** How many questions Kalvard answers for one guild in a calendar month. */
   monthlyAnswers: number;
   /** The longest single document that may be ingested. */
   maxDocumentChars: number;

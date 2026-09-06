@@ -1,5 +1,5 @@
 // The client alone, not the pipeline: the barrel would pull unpdf and genai into this bundle.
-import { serviceClient } from '@sentrybot/core/supabase';
+import { serviceClient } from '@kalvard/core/supabase';
 import { NextResponse } from 'next/server';
 import { fetchDiscordGuilds } from '@/lib/discord';
 import { webEnv } from '@/lib/env';

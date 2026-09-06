@@ -1,4 +1,4 @@
-import { serviceClient } from '@sentrybot/core';
+import { serviceClient } from '@kalvard/core';
 import { requireMember } from '@/lib/guild';
 import { Setup } from './setup';
 

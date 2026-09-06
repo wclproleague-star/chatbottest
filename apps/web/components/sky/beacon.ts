@@ -28,7 +28,7 @@ import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLigh
 import ground from '../../../../assets/beacon/ground.png';
 
 /**
- * What the light is doing. `amber` is the sentry watching, `green` is the
+ * What the light is doing. `amber` is the vard watching, `green` is the
  * result of an answer, `off` is unconfigured, and `working` is amber with a
  * slow pulse, for the seconds while something is actually being carried out.
  */

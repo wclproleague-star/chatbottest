@@ -1,5 +1,5 @@
 {
-  "name": "sentry",
+  "name": "kalvard",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.15.4",
@@ -8,14 +8,14 @@
   },
   "scripts": {
     "dev": "pnpm --parallel --filter \"./apps/*\" dev",
-    "dev:web": "pnpm --filter @sentrybot/web dev",
-    "dev:bot": "pnpm --filter @sentrybot/bot dev",
+    "dev:web": "pnpm --filter @kalvard/web dev",
+    "dev:bot": "pnpm --filter @kalvard/bot dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "purge": "pnpm --filter @sentrybot/core purge"
+    "purge": "pnpm --filter @kalvard/core purge"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

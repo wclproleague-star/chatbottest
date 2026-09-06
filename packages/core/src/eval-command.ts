@@ -5,7 +5,7 @@
 // Discord; the live half, creating the channel on the test server, is the last
 // step of the eval in CLAUDE.md and is run by hand once.
 //
-//   pnpm --filter @sentrybot/core eval:command
+//   pnpm --filter @kalvard/core eval:command
 
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';

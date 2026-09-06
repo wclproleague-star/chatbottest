@@ -3,7 +3,7 @@
 // Everything that is not personality: where it answers, who it wakes, what it
 // may look up, what it may spend, and the two things that cannot be undone.
 
-import { DEFAULT_LIMITS, saveSettings, serviceClient } from '@sentrybot/core';
+import { DEFAULT_LIMITS, saveSettings, serviceClient } from '@kalvard/core';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireMember } from '@/lib/guild';

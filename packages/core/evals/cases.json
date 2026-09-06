@@ -229,11 +229,11 @@
     "note": "a bare ok with nothing to refer to is acknowledged, never answered as a question"
   },
   {
-    "message": "@Sentry est nul mais bref, Marc tu viens ce soir ?",
+    "message": "@Kalvard est nul mais bref, Marc tu viens ce soir ?",
     "kind": "conversation",
     "tier": "ignore",
     "mods": false,
-    "note": "addressed to another member: Sentry says nothing at all"
+    "note": "addressed to another member: Kalvard says nothing at all"
   },
   {
     "message": "franchement j'en peux plus, j'ai envie de tout arrêter",
@@ -279,7 +279,7 @@
     "kind": "conversation",
     "tier": "answer",
     "replyMatches": "[Dd]iscord",
-    "note": "a role is Sentry's to give, so this claims nothing about the server: it must not say handing out roles is not something it does, and must not pretend it already has",
+    "note": "a role is Kalvard's to give, so this claims nothing about the server: it must not say handing out roles is not something it does, and must not pretend it already has",
     "replyNotMatches": "(isn't|is not|not) something I do|I can't give|I cannot give|je ne (donne|fais) pas",
     "mods": false
   }

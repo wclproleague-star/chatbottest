@@ -15,8 +15,12 @@ const instrumentSans = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Sentry',
+  // Canonical URLs resolve against the site, so a link shared from anywhere
+  // points at kalvard.com rather than at whichever host rendered it.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'https://kalvard.com'),
+  title: 'Kalvard',
   description: 'The server assistant that asks before it answers.',
+  alternates: { canonical: '/' },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

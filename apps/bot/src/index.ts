@@ -1,4 +1,4 @@
-// Sentry's gateway client. One instance serves every guild, keyed by guild id;
+// Kalvard's gateway client. One instance serves every guild, keyed by guild id;
 // nothing about a guild is held in memory beyond the current message.
 //
 // It answers when it is mentioned in a channel the owner allowed, says so and
@@ -7,7 +7,7 @@
 
 import { Client, Events, GatewayIntentBits, Partials } from 'discord.js';
 import type { Message } from 'discord.js';
-import { allowMessage, hasOpenConversation, sweepConversations } from '@sentrybot/core';
+import { allowMessage, hasOpenConversation, sweepConversations } from '@kalvard/core';
 import { onModReply, onTick, watchDashboardApprovals } from './approve';
 import { botEnv } from './env';
 import {
@@ -37,10 +37,10 @@ const client = new Client({
 });
 
 client.once(Events.ClientReady, async (ready) => {
-  console.log(`sentry: online as ${ready.user.tag}, in ${ready.guilds.cache.size} guild(s)`);
+  console.log(`kalvard: online as ${ready.user.tag}, in ${ready.guilds.cache.size} guild(s)`);
   for (const guild of ready.guilds.cache.values()) {
     if (!(await isClaimed(guild.id))) {
-      console.log(`sentry: ${guild.name} (${guild.id}) is not claimed on the web app yet`);
+      console.log(`kalvard: ${guild.name} (${guild.id}) is not claimed on the web app yet`);
       continue;
     }
     await syncMeta(guild);
@@ -61,7 +61,7 @@ client.once(Events.ClientReady, async (ready) => {
 });
 
 client.on(Events.GuildCreate, async (guild) => {
-  console.log(`sentry: added to ${guild.name} (${guild.id})`);
+  console.log(`kalvard: added to ${guild.name} (${guild.id})`);
   if (!(await isClaimed(guild.id))) return;
   await syncMeta(guild);
   await markInstalled(guild.id, guild.name);
@@ -88,9 +88,9 @@ client.on(Events.GuildDelete, async (guild) => {
 client.on(Events.MessageCreate, async (message: Message) => {
   try {
     if (message.author.bot) return;
-    // A direct message is not a channel Sentry serves: it has no server to
+    // A direct message is not a channel Kalvard serves: it has no server to
     // answer about, no moderators to bring in and no owner who agreed to it.
-    // One line, once, then silence. Sentry never opens a DM itself.
+    // One line, once, then silence. Kalvard never opens a DM itself.
     if (!message.guild) {
       if (!(await claim(message.channelId, 'dm-pointer'))) return;
       await message
@@ -106,17 +106,17 @@ client.on(Events.MessageCreate, async (message: Message) => {
     const allowed = settings.allowedChannelIds;
     if (allowed.length > 0 && !allowed.includes(message.channelId)) return;
 
-    // A moderator replying to a question Sentry could not answer is answering
+    // A moderator replying to a question Kalvard could not answer is answering
     // it, not asking a new one.
     if (message.reference?.messageId && (await onModReply(message, settings))) return;
 
     if (!client.user) return;
-    // Sentry answers when it is named, when someone replies to something it
+    // Kalvard answers when it is named, when someone replies to something it
     // said, and when it is waiting on an answer to its own question. A reply
     // mentions it implicitly, which is why the mention alone is not the test.
     const named = message.content.includes(`<@${client.user.id}>`);
     const repliedTo = message.reference?.messageId;
-    const answeringSentry = repliedTo
+    const answeringKalvard = repliedTo
       ? (await message.channel.messages.fetch(repliedTo).catch(() => null))?.author.id ===
         client.user.id
       : false;
@@ -124,7 +124,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
       message.guild.id,
       `${message.channelId}:${message.author.id}`,
     );
-    if (!named && !answeringSentry && !waiting) return;
+    if (!named && !answeringKalvard && !waiting) return;
 
     // Twenty messages in thirty seconds is not a conversation. Past the burst
     // the member is told once, then it goes quiet for them and for nobody else.
@@ -143,7 +143,7 @@ client.on(Events.MessageCreate, async (message: Message) => {
 
     await handleMention(message, settings);
   } catch (err) {
-    console.error(`sentry: message handler failed: ${String(err)}`);
+    console.error(`kalvard: message handler failed: ${String(err)}`);
   }
 });
 
@@ -154,7 +154,7 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
     if (!(await claim(`${reaction.message.id}:${user.id}`, 'reaction', guildId))) return;
     await onTick(reaction, user, await loadSettings(guildId));
   } catch (err) {
-    console.error(`sentry: reaction handler failed: ${String(err)}`);
+    console.error(`kalvard: reaction handler failed: ${String(err)}`);
   }
 });
 
@@ -166,7 +166,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (await onCommandButton(interaction)) return;
     await onButton(interaction);
   } catch (err) {
-    console.error(`sentry: interaction handler failed: ${String(err)}`);
+    console.error(`kalvard: interaction handler failed: ${String(err)}`);
   }
 });
 
@@ -174,20 +174,20 @@ client.on(Events.GuildMemberRemove, async (member) => {
   try {
     if (!(await isClaimed(member.guild.id))) return;
     if (!(await isOwner(member.guild.id, member.id))) return;
-    console.log(`sentry: the owner left ${member.guild.name}; marking it orphaned`);
+    console.log(`kalvard: the owner left ${member.guild.name}; marking it orphaned`);
     await markOrphaned(member.guild.id);
   } catch (err) {
-    console.error(`sentry: member-remove handler failed: ${String(err)}`);
+    console.error(`kalvard: member-remove handler failed: ${String(err)}`);
   }
 });
 
-client.on(Events.Error, (err) => console.error(`sentry: gateway error: ${err.message}`));
+client.on(Events.Error, (err) => console.error(`kalvard: gateway error: ${err.message}`));
 
 // discord.js queues rather than dropping when Discord asks it to slow down.
 // This is only so a burst is visible afterwards rather than looking like a hang.
 client.rest.on('rateLimited', (info) => {
   console.warn(
-    `sentry: rate limited for ${info.timeToReset}ms on ${info.method} ${info.route}; queued, not dropped`,
+    `kalvard: rate limited for ${info.timeToReset}ms on ${info.method} ${info.route}; queued, not dropped`,
   );
 });
 

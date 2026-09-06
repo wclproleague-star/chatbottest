@@ -47,7 +47,7 @@ importers:
 
   apps/bot:
     dependencies:
-      '@sentrybot/core':
+      '@kalvard/core':
         specifier: workspace:*
         version: link:../../packages/core
       discord.js:
@@ -66,10 +66,10 @@ importers:
 
   apps/web:
     dependencies:
-      '@sentrybot/core':
+      '@kalvard/core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@sentrybot/ui':
+      '@kalvard/ui':
         specifier: workspace:*
         version: link:../../packages/ui
       '@supabase/ssr':

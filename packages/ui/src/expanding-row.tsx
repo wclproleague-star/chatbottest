@@ -7,7 +7,7 @@ import { cx } from './cx';
  * A row in a list that opens in place.
  *
  * Closed, it is three lines: what was asked, who and where, and one line of
- * what Sentry said. That is enough to decide whether this is the one you deal
+ * what Kalvard said. That is enough to decide whether this is the one you deal
  * with now, and a screen of them can be read without scrolling. Open, the same
  * row grows to hold everything the decision needs. Only one is ever open, so
  * the list never becomes a page you have to scroll to get back to.
@@ -29,7 +29,7 @@ export function ExpandingRow({
   title: string;
   /** Asker, channel, date: one line, ink soft. */
   meta: ReactNode;
-  /** One line of what Sentry said, truncated when closed. */
+  /** One line of what Kalvard said, truncated when closed. */
   preview?: string;
   state: 'waiting' | 'answered';
   open: boolean;

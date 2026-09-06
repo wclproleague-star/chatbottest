@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
   // dev server is up replaces the chunks it is still serving and every page
   // comes back unstyled until it is restarted. The build writes somewhere else.
   distDir: process.env.NEXT_DIST_DIR ?? '.next',
-  transpilePackages: ['@sentrybot/core', '@sentrybot/ui'],
+  transpilePackages: ['@kalvard/core', '@kalvard/ui'],
   // core's Node-only dependencies stay external to the server bundle.
   serverExternalPackages: ['unpdf', '@google/genai'],
   // Without this Next walks up past the repo and picks a stray lockfile as the root.

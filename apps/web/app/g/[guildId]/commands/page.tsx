@@ -1,5 +1,5 @@
-import { serviceClient } from '@sentrybot/core';
-import { Section } from '@sentrybot/ui';
+import { serviceClient } from '@kalvard/core';
+import { Section } from '@kalvard/ui';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { formatDate } from '@/lib/format';
 import { requireMember } from '@/lib/guild';
@@ -52,7 +52,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
     <div>
       <PageTitle
         title="Commands"
-        lede="Tell Sentry what to change. It shows you the plan first, and nothing happens until you confirm."
+        lede="Tell Kalvard what to change. It shows you the plan first, and nothing happens until you confirm."
       />
       <Commands guildId={guildId} examples={shown} />
 

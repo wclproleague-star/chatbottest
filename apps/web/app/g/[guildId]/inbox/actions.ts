@@ -1,13 +1,13 @@
 'use server';
 
-// The inbox: what Sentry could not answer, and what a moderator does about it.
+// The inbox: what Kalvard could not answer, and what a moderator does about it.
 //
 // Answering here does three things at once, and all three matter: the member
 // gets their answer in the channel they asked in, the question stops waiting,
 // and the answer becomes knowledge so nobody has to type it again. Dismissing
 // does the first two and none of the third.
 
-import { ingest, serviceClient } from '@sentrybot/core';
+import { ingest, serviceClient } from '@kalvard/core';
 import { revalidatePath } from 'next/cache';
 import { displayName, requireMember } from '@/lib/guild';
 
@@ -44,7 +44,7 @@ export async function answerQuestion(_prev: InboxState, form: FormData): Promise
     .maybeSingle();
   if (!claimed) return fail('Somebody answered that one already.');
 
-  // Knowledge, so the next member who asks gets it from Sentry.
+  // Knowledge, so the next member who asks gets it from Kalvard.
   const { data: doc } = await db
     .from('documents')
     .insert({
@@ -75,7 +75,7 @@ export async function answerQuestion(_prev: InboxState, form: FormData): Promise
 
   revalidatePath(`/g/${guildId}/inbox`);
   return {
-    ok: 'Answered. Sentry is posting it in the channel, and it knows it now.',
+    ok: 'Answered. Kalvard is posting it in the channel, and it knows it now.',
     id: Date.now(),
   };
 }

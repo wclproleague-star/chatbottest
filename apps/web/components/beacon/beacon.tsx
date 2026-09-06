@@ -16,7 +16,7 @@ import type { CSSProperties } from 'react';
 import * as THREE from 'three';
 import { PHOTO, createBeacon } from '../sky/beacon';
 import type { Light } from '../sky/beacon';
-import { cx } from '@sentrybot/ui';
+import { cx } from '@kalvard/ui';
 import { BeaconSvg } from './beacon-svg';
 
 export type BeaconProps = {
@@ -216,7 +216,7 @@ export function Beacon({
       ref={host}
       style={style}
       role={vector ? undefined : 'img'}
-      aria-label={vector ? undefined : (label ?? 'Sentry')}
+      aria-label={vector ? undefined : (label ?? 'Kalvard')}
       className={cx('pointer-events-none select-none', className)}
     >
       {vector ? (

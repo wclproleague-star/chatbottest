@@ -1,13 +1,13 @@
 // Forgetting a member, on request.
 //
 // A member can ask a server to forget them, and the answer cannot be "we would
-// rather not". Everything Sentry holds that is about them goes: the questions
+// rather not". Everything Kalvard holds that is about them goes: the questions
 // they asked, the events recording what it did for them, the conversation it
 // had open with them, and their name where it appears in the knowledge.
 //
 // The knowledge is the awkward part. A roster is one document with many names
 // in it, so the document is not deleted: the member's own lines are taken out,
-// the rest stays, and the document is re-indexed. What Sentry cannot find, it
+// the rest stays, and the document is re-indexed. What Kalvard cannot find, it
 // says so, rather than reporting a clean sweep it did not do.
 
 import { serviceClient } from './supabase';

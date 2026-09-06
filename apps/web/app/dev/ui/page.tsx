@@ -12,8 +12,8 @@ import {
   TextLink,
   ThreadMessage,
   Wordmark,
-} from '@sentrybot/ui';
-import type { InboxRowProps, SurfaceName } from '@sentrybot/ui';
+} from '@kalvard/ui';
+import type { InboxRowProps, SurfaceName } from '@kalvard/ui';
 import type { ReactNode } from 'react';
 
 // Component preview. Same tokens on paper and on night. ?surface=paper|night
@@ -34,19 +34,19 @@ function Thread() {
       <ThreadMessage role="member" name="kestrel">
         when&apos;s the finals bracket posted?
       </ThreadMessage>
-      <ThreadMessage role="sentry" name="Sentry" state="answered">
+      <ThreadMessage role="kalvard" name="Kalvard" state="answered">
         Sunday 18:00 CET, in #announcements. Check-in closes an hour before.
       </ThreadMessage>
       <ThreadMessage role="member" name="kestrel">
         and if my duo can&apos;t make check-in?
       </ThreadMessage>
-      <ThreadMessage role="sentry" name="Sentry" state="waiting">
+      <ThreadMessage role="kalvard" name="Kalvard" state="waiting">
         Not sure about that one. Asking @Mods.
       </ThreadMessage>
       <ThreadMessage role="mod" name="Mods">
         One sub allowed if declared before check-in.
       </ThreadMessage>
-      <ThreadMessage role="sentry" name="Sentry" state="answered" typing>
+      <ThreadMessage role="kalvard" name="Kalvard" state="answered" typing>
         Got it. Next time I&apos;ll know.
       </ThreadMessage>
     </Panel>
@@ -140,7 +140,7 @@ function Paper() {
           <BotCard
             className="max-w-[640px]"
             values={{
-              name: 'Sentry',
+              name: 'Kalvard',
               tone: 'Short and exact. Gives the time, the channel, and the deadline.',
               language: 'English',
               knows: 'Decent. 3 documents.',

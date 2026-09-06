@@ -12,7 +12,7 @@ export function AvatarMark({ size = 96, className }: { size?: number; className?
       width={size}
       height={size}
       role="img"
-      aria-label="Sentry"
+      aria-label="Kalvard"
       className={cx('shrink-0', className)}
     >
       <g fill="currentColor">

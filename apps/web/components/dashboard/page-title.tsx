@@ -1,4 +1,4 @@
-import { Display } from '@sentrybot/ui';
+import { Display } from '@kalvard/ui';
 import { Beacon } from '@/components/beacon/beacon';
 import type { Light } from '@/components/sky/beacon';
 
@@ -6,7 +6,7 @@ import type { Light } from '@/components/sky/beacon';
  * A dashboard page's head: display type at 32px and a one-sentence lede in ink
  * soft. No breadcrumbs.
  *
- * A page may put the sentry beside its title, and when it does the light is
+ * A page may put the vard beside its title, and when it does the light is
  * the real state of this server rather than an ornament: what it is doing now,
  * said in a colour and in words underneath.
  */
@@ -37,7 +37,7 @@ export function PageTitle({
         light={light}
         className="h-16 w-10 shrink-0"
         height={0.95}
-        label={standing ?? 'Sentry'}
+        label={standing ?? 'Kalvard'}
       />
       <div className="min-w-0">{head}</div>
     </div>

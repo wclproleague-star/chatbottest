@@ -1,7 +1,7 @@
-import { serviceClient } from '@sentrybot/core';
+import { serviceClient } from '@kalvard/core';
 import type { Light } from '@/components/sky/beacon';
 
-// What a server's sentry is doing right now, for the pages that show it beside
+// What a server's vard is doing right now, for the pages that show it beside
 // their title. The same reading as /servers, so a light never means two things
 // in two places: green only when it actually answered somebody in the last
 // hour, amber when it is watching, off when it is not answering at all.
@@ -32,12 +32,12 @@ export async function standing(guildId: string): Promise<{ light: Light; line: s
   ]);
 
   if (!guild?.bot_installed || !guild.setup_completed) {
-    return { light: 'off', line: 'Not answering yet: setup is not finished.' };
+    return { light: 'off', line: 'Your vard is dark: setup is not finished.' };
   }
   const recent = last?.created_at ? Date.now() - new Date(last.created_at).getTime() < HOUR : false;
-  if (recent) return { light: 'green', line: 'Answered somebody in the last hour.' };
+  if (recent) return { light: 'green', line: 'Your vard answered somebody in the last hour.' };
   if ((waiting ?? 0) > 0) {
-    return { light: 'amber', line: `Watching, and ${waiting} waiting on you.` };
+    return { light: 'amber', line: `Your vard is lit, and ${waiting} waiting on you.` };
   }
-  return { light: 'amber', line: 'Watching. Nothing is waiting on you.' };
+  return { light: 'amber', line: 'Your vard is lit. Nothing is waiting on you.' };
 }

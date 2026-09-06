@@ -65,7 +65,7 @@ export async function ingest({ guildId, documentId }: IngestInput): Promise<Inge
     const limits = await guildLimits(guildId);
     if (text.length > limits.maxDocumentChars) {
       throw new Error(
-        `This document is ${Math.round(text.length / 1000)}k characters and the limit is ${Math.round(limits.maxDocumentChars / 1000)}k. Split it into a few smaller ones, by topic, and Sentry will answer better from them anyway.`,
+        `This document is ${Math.round(text.length / 1000)}k characters and the limit is ${Math.round(limits.maxDocumentChars / 1000)}k. Split it into a few smaller ones, by topic, and Kalvard will answer better from them anyway.`,
       );
     }
     const { count: held } = await serviceClient()

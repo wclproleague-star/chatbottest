@@ -1,4 +1,4 @@
-import { serviceClient } from '@sentrybot/core';
+import { serviceClient } from '@kalvard/core';
 import { requireMember } from '@/lib/guild';
 import { Overview, score } from './overview';
 
@@ -86,7 +86,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
             }
           : quiet
             ? {
-                line: 'Sentry has not been asked anything in a fortnight. Members may not know it is there.',
+                line: 'Kalvard has not been asked anything in a fortnight. Members may not know it is there.',
                 href: `/g/${guildId}/settings`,
                 label: 'Introduce it again',
               }
@@ -94,7 +94,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
         knowledge,
         light: waitingCount > 0 ? 'amber' : answeredCount > 0 ? 'green' : 'off',
         bot: {
-          name: settings.data?.bot_name ?? 'Sentry',
+          name: settings.data?.bot_name ?? 'Kalvard',
           tone: settings.data?.tone_sample ?? settings.data?.persona_prompt ?? '',
           language: settings.data?.language ?? 'the language each member writes in',
           wontTouch: (settings.data?.forbidden_topics ?? []).join(', '),

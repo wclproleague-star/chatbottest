@@ -3,7 +3,7 @@
 // here and nowhere else, so cross-guild isolation can be tested by asking the
 // other guild about it.
 //
-//   pnpm --filter @sentrybot/core seed:hardening
+//   pnpm --filter @kalvard/core seed:hardening
 
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -46,7 +46,7 @@ await db
   .upsert({ guild_id: HARDENING_GUILD_ID, name: 'Hardening', bot_installed: false });
 await db.from('guild_settings').upsert({
   guild_id: HARDENING_GUILD_ID,
-  bot_name: 'Sentry',
+  bot_name: 'Kalvard',
   persona_prompt: 'You answer questions for a small competitive league. Be short and exact.',
   language: null,
   fallback_mode: 'ping_role',

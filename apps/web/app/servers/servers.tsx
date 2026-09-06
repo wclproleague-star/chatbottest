@@ -13,7 +13,7 @@
 // Servers you cannot manage are not your business and take one row, not
 // fourteen.
 
-import { ButtonLink, Surface, cx } from '@sentrybot/ui';
+import { ButtonLink, Surface, cx } from '@kalvard/ui';
 import { useState } from 'react';
 import { Beacon } from '@/components/beacon/beacon';
 import { NightSky } from '@/components/dashboard/night-sky';
@@ -43,7 +43,7 @@ export function Servers({
 }) {
   return (
     <Shell>
-      <Head lede="Every one you can manage, and what its sentry is doing right now." />
+      <Head lede="Every one you can manage, and what its vard is doing right now." />
       {notice && <p className="text-body text-star/80 mt-6">{notice}</p>}
 
       {manageable.length === 0 ? (

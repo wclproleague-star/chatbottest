@@ -3,7 +3,7 @@
 // assignment are supplied by the script, so what is under test is the loop's
 // judgement, which tool it reaches for and how the turn ends.
 //
-//   pnpm --filter @sentrybot/core eval:chat [--guild <id>]
+//   pnpm --filter @kalvard/core eval:chat [--guild <id>]
 
 import { readFileSync } from 'node:fs';
 import process from 'node:process';

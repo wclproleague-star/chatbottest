@@ -4,8 +4,8 @@
 // component only because the card animates when it fills; on Overview there is
 // nothing to fill, so it renders as it will always look.
 
-import { BotCard } from '@sentrybot/ui';
-import type { BotCardValues } from '@sentrybot/ui';
+import { BotCard } from '@kalvard/ui';
+import type { BotCardValues } from '@kalvard/ui';
 
 export function OwnerBotCard({ values }: { values: BotCardValues }) {
   return <BotCard values={values} filled bare />;

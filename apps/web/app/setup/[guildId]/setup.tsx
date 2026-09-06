@@ -12,8 +12,8 @@
 // One decision on screen at a time, a thin bar along the top, and no dashboard
 // chrome: this is the one place in the product that is not the dashboard.
 
-import { Button, ButtonLink, Field, Input, Panel, Textarea, cx } from '@sentrybot/ui';
-import type { DraftConfig } from '@sentrybot/core';
+import { Button, ButtonLink, Field, Input, Panel, Textarea, cx } from '@kalvard/ui';
+import type { DraftConfig } from '@kalvard/core';
 import { useActionState, useEffect, useRef, useState } from 'react';
 import { Beacon } from '@/components/beacon/beacon';
 import { Live, NightScene } from './night-scene';
@@ -153,9 +153,9 @@ export function Setup({
       </div>
 
       {step === 'entry' && (
-        <NightScene light="off" label="Sentry, unlit">
+        <NightScene light="off" label="Kalvard, unlit">
           <p className="text-body text-star/80 max-w-[40ch] text-center">
-            Your sentry isn&apos;t configured yet.
+            Kalvard isn&apos;t set up yet.
           </p>
           <div className="mt-8">
             <Button onClick={() => void begin('chat')} className="bg-star text-night">
@@ -241,7 +241,7 @@ export function Setup({
       {step === 'try' && (
         <div className="mx-auto max-w-[1120px] px-6 py-16 lg:px-12">
           <div className="flex items-start gap-6">
-            <Beacon light="amber" className="h-[180px] w-[70px] shrink-0" label="Sentry, ready" />
+            <Beacon light="amber" className="h-[180px] w-[70px] shrink-0" label="Kalvard, ready" />
             <div>
               <h1 className="display text-ink" style={{ ['--display-size' as string]: '32px' }}>
                 Try it
@@ -254,7 +254,7 @@ export function Setup({
             </div>
           </div>
           <div className="mt-10">
-            <TestChat guildId={guildId} botName={config.botName ?? 'Sentry'} />
+            <TestChat guildId={guildId} botName={config.botName ?? 'Kalvard'} />
           </div>
           <div className="mt-12">
             <Button onClick={() => setStep('bring')}>Bring it to Discord</Button>
@@ -335,7 +335,7 @@ function valueOf(config: DraftConfig, key: keyof DraftConfig): string {
 }
 
 const PREVIEW_CONFIG: DraftConfig = {
-  botName: 'Sentry',
+  botName: 'Kalvard',
   personaPrompt: 'A competitive Wild Rift league. Short and exact, no small talk.',
   language: 'The language each member writes in',
 };
@@ -345,7 +345,7 @@ const PREVIEW_TURNS: { role: 'user' | 'model'; text: string }[] = [
     role: 'model',
     text: 'Let us set up your bot for Wild Champions League. What should it be called?',
   },
-  { role: 'user', text: 'Sentry' },
+  { role: 'user', text: 'Kalvard' },
   {
     role: 'model',
     text: 'In a sentence or two: what is this server for, and how should the bot talk in it?',
@@ -358,7 +358,7 @@ const PREVIEW_TURNS: { role: 'user' | 'model'; text: string }[] = [
 ];
 const PREVIEW_REPLIES = ['Not yet, I will add it later'];
 
-/** The conversation. Sentry left with a green rule, the owner right on white. */
+/** The conversation. Kalvard left with a green rule, the owner right on white. */
 function Chat({
   guildId,
   sessionId,
@@ -419,7 +419,7 @@ function Chat({
               key={i}
               className={cx(
                 'text-ink border-green max-w-full border-l-2 pl-4 lg:max-w-[60ch]',
-                // The last thing Sentry said is the question you are answering,
+                // The last thing Kalvard said is the question you are answering,
                 // so it is the biggest thing on the screen.
                 i === turns.length - 1 && !pending
                   ? 'display [--display-size:26px]'
@@ -516,7 +516,7 @@ function Form({
         <Input
           value={config.botName ?? ''}
           onChange={(e) => set({ botName: e.target.value })}
-          placeholder="Sentry"
+          placeholder="Kalvard"
         />
       </Field>
       <Field
@@ -661,7 +661,7 @@ function Finish({
   if (channels.length === 0 && roles.length === 0) {
     return (
       <p className="text-body text-ink-soft mt-10 max-w-[60ch]">
-        Sentry has not read your channels and roles yet. Give it a moment and reload.
+        Kalvard has not read your channels and roles yet. Give it a moment and reload.
       </p>
     );
   }

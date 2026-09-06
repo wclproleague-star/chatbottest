@@ -1,4 +1,4 @@
-import { ThreadMessage, cx } from '@sentrybot/ui';
+import { ThreadMessage, cx } from '@kalvard/ui';
 import type { CSSProperties } from 'react';
 import { LINES, RESOLVE_AT, TYPE_MS } from './script';
 import { SPRING } from './springs';

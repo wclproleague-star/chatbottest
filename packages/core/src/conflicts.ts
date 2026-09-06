@@ -71,7 +71,7 @@ export async function recordConflicts(guildId: string, documentId: string): Prom
     }
     return found;
   } catch (err) {
-    console.error(`sentry: could not check for conflicts: ${String(err)}`);
+    console.error(`kalvard: could not check for conflicts: ${String(err)}`);
     return 0;
   }
 }

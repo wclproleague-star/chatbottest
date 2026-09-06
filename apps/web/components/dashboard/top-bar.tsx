@@ -1,4 +1,4 @@
-import { Wordmark } from '@sentrybot/ui';
+import { Wordmark } from '@kalvard/ui';
 
 /**
  * The app's top bar on paper: wordmark left, sign out right. The 240px

@@ -7,8 +7,8 @@
 // reaches guild_settings until they save at the end, and the persona is
 // checked before it is written, as it is everywhere else.
 
-import { ingest, onboard, saveSettings, serviceClient } from '@sentrybot/core';
-import type { DraftConfig } from '@sentrybot/core';
+import { ingest, onboard, saveSettings, serviceClient } from '@kalvard/core';
+import type { DraftConfig } from '@kalvard/core';
 import { revalidatePath } from 'next/cache';
 import { requireMember } from '@/lib/guild';
 
@@ -116,7 +116,7 @@ export async function applyDraft(
   const outcome = await saveSettings(
     guildId,
     {
-      bot_name: config.botName ?? 'Sentry',
+      bot_name: config.botName ?? 'Kalvard',
       persona_prompt: config.personaPrompt ?? null,
       language: languageOf(config.language),
       tone_sample: config.toneSample ?? null,
@@ -159,7 +159,7 @@ export async function finishSetup(
   const modRole = String(form.get('mod_role') ?? '').trim();
   const modChannel = String(form.get('mod_channel') ?? '').trim();
   if (!modRole)
-    return { error: 'Choose the role Sentry should wake when it is not sure.', id: Date.now() };
+    return { error: 'Choose the role Kalvard should wake when it is not sure.', id: Date.now() };
 
   const { data: current } = await db
     .from('guild_settings')

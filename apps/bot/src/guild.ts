@@ -2,10 +2,10 @@
 // small writes that go with answering. Everything here runs as the service
 // role, which is why the bot never takes a user's word for a guild id.
 
-import { parseLimits } from '@sentrybot/core';
-import { serviceClient } from '@sentrybot/core/supabase';
-import type { Limits } from '@sentrybot/core';
-import type { Database, Json } from '@sentrybot/core';
+import { parseLimits } from '@kalvard/core';
+import { serviceClient } from '@kalvard/core/supabase';
+import type { Limits } from '@kalvard/core';
+import type { Database, Json } from '@kalvard/core';
 import { ChannelType } from 'discord.js';
 import type { Guild } from 'discord.js';
 
@@ -32,7 +32,7 @@ export async function loadSettings(guildId: string): Promise<GuildSettings> {
   if (error) throw new Error(`Could not load settings for ${guildId}: ${error.message}`);
   const row: Partial<SettingsRow> = data ?? {};
   return {
-    botName: row.bot_name || 'Sentry',
+    botName: row.bot_name || 'Kalvard',
     fallbackMode: row.fallback_mode === 'quiet_queue' ? 'quiet_queue' : 'ping_role',
     modRoleId: row.mod_role_id ?? null,
     modChannelId: row.mod_channel_id ?? null,
@@ -67,7 +67,7 @@ export async function syncMeta(guild: Guild): Promise<void> {
   const roles = guild.roles.cache
     .filter((r) => r.name !== '@everyone')
     .map((r) => ({ id: r.id, name: r.name }));
-  // Who owns the server in Discord, so Sentry notices if they leave it.
+  // Who owns the server in Discord, so Kalvard notices if they leave it.
   await serviceClient()
     .from('guilds')
     .update({ owner_discord_id: guild.ownerId })
@@ -84,13 +84,13 @@ export async function syncMeta(guild: Guild): Promise<void> {
       },
       { onConflict: 'guild_id' },
     );
-  if (error) console.error(`sentry: could not sync meta for ${guild.id}: ${error.message}`);
+  if (error) console.error(`kalvard: could not sync meta for ${guild.id}: ${error.message}`);
   await checkSettingsStillPoint(guild, channels, roles);
 }
 
 /**
  * A channel or a role named in the settings can be deleted in Discord, and the
- * setting keeps pointing at nothing. Sentry notices when it syncs and records
+ * setting keeps pointing at nothing. Kalvard notices when it syncs and records
  * what is dangling, so the dashboard can tell the owner instead of the bot
  * failing quietly at the moment a member needs it.
  */
@@ -136,12 +136,12 @@ export async function markUninstalled(guildId: string): Promise<void> {
     .from('guilds')
     .update({ bot_installed: false, uninstalled_at: new Date().toISOString() })
     .eq('guild_id', guildId);
-  // Nothing keeps running for a server Sentry is no longer in.
+  // Nothing keeps running for a server Kalvard is no longer in.
   await serviceClient().from('conversations').delete().eq('guild_id', guildId);
 }
 
 /**
- * The owner has left the server. Sentry keeps working, but the guild has
+ * The owner has left the server. Kalvard keeps working, but the guild has
  * nobody accountable for it, so it is marked and the editors are asked to
  * claim it in the dashboard.
  */
@@ -171,7 +171,7 @@ export async function logEvent(
   const { error } = await serviceClient()
     .from('bot_events')
     .insert({ guild_id: guildId, type, payload: payload as Json });
-  if (error) console.error(`sentry: could not write bot_events: ${error.message}`);
+  if (error) console.error(`kalvard: could not write bot_events: ${error.message}`);
 }
 
 /**

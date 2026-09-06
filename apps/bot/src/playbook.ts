@@ -16,8 +16,8 @@ import {
   MessageFlags,
 } from 'discord.js';
 import type { ButtonInteraction, Guild, TextChannel } from 'discord.js';
-import type { PlaybookEffects } from '@sentrybot/core';
-import { serviceClient } from '@sentrybot/core/supabase';
+import type { PlaybookEffects } from '@kalvard/core';
+import { serviceClient } from '@kalvard/core/supabase';
 import { logEvent } from './guild';
 import { claim } from './once';
 

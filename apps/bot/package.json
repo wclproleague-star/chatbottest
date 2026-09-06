@@ -1,5 +1,5 @@
 {
-  "name": "@sentrybot/bot",
+  "name": "@kalvard/bot",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sentrybot/core": "workspace:*",
+    "@kalvard/core": "workspace:*",
     "discord.js": "^14.17.3",
     "tsx": "^4.19.2"
   },

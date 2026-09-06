@@ -4,7 +4,7 @@
 //
 // The line in its voice is not a field. Nobody sits down to write one, and a
 // box asking for one gets an empty box; what it is for is to hear the persona
-// you just wrote, so it is shown as a quoted line Sentry wrote, with the way
+// you just wrote, so it is shown as a quoted line Kalvard wrote, with the way
 // to ask for three more underneath it.
 //
 // The form carries the version it was opened with, so two people editing at
@@ -12,7 +12,7 @@
 // test chat as the Test page: a change of voice is something you hear, not
 // something you imagine.
 
-import { Field, FormSection, Input, Panel, Section, Textarea, cx } from '@sentrybot/ui';
+import { Field, FormSection, Input, Panel, Section, Textarea, cx } from '@kalvard/ui';
 import { useActionState, useState } from 'react';
 import { TestChat } from '../test/test-chat';
 import { regenerateTones, savePersonality } from './actions';
@@ -224,7 +224,7 @@ export function PersonalityForm({
         >
           {roles.length === 0 ? (
             <p className="text-ui-sm text-ink-soft">
-              Sentry has not read your roles yet. Add it to the server first.
+              Kalvard has not read your roles yet. Add it to the server first.
             </p>
           ) : (
             <div className="space-y-2">
@@ -251,7 +251,7 @@ export function PersonalityForm({
       )}
 
       <Section heading="Hear it" lede="The same dry run as the test page, in the voice above.">
-        <TestChat guildId={guildId} botName={values.botName || 'Sentry'} />
+        <TestChat guildId={guildId} botName={values.botName || 'Kalvard'} />
       </Section>
     </div>
   );

@@ -3,17 +3,17 @@
 // The inbox row, which is the core component of the dashboard.
 //
 // Closed, a row is what you need to triage: the question, who asked and where,
-// and one line of what Sentry said. A moderator with twenty of these wants to
+// and one line of what Kalvard said. A moderator with twenty of these wants to
 // see twenty of them, not scroll past twenty reply boxes. Clicking one opens
 // it in place, and only one is open at a time, so the list stays a list.
 //
-// Open, it shows the chunks Sentry actually retrieved as a block of its own,
+// Open, it shows the chunks Kalvard actually retrieved as a block of its own,
 // not a grey link. A moderator who can see that can tell the difference
 // between "we never wrote this down" and "we wrote it down badly", which is
 // the difference between adding knowledge and fixing it. The reply box is one
 // line that grows, because most answers are one sentence.
 
-import { Button, ExpandingRow, GrowingInput, Panel, RowBlock, cx } from '@sentrybot/ui';
+import { Button, ExpandingRow, GrowingInput, Panel, RowBlock, cx } from '@kalvard/ui';
 import { Beacon } from '@/components/beacon/beacon';
 import { useActionState, useState } from 'react';
 import { answerQuestion, dismissQuestion } from './actions';
@@ -82,7 +82,7 @@ export function Inbox({
       {tab === 'waiting' ? (
         waiting.length === 0 ? (
           <p className="text-body text-ink-soft">
-            Nothing waiting on you. Sentry answered everything this week.
+            Nothing waiting on you. Kalvard answered everything this week.
           </p>
         ) : (
           <Panel className="divide-hairline divide-y p-0">
@@ -99,7 +99,7 @@ export function Inbox({
         )
       ) : answered.length === 0 ? (
         <p className="text-body text-ink-soft">
-          Nothing answered yet. What you answer here becomes what Sentry knows.
+          Nothing answered yet. What you answer here becomes what Kalvard knows.
         </p>
       ) : (
         <Panel className="divide-hairline divide-y p-0">
@@ -157,7 +157,7 @@ function WaitingRow({
     <ExpandingRow
       title={row.question}
       meta={`${row.asker} · ${row.channel} · ${row.askedAt}`}
-      preview={row.draft ? `Sentry said: ${row.draft}` : undefined}
+      preview={row.draft ? `Kalvard said: ${row.draft}` : undefined}
       state="waiting"
       mark={<Mark light="amber" />}
       open={open}
@@ -166,7 +166,7 @@ function WaitingRow({
     >
       <div className="space-y-4">
         {row.draft && (
-          <RowBlock label="What Sentry said">
+          <RowBlock label="What Kalvard said">
             <p className="text-thread text-ink">{row.draft}</p>
           </RowBlock>
         )}
@@ -191,7 +191,7 @@ function WaitingRow({
           <GrowingInput
             name="answer"
             maxLength={900}
-            placeholder="Answer them, in a sentence. Sentry posts it and keeps it."
+            placeholder="Answer them, in a sentence. Kalvard posts it and keeps it."
             aria-label={`Answer: ${row.question}`}
           />
           {state?.error && <p className="text-ui-sm text-ink mt-2">{state.error}</p>}
@@ -215,7 +215,7 @@ function WaitingRow({
 }
 
 /**
- * The sentry that handed this row over, at the size of a mark. Below 64px the
+ * The vard that handed this row over, at the size of a mark. Below 64px the
  * component draws itself in vector, so it is sharp at a size where the object
  * would only be edges.
  */

@@ -1,10 +1,10 @@
-// The approval loop, in the channel. When Sentry is not sure it says so where
+// The approval loop, in the channel. When Kalvard is not sure it says so where
 // the question was asked and mentions the moderators. A moderator replies to
-// that message with the real answer; Sentry offers them a tick, and on the
+// that message with the real answer; Kalvard offers them a tick, and on the
 // tick the answer is stored, filed as knowledge and given to the member who
 // asked. Answers approved on the dashboard arrive here too, by polling.
 
-import { serviceClient } from '@sentrybot/core/supabase';
+import { serviceClient } from '@kalvard/core/supabase';
 import type {
   Client,
   Message,
@@ -53,7 +53,7 @@ async function pendingForMessages(
 }
 
 /**
- * A moderator replied to a question Sentry could not answer: offer them the
+ * A moderator replied to a question Kalvard could not answer: offer them the
  * tick, so one press turns their reply into knowledge. Returns whether this
  * message was such a reply, which means it is an answer and not a question.
  */
@@ -65,7 +65,7 @@ export async function onModReply(message: Message, settings: GuildSettings): Pro
   const pending = await pendingForMessages(message.guild.id, [repliedTo]);
   if (!pending) return false;
   // The member who asked cannot answer their own question, even when they are
-  // also a moderator: their reply is them talking to Sentry.
+  // also a moderator: their reply is them talking to Kalvard.
   if (pending.asker_discord_id === message.author.id) return false;
   await message.react(TICK);
   await message.react(UNSURE);
@@ -73,7 +73,7 @@ export async function onModReply(message: Message, settings: GuildSettings): Pro
 }
 
 /**
- * A tick from a moderator. On Sentry's own message it confirms the draft it
+ * A tick from a moderator. On Kalvard's own message it confirms the draft it
  * offered; on a moderator's reply it takes their text as the answer.
  */
 export async function onTick(
@@ -89,7 +89,7 @@ export async function onTick(
   const member = await guild.members.fetch(user.id).catch(() => null);
   if (!member?.roles.cache.has(settings.modRoleId)) return;
 
-  // Either the tick is on Sentry's own message, or on a reply to it.
+  // Either the tick is on Kalvard's own message, or on a reply to it.
   const pending = await pendingForMessages(guild.id, [
     message.id,
     message.reference?.messageId ?? null,

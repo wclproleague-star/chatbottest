@@ -9,8 +9,8 @@
 // one process that holds a Discord connection as the only thing that changes a
 // server.
 
-import { cancelCommand, planCommand, recordCommand, serviceClient } from '@sentrybot/core';
-import type { GuildShape, Plan } from '@sentrybot/core';
+import { cancelCommand, planCommand, recordCommand, serviceClient } from '@kalvard/core';
+import type { GuildShape, Plan } from '@kalvard/core';
 import { revalidatePath } from 'next/cache';
 import { displayName, requireMember } from '@/lib/guild';
 
@@ -39,7 +39,7 @@ export async function planIt(_prev: CommandState, form: FormData): Promise<Comma
   if (shape.channels.length === 0 && shape.roles.length === 0) {
     return {
       kind: 'error',
-      error: 'Sentry has not read your channels and roles yet. Add it to the server first.',
+      error: 'Kalvard has not read your channels and roles yet. Add it to the server first.',
       id: Date.now(),
     };
   }
@@ -82,7 +82,7 @@ export async function confirmIt(_prev: CommandState, form: FormData): Promise<Co
   revalidatePath(`/g/${guildId}/commands`);
   return {
     kind: 'sent',
-    note: 'Confirmed. Sentry is carrying it out in Discord, and this page will show what ran.',
+    note: 'Confirmed. Kalvard is carrying it out in Discord, and this page will show what ran.',
     id: Date.now(),
   };
 }

@@ -15,9 +15,9 @@ import {
   PermissionFlagsBits,
 } from 'discord.js';
 import type { ButtonInteraction, Client, Guild, Message, TextChannel } from 'discord.js';
-import { ITEMISE_ABOVE, cancelCommand, planCommand, recordCommand, runPlan } from '@sentrybot/core';
-import type { CommandEffects, GuildShape, PlannedStep } from '@sentrybot/core';
-import { serviceClient } from '@sentrybot/core/supabase';
+import { ITEMISE_ABOVE, cancelCommand, planCommand, recordCommand, runPlan } from '@kalvard/core';
+import type { CommandEffects, GuildShape, PlannedStep } from '@kalvard/core';
+import { serviceClient } from '@kalvard/core/supabase';
 import type { GuildSettings } from './guild';
 import { logEvent } from './guild';
 import { claim } from './once';
@@ -244,7 +244,7 @@ export function commandEffects(guild: Guild): CommandEffects {
                 PermissionFlagsBits.ReadMessageHistory,
               ],
             })),
-            // Sentry keeps its own way in, or it cannot post there afterwards.
+            // Kalvard keeps its own way in, or it cannot post there afterwards.
             ...(guild.members.me
               ? [
                   {
@@ -288,7 +288,7 @@ export function commandEffects(guild: Guild): CommandEffects {
           ReadMessageHistory: true,
         });
       }
-      // Sentry keeps its own way in, or it cannot post there afterwards.
+      // Kalvard keeps its own way in, or it cannot post there afterwards.
       if (guild.members.me) {
         await channel.permissionOverwrites.edit(guild.members.me.id, {
           ViewChannel: true,

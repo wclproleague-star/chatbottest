@@ -1,4 +1,4 @@
-// Setting a server up by talking to Sentry.
+// Setting a server up by talking to Kalvard.
 //
 // The form and this ask for the same things and write the same row. What this
 // adds is that it asks one at a time, offers something to click instead of an
@@ -36,7 +36,7 @@ export type DraftConfig = {
 export type OnboardMessage = { role: 'user' | 'model'; text: string };
 
 export type OnboardResult = {
-  /** What Sentry says next. */
+  /** What Kalvard says next. */
   message: string;
   updatedConfig: DraftConfig;
   /** Concrete things to click instead of typing, when there are any. */
@@ -355,7 +355,7 @@ async function ask(
           ? `Let us set up your bot for ${guildName}. What should it be called?`
           : 'What should it be called?',
       ),
-      quickReplies: ['Sentry'],
+      quickReplies: ['Kalvard'],
     };
   }
   if (field === 'language') {

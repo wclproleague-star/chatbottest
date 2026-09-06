@@ -1,4 +1,4 @@
-import { Column, Surface } from '@sentrybot/ui';
+import { Column, Surface } from '@kalvard/ui';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { Inbox } from '@/app/g/[guildId]/inbox/inbox-rows';
@@ -8,7 +8,7 @@ import { Commands } from '@/app/g/[guildId]/commands/commands-form';
 import { Overview } from '@/app/g/[guildId]/overview/overview';
 import { Knowledge } from '@/app/g/[guildId]/knowledge/knowledge';
 import { TestChat } from '@/app/g/[guildId]/test/test-chat';
-import { Section } from '@sentrybot/ui';
+import { Section } from '@kalvard/ui';
 
 // The dashboard screens with fixed data, so they can be looked at and checked
 // against the design without a Discord session. The forms post to the real
@@ -71,7 +71,7 @@ function OverviewPreview() {
         },
         light: 'amber',
         bot: {
-          name: 'Sentry',
+          name: 'Kalvard',
           tone: 'Sunday 18:00 CET, in #announcements. Check-in closes an hour before.',
           language: 'the language each member writes in',
           wontTouch: 'bans and appeals, payments and refunds',
@@ -125,11 +125,11 @@ function TestPreview() {
     <div>
       <PageTitle
         title="Test"
-        lede="Ask what a member would ask. Sentry answers from the knowledge, or shows where it would ask a mod."
+        lede="Ask what a member would ask. Kalvard answers from the knowledge, or shows where it would ask a mod."
       />
       <div className="mt-10">
         <Section heading="Ask it something">
-          <TestChat guildId="900000000000000001" botName="Sentry" />
+          <TestChat guildId="900000000000000001" botName="Kalvard" />
         </Section>
       </div>
     </div>
@@ -141,7 +141,7 @@ function InboxPreview({ openAt }: { openAt?: string }) {
     <div>
       <PageTitle
         title="Inbox"
-        lede="What Sentry could not answer. Your answer goes back to the member and becomes something it knows."
+        lede="What Kalvard could not answer. Your answer goes back to the member and becomes something it knows."
       />
       <Inbox
         openAt={openAt}
@@ -202,7 +202,7 @@ function PersonalityPreview() {
         basedOn={null}
         roles={ROLES}
         values={{
-          botName: 'Sentry',
+          botName: 'Kalvard',
           persona: 'A competitive Wild Rift league. Short and exact, no small talk.',
           language: '',
           toneSample: 'Sunday 18:00 CET, in #announcements. Check-in closes an hour before.',
@@ -222,7 +222,7 @@ function CommandsPreview() {
     <div>
       <PageTitle
         title="Commands"
-        lede="Tell Sentry what to change. It shows you the plan first, and nothing happens until you confirm."
+        lede="Tell Kalvard what to change. It shows you the plan first, and nothing happens until you confirm."
       />
       <Commands
         guildId="900000000000000001"

@@ -1,4 +1,4 @@
-// What an owner may tell Sentry to be, and what they may not.
+// What an owner may tell Kalvard to be, and what they may not.
 //
 // A persona shapes tone: warm or dry, short or chatty, formal or not. It never
 // shapes truthfulness, safety or grounding, because those are what the product
@@ -15,16 +15,16 @@ export type PersonaVerdict = { ok: boolean; reason: string };
 
 const REFUSALS: Record<string, string> = {
   agreement:
-    'A persona cannot make Sentry agree with whatever it is told. It answers from what your server knows, and says so when it does not know.',
+    'A persona cannot make Kalvard agree with whatever it is told. It answers from what your server knows, and says so when it does not know.',
   flattery:
-    'A persona cannot make Sentry flatter people. Warm is fine; telling members what they want to hear is not.',
-  insult: 'A persona cannot make Sentry insult, mock or belittle anyone, however it is phrased.',
-  sides: 'A persona cannot make Sentry take a side between members. Disputes go to a moderator.',
+    'A persona cannot make Kalvard flatter people. Warm is fine; telling members what they want to hear is not.',
+  insult: 'A persona cannot make Kalvard insult, mock or belittle anyone, however it is phrased.',
+  sides: 'A persona cannot make Kalvard take a side between members. Disputes go to a moderator.',
   impersonation:
-    'A persona cannot make Sentry pass itself off as a real person or a real company. Give it a name of its own.',
-  intimacy: 'A persona cannot make Sentry flirtatious or intimate with members.',
+    'A persona cannot make Kalvard pass itself off as a real person or a real company. Give it a name of its own.',
+  intimacy: 'A persona cannot make Kalvard flirtatious or intimate with members.',
   grounding:
-    'A persona shapes tone, not truth. Sentry cannot be told to answer beyond what your server knows, or to hide when it is unsure.',
+    'A persona shapes tone, not truth. Kalvard cannot be told to answer beyond what your server knows, or to hide when it is unsure.',
 };
 
 /**
@@ -76,7 +76,7 @@ export async function checkPersona(persona: string): Promise<PersonaVerdict> {
 }
 
 /**
- * Whether the forbidden topics are so broad that Sentry would refuse most of
+ * Whether the forbidden topics are so broad that Kalvard would refuse most of
  * what a member asks. Returns a warning for the dashboard, not a refusal: it is
  * the owner's server, and they may mean it.
  */
@@ -105,7 +105,7 @@ export async function checkForbidden(topics: string[]): Promise<string> {
     });
     if (!(out.refusedOf10 >= 4)) return '';
     const example = out.example.trim();
-    return `These forbidden topics are broad: Sentry would have to refuse about ${out.refusedOf10} of every 10 ordinary questions${example ? `, including "${example}"` : ''}. Narrow them if you want it to be useful.`;
+    return `These forbidden topics are broad: Kalvard would have to refuse about ${out.refusedOf10} of every 10 ordinary questions${example ? `, including "${example}"` : ''}. Narrow them if you want it to be useful.`;
   } catch {
     return '';
   }

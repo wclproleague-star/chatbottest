@@ -14,7 +14,7 @@ export const WORDMARK_STYLE: CSSProperties = {
 export function Wordmark({ className }: { className?: string }) {
   return (
     <span className={cx('leading-none', className)} style={WORDMARK_STYLE}>
-      Sentry
+      Kalvard
     </span>
   );
 }

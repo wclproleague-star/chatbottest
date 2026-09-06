@@ -67,7 +67,7 @@ export async function saveSettings(
   return { ok: true, updatedAt: now, warning: warning || undefined };
 }
 
-/** Lets Sentry answer from a document whose personal details the owner accepted. */
+/** Lets Kalvard answer from a document whose personal details the owner accepted. */
 export async function approveDocument(guildId: string, documentId: string): Promise<void> {
   const db = serviceClient();
   await db

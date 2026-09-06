@@ -25,7 +25,7 @@ insert into public.guild_settings (
 )
 values (
   '900000000000000001',
-  'Sentry',
+  'Kalvard',
   'You answer questions for a competitive gaming league. Be short and exact. '
     || 'Give the time, the channel, and the deadline when they are known.',
   'en',

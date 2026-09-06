@@ -1,8 +1,8 @@
-import { Section, Sections } from '@sentrybot/ui';
+import { Section, Sections } from '@kalvard/ui';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { KnowledgeForms } from './knowledge-forms';
 
-// Knowledge: what Sentry answers from. The score in a word, the ways to add
+// Knowledge: what Kalvard answers from. The score in a word, the ways to add
 // more, and the documents with their status. Separate from the queries that
 // fill it, so it can be looked at without a Discord session behind it.
 
@@ -39,7 +39,7 @@ export function Knowledge({
     <div>
       <PageTitle
         title="Knowledge"
-        lede="What Sentry answers from. Add rules, guides and answers; it reads them in about a minute."
+        lede="What Kalvard answers from. Add rules, guides and answers; it reads them in about a minute."
       />
 
       <div className="mt-10">
@@ -56,7 +56,7 @@ export function Knowledge({
           <Section heading="What it has read">
             {documents.length === 0 ? (
               <p className="text-ink-soft">
-                Nothing here yet. Paste your rules above to give Sentry its first answers.
+                Nothing here yet. Paste your rules above to give Kalvard its first answers.
               </p>
             ) : (
               <ul className="divide-hairline -my-4 divide-y">
@@ -85,18 +85,18 @@ export function scoreFor(chunks: number): { word: string; sentence: string } {
   if (chunks < 10) {
     return {
       word: 'Thin',
-      sentence: `${chunks === 0 ? 'No' : chunks} ${chunks === 1 ? 'piece' : 'pieces'} of knowledge. Sentry will send most questions to a moderator until there is more here.`,
+      sentence: `${chunks === 0 ? 'No' : chunks} ${chunks === 1 ? 'piece' : 'pieces'} of knowledge. Kalvard will send most questions to a moderator until there is more here.`,
     };
   }
   if (chunks <= 50) {
     return {
       word: 'Decent',
-      sentence: `${chunks} pieces of knowledge. Sentry can answer the common questions and will ask about the rest.`,
+      sentence: `${chunks} pieces of knowledge. Kalvard can answer the common questions and will ask about the rest.`,
     };
   }
   return {
     word: 'Solid',
-    sentence: `${chunks} pieces of knowledge. Sentry can answer most questions on its own.`,
+    sentence: `${chunks} pieces of knowledge. Kalvard can answer most questions on its own.`,
   };
 }
 

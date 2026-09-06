@@ -7,8 +7,8 @@
 // finds out in a channel that the address was wrong. The key is written but
 // never read back to the browser.
 
-import { parseSources, saveSettings, serviceClient, testSource } from '@sentrybot/core';
-import type { DataSource } from '@sentrybot/core';
+import { parseSources, saveSettings, serviceClient, testSource } from '@kalvard/core';
+import type { DataSource } from '@kalvard/core';
 import { revalidatePath } from 'next/cache';
 import { requireMember } from '@/lib/guild';
 
@@ -30,7 +30,7 @@ export async function addSource(_prev: SourceState, form: FormData): Promise<Sou
     return fail('Give it a name and say what it can answer.');
   }
   const kind = SOURCE_KINDS.find((k) => k.kind === source.kind);
-  if (!kind) return fail('Sentry has no fetcher for that.');
+  if (!kind) return fail('Kalvard has no fetcher for that.');
 
   // Tested before it is saved, always.
   const tried = await testSource(source, 'what is coming up?', guildId);

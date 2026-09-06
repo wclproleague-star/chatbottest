@@ -1,7 +1,7 @@
 // Typed mirror of supabase/migrations. The migrations are the source of truth;
 // when one changes a table, change it here too. Hand-written because
 // `supabase gen types --db-url` needs Docker, and because this database is
-// shared with another app whose tables have no place in Sentry's client.
+// shared with another app whose tables have no place in Kalvard's client.
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 

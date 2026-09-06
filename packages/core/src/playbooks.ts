@@ -131,7 +131,7 @@ async function runStep(step: Step, input: RunInput, result: RunResult): Promise<
 
     case 'do': {
       if (!input.allowedActions.includes(step.action)) {
-        return stop(result, `${step.action} is not something this server lets Sentry do`);
+        return stop(result, `${step.action} is not something this server lets Kalvard do`);
       }
       const args: Record<string, string> = {};
       for (const [key, value] of Object.entries(step.with)) {
@@ -238,7 +238,7 @@ async function carryOut(
       await input.effects.pinMessage(args.channel ?? '', args.message ?? '');
       break;
     default:
-      return stop(result, `${action} is not an action Sentry knows`);
+      return stop(result, `${action} is not an action Kalvard knows`);
   }
   result.entries.push({ step: 'do', detail });
 }
@@ -334,5 +334,5 @@ export async function recordRun(input: {
         stoppedBecause: input.result.stoppedBecause ?? null,
       } as unknown as Json,
     });
-  if (error) console.error(`sentry: could not record the run: ${error.message}`);
+  if (error) console.error(`kalvard: could not record the run: ${error.message}`);
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import { Button } from '@sentrybot/ui';
+import { Button } from '@kalvard/ui';
 import { useActionState } from 'react';
 import { claimGuild } from './actions';
 import type { ClaimState } from './actions';

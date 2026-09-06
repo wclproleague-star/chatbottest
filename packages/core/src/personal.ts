@@ -1,7 +1,7 @@
 // Personal details in the knowledge.
 //
 // An owner pastes a spreadsheet and a member's phone number comes with it.
-// Sentry would then hand it to whoever asks, which is the one failure mode a
+// Kalvard would then hand it to whoever asks, which is the one failure mode a
 // knowledge base has that a person does not. So it is found when the document
 // is ingested, the chunk is blocked, and nothing blocked is ever retrieved: the
 // owner sees it in the dashboard and decides.
@@ -61,5 +61,5 @@ export function personalSummary(findings: Finding[]): string {
   const parts = [...counts].map(
     ([kind, count]) => `${count} ${names[kind]}${count > 1 ? 's' : ''}`,
   );
-  return `This document looks like it contains ${parts.join(', ')}. Sentry will not answer from those parts until you say it may.`;
+  return `This document looks like it contains ${parts.join(', ')}. Kalvard will not answer from those parts until you say it may.`;
 }

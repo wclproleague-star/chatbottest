@@ -1,12 +1,12 @@
 'use client';
 
-import { Button, Field, Input, Section, Textarea, Toast, cx } from '@sentrybot/ui';
+import { Button, Field, Input, Section, Textarea, Toast, cx } from '@kalvard/ui';
 import { useActionState, useState } from 'react';
 import { addAnswer, pasteDocument, uploadDocument } from './actions';
 import type { KnowledgeState } from './actions';
 
 // The three ways in: upload, paste, Q&A. One at a time, as tabs. Each form
-// waits while Sentry reads the document, then a toast says what happened;
+// waits while Kalvard reads the document, then a toast says what happened;
 // errors sit under the form in one sentence.
 
 type Tab = 'upload' | 'paste' | 'qa';
@@ -100,7 +100,7 @@ export function KnowledgeForms({ guildId }: { guildId: string }) {
                 placeholder="When is check-in?"
               />
             </Field>
-            <Field label="Sentry answers">
+            <Field label="Kalvard answers">
               <Textarea
                 name="answer"
                 required

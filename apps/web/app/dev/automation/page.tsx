@@ -1,4 +1,4 @@
-import { Surface } from '@sentrybot/ui';
+import { Surface } from '@kalvard/ui';
 import { Automation } from '@/components/marketing/automation';
 
 // The automation section on its own, so it can be looked at before it takes

@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@import '@sentrybot/ui/tokens.css';
+@import '@kalvard/ui/tokens.css';
 
 /* Components live in the ui package; Tailwind has to see their class names. */
 @source '../../../packages/ui/src';

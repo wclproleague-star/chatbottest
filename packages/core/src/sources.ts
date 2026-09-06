@@ -1,6 +1,6 @@
 // The data sources a guild has, and how the loop calls them.
 //
-// What Sentry can look up is not a list written into a prompt: it is whatever
+// What Kalvard can look up is not a list written into a prompt: it is whatever
 // the owner has configured here. Each entry becomes a tool the loop may call,
 // described in the owner's own words, so adding a source makes questions
 // answerable that were not answerable yesterday, with no change to any prompt
@@ -78,7 +78,7 @@ export async function testSource(
   guildId: string,
 ): Promise<{ ok: true; sample: string } | { ok: false; reason: string }> {
   const fetcher = FETCHERS.get(source.kind);
-  if (!fetcher) return { ok: false, reason: `Sentry has no fetcher for "${source.kind}".` };
+  if (!fetcher) return { ok: false, reason: `Kalvard has no fetcher for "${source.kind}".` };
   try {
     const said = (await fetcher({ source, question, guildId })).trim();
     return said

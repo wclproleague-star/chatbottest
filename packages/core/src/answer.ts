@@ -44,7 +44,7 @@ export type AnswerInput = {
   channel?: { name?: string; category?: string; topic?: string };
   /**
    * Whether the caller can actually carry things out. False in the owner's
-   * test chat, where there are no tools: Sentry must then say where it does a
+   * test chat, where there are no tools: Kalvard must then say where it does a
    * thing rather than claim it does not do it.
    */
   canAct?: boolean;
@@ -66,7 +66,7 @@ export type Kind = (typeof KINDS)[number];
 
 /**
  * How a claim about the server stands up: `grounded`, a retrieved chunk says
- * it; `self`, a true statement about what Sentry holds; `partial`, a hedged
+ * it; `self`, a true statement about what Kalvard holds; `partial`, a hedged
  * reading the chunks imply; `none`, nothing to stand on.
  */
 export const GROUNDINGS = ['grounded', 'self', 'partial', 'none'] as const;
@@ -77,7 +77,7 @@ export type Claim = { text: string; grounding: Grounding; chunkIds: string[] };
 export const HISTORY_LIMIT = 6;
 
 /**
- * One principle: Sentry converses naturally in the guild's persona, and never
+ * One principle: Kalvard converses naturally in the guild's persona, and never
  * states a fact about the server that is not grounded in retrieved chunks.
  * The tier is the weakest grounding among the reply's claims:
  * - answer: every claim is grounded or self, or the reply makes none.
@@ -92,7 +92,7 @@ export type AnswerResult =
       resolution?: Resolution;
       answered: true;
       kind: 'conversation' | 'server';
-      /** Carries {mods} only when the member asked for them, or asked what Sentry holds in full. */
+      /** Carries {mods} only when the member asked for them, or asked what Kalvard holds in full. */
       answer: string;
       claims: Claim[];
       confidence: number;
@@ -159,7 +159,7 @@ export type AnswerResult =
     }
   | {
       /**
-       * The message was addressed to someone else and merely mentions Sentry.
+       * The message was addressed to someone else and merely mentions Kalvard.
        * Nothing is said: answering something nobody asked is worse than
        * silence.
        */
@@ -219,20 +219,20 @@ type ModelOutput = {
   kind: Kind;
   flagCategory?: string | null;
   found: string;
-  /** Whether the member asked what Sentry itself knows, holds or has. */
+  /** Whether the member asked what Kalvard itself knows, holds or has. */
   asksAboutKnowledge?: boolean | null;
   /** Whether the member asked if that is everything you know. */
   asksCompleteness?: boolean | null;
   /** Whether the member asked for a moderator themselves. */
   asksForModerators?: boolean | null;
   /**
-   * Whether they asked Sentry to do something, and the reply only says what it
-   * does or does not do. That is a fact about Sentry, not about the server.
+   * Whether they asked Kalvard to do something, and the reply only says what it
+   * does or does not do. That is a fact about Kalvard, not about the server.
    */
   asksForAnAction?: boolean | null;
   /** Whether the reply hands this to a person, because it needs one. */
   handsToAPerson?: boolean | null;
-  /** Whether the message was aimed at another member and merely mentions Sentry. */
+  /** Whether the message was aimed at another member and merely mentions Kalvard. */
   addressedToSomeoneElse?: boolean | null;
   reply: string;
   claims?: { text: string; grounding: string; chunkIds?: string[] | null }[] | null;
@@ -278,7 +278,7 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
   const { guildId, question } = input;
   const settings = await loadSettings(guildId);
 
-  // A guild has a monthly allowance. Past it Sentry says so plainly, in the
+  // A guild has a monthly allowance. Past it Kalvard says so plainly, in the
   // channel, and spends nothing: no embedding, no model call, no moderator.
   if (await overQuota(guildId, settings.limits)) {
     return {
@@ -304,7 +304,7 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
   // Who and where, then what they are referring to.
   const context = await resolutionContext(guildId, input, settings, matches.length);
   let resolution = await resolveTarget({ message: question, history, context });
-  // A member cannot choose between two of Sentry's own documents, so a
+  // A member cannot choose between two of Kalvard's own documents, so a
   // question that only looks ambiguous because two of them cover the same
   // ground is not ambiguous at all: the disagreement belongs in the reply.
   if (resolution.outcome === 'ambiguous' && (await allTitles(guildId, matches, resolution))) {
@@ -325,9 +325,9 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
     },
   };
 
-  // Asked for a role the owner lets Sentry hand out. This is answered on its
+  // Asked for a role the owner lets Kalvard hand out. This is answered on its
   // own rather than through the main prompt: that prompt is mostly about what
-  // Sentry does not do, and a reply written under it kept saying that giving a
+  // Kalvard does not do, and a reply written under it kept saying that giving a
   // role was not something it does, which is the opposite of the truth. It is
   // also the one thing this path must not pretend to have done: only the tool
   // loop in Discord actually assigns.
@@ -476,11 +476,11 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
       grounding = 'none';
     }
     // "I don't have that" stands as a self claim only when the member asked
-    // what Sentry holds. Asked about the server, a missing fact is ungrounded.
+    // what Kalvard holds. Asked about the server, a missing fact is ungrounded.
     if (grounding === 'self' && !raw.asksAboutKnowledge) grounding = 'none';
     return { text: String(c.text ?? '').trim(), grounding, chunkIds };
   });
-  // Asked to do something, the reply says what Sentry does. That rests on no
+  // Asked to do something, the reply says what Kalvard does. That rests on no
   // knowledge and grades nothing: a capability is not a server fact, so it can
   // neither be ungrounded nor drag the reply down a tier.
   if (resolution.asksForAnAction && !raw.asksAboutKnowledge) claims.length = 0;
@@ -607,7 +607,7 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
     resolution,
     answered: true,
     kind: 'server',
-    // Asked whether that is all Sentry knows, the moderators are brought in to
+    // Asked whether that is all Kalvard knows, the moderators are brought in to
     // fill the gap. Otherwise a tier 1 answer never mentions them, whatever
     // the model wrote.
     answer:
@@ -724,7 +724,7 @@ function asksForARole(resolution: Resolution, question: string): boolean {
 
 /**
  * What to say to someone asking for a role, written on its own so the long
- * prompt about what Sentry does not do cannot contradict it.
+ * prompt about what Kalvard does not do cannot contradict it.
  */
 async function roleReply(s: Settings, canAct: boolean, entity: string | null): Promise<string> {
   const named = entity?.trim()
@@ -778,7 +778,7 @@ async function retrieve(guildId: string, query: string, threshold: number): Prom
 /**
  * Everything the bot may legitimately see, gathered for resolution: who is
  * asking and what they hold, where they are writing, what the server has said
- * about who belongs to what, what Sentry has already done for them, the time
+ * about who belongs to what, what Kalvard has already done for them, the time
  * where the server lives, and how much of the knowledge could be meant.
  */
 async function resolutionContext(
@@ -862,7 +862,7 @@ async function loadSettings(guildId: string): Promise<Settings> {
   if (error) throw new Error(`Could not load guild settings: ${error.message}`);
   const row: Partial<SettingsRow> = data ?? {};
   return {
-    botName: row.bot_name || 'Sentry',
+    botName: row.bot_name || 'Kalvard',
     persona: row.persona_prompt ?? null,
     language: row.language ?? null,
     forbidden: row.forbidden_topics ?? [],
@@ -1110,7 +1110,7 @@ function responseSchema(allowed: ActionType[]): Schema {
       type: Type.BOOLEAN,
       nullable: true,
       description:
-        'True when the message is aimed at another member and only mentions you in passing, so nothing is being asked of you ("@Sentry est nul mais bref, Marc tu viens ce soir ?"). False whenever anything at all is being asked of you, including a complaint about you.',
+        'True when the message is aimed at another member and only mentions you in passing, so nothing is being asked of you ("@Kalvard est nul mais bref, Marc tu viens ce soir ?"). False whenever anything at all is being asked of you, including a complaint about you.',
     },
     handsToAPerson: {
       type: Type.BOOLEAN,

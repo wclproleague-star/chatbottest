@@ -1,4 +1,4 @@
-import { serviceClient } from '@sentrybot/core';
+import { serviceClient } from '@kalvard/core';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { requireMember } from '@/lib/guild';
 import { standing } from '@/lib/standing';
@@ -31,7 +31,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
         basedOn={settings?.updated_at ?? null}
         roles={(meta?.roles ?? []) as { id: string; name: string }[]}
         values={{
-          botName: settings?.bot_name ?? 'Sentry',
+          botName: settings?.bot_name ?? 'Kalvard',
           persona: settings?.persona_prompt ?? '',
           language: settings?.language ?? '',
           toneSample: settings?.tone_sample ?? '',

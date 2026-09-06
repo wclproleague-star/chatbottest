@@ -1,5 +1,5 @@
 {
-  "name": "@sentrybot/web",
+  "name": "@kalvard/web",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -10,8 +10,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@sentrybot/core": "workspace:*",
-    "@sentrybot/ui": "workspace:*",
+    "@kalvard/core": "workspace:*",
+    "@kalvard/ui": "workspace:*",
     "@supabase/ssr": "^0.12.6",
     "@supabase/supabase-js": "^2.115.0",
     "next": "^15.1.4",

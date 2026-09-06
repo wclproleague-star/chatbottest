@@ -15,7 +15,7 @@
 
 import type { ReactNode } from 'react';
 import { useEffect, useState } from 'react';
-import { ButtonLink } from '@sentrybot/ui';
+import { ButtonLink } from '@kalvard/ui';
 import { Scene } from '@/components/hero/scene';
 import type { Light } from '@/components/hero/script';
 
@@ -64,7 +64,7 @@ const ARRIVE_MS = 700;
  * Reduced motion is the end state, immediately.
  */
 export function Live({ guildId, guildName }: { guildId: string; guildName: string }) {
-  const line = `Sentry is live on ${guildName}.`;
+  const line = `Kalvard is live on ${guildName}.`;
   const [typed, setTyped] = useState(0);
   const [green, setGreen] = useState(false);
   const [done, setDone] = useState(false);
@@ -102,7 +102,7 @@ export function Live({ guildId, guildName }: { guildId: string; guildName: strin
     <NightScene
       light={green ? 'green' : 'amber'}
       changeMs={TO_GREEN_MS}
-      label={green ? 'Sentry, live' : 'Sentry, arriving'}
+      label={green ? 'Kalvard, live' : 'Kalvard, arriving'}
     >
       <p className="text-body text-star min-h-[1.6em] text-center">
         {line.slice(0, typed)}

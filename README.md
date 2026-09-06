@@ -1,4 +1,4 @@
-# Sentry
+# Kalvard
 
 The spec lives in [CLAUDE.md](CLAUDE.md). Read it first.
 

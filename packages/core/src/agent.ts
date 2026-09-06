@@ -99,7 +99,7 @@ export type WouldHave = {
 };
 
 export type ConversationResult = {
-  /** What the turn did, in Sentry's words, for the log and the mod summary. */
+  /** What the turn did, in Kalvard's words, for the log and the mod summary. */
   steps: string[];
   /** The tools it used, in order, so a turn can be audited by what it called. */
   calls: string[];
@@ -152,7 +152,7 @@ async function saveConversation(
       expires_at: expires,
       updated_at: new Date().toISOString(),
     });
-  if (error) console.error(`sentry: could not save the conversation: ${error.message}`);
+  if (error) console.error(`kalvard: could not save the conversation: ${error.message}`);
 }
 
 /** Ends the conversation: the member got what they asked for, or a moderator has it. */
@@ -161,7 +161,7 @@ async function closeConversation(guildId: string, key: string): Promise<void> {
 }
 
 /**
- * Whether Sentry is waiting on this member here. It only waits after asking
+ * Whether Kalvard is waiting on this member here. It only waits after asking
  * them something, so their next message is the answer to it, mention or not.
  */
 export async function hasOpenConversation(guildId: string, key: string): Promise<boolean> {
@@ -223,7 +223,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     }
     const roleName = (await effects.listRoles()).find((r) => r.id === roleId)?.name ?? '';
     // Either they asked for this role themselves, or they agreed to it when
-    // Sentry proposed it. Agreement is judged on its own, because a member who
+    // Kalvard proposed it. Agreement is judged on its own, because a member who
     // disputes a guess repeats the name too, and the model running the
     // conversation is a poor judge of whether it was heard.
     const requested = askedForItself(turns, roleName);
@@ -329,7 +329,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           wouldHave,
         };
       }
-      // Sentry is allowed to give this role and cannot. That is not the
+      // Kalvard is allowed to give this role and cannot. That is not the
       // member's problem to solve and not something to retry: they are told
       // plainly, and the owner hears about the permission once, elsewhere.
       steps.push(`could not give them the role: ${done.reason}`);
@@ -337,7 +337,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       return {
         outcome: 'escalate',
         text: await inLanguage(`${whyNot(done.reason, wanted.name)} ${MODS}`, language),
-        summary: `${input.askerName ?? 'A member'} qualified for ${wanted.name}, but Sentry could not give it: ${done.reason}.`,
+        summary: `${input.askerName ?? 'A member'} qualified for ${wanted.name}, but Kalvard could not give it: ${done.reason}.`,
         steps,
         calls: called,
         wouldHave,
@@ -648,7 +648,7 @@ function mentions(text: string, name: string): boolean {
 }
 
 /**
- * Every question Sentry has put to the member in this conversation, whether it
+ * Every question Kalvard has put to the member in this conversation, whether it
  * went through ask_user or was simply written as a question.
  */
 function questionsAsked(turns: ToolTurn[]): string[] {
@@ -669,13 +669,13 @@ function questionsAsked(turns: ToolTurn[]): string[] {
 }
 
 /**
- * Whether the member asked for this role before Sentry ever mentioned it. Only
- * their own request counts here; anything they say after Sentry names a role
- * is an answer to Sentry, and answers are judged, not pattern-matched.
+ * Whether the member asked for this role before Kalvard ever mentioned it. Only
+ * their own request counts here; anything they say after Kalvard names a role
+ * is an answer to Kalvard, and answers are judged, not pattern-matched.
  */
 /**
  * The single role this message asks for, or null. Either they named one of the
- * roles on offer, or they said yes to the one Sentry last put to them; the
+ * roles on offer, or they said yes to the one Kalvard last put to them; the
  * consent judge decides in both cases, so a mention in a question, a dispute
  * or a hesitation is not a request.
  */
@@ -700,10 +700,10 @@ async function logCapabilityRequest(
   const { error } = await serviceClient()
     .from('bot_events')
     .insert({ guild_id: guildId, type: 'capability_requested', payload });
-  if (error) console.error(`sentry: could not record the request: ${error.message}`);
+  if (error) console.error(`kalvard: could not record the request: ${error.message}`);
 }
 
-/** What a member is told when Sentry may give a role and cannot. */
+/** What a member is told when Kalvard may give a role and cannot. */
 function whyNot(reason: 'missing_permission' | 'role_too_high' | 'unknown', role: string): string {
   switch (reason) {
     case 'missing_permission':
@@ -746,7 +746,7 @@ async function memberAgreed(latest: string, question: string, roleName: string):
       messages: [
         {
           role: 'user',
-          text: `Role: ${roleName}\nSentry asked: ${question || '(nothing)'}\nThe member replied: ${latest}`,
+          text: `Role: ${roleName}\nKalvard asked: ${question || '(nothing)'}\nThe member replied: ${latest}`,
         },
       ],
       schema: {
@@ -765,7 +765,7 @@ async function memberAgreed(latest: string, question: string, roleName: string):
 }
 
 /**
- * Whether this message is one Sentry should not answer in public: harassment,
+ * Whether this message is one Kalvard should not answer in public: harassment,
  * a slur, sexual content, doxxing, a scam. Returns the one line a moderator
  * gets, which the member never sees.
  */
@@ -959,7 +959,7 @@ async function loadAgentSettings(guildId: string): Promise<AgentSettings> {
     .eq('guild_id', guildId)
     .maybeSingle();
   return {
-    botName: data?.bot_name || 'Sentry',
+    botName: data?.bot_name || 'Kalvard',
     persona: data?.persona_prompt ?? null,
     language: data?.language ?? null,
     threshold: data?.confidence_threshold ?? 0.55,

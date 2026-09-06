@@ -12,7 +12,7 @@
 // they sit near each other. The colours and the four light states are the
 // same, the pulse included, and reduced motion holds it steady.
 
-import { cx } from '@sentrybot/ui';
+import { cx } from '@kalvard/ui';
 import type { Light } from '../sky/beacon';
 
 const AMBER = '#D9A21B';
@@ -50,7 +50,7 @@ export function BeaconSvg({ light, progress = 1, className, label }: BeaconSvgPr
       viewBox={`0 0 ${W} ${H}`}
       preserveAspectRatio="xMidYMax meet"
       role="img"
-      aria-label={label ?? 'Sentry'}
+      aria-label={label ?? 'Kalvard'}
       className={cx('pointer-events-none block select-none', className)}
     >
       {lit && (

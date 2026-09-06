@@ -1,6 +1,6 @@
 'use server';
 
-import { DOCUMENTS_BUCKET, ingest, serviceClient } from '@sentrybot/core';
+import { DOCUMENTS_BUCKET, ingest, serviceClient } from '@kalvard/core';
 import { revalidatePath } from 'next/cache';
 import { requireMember } from '@/lib/guild';
 
@@ -70,7 +70,7 @@ export async function addAnswer(_prev: KnowledgeState, form: FormData): Promise<
   const question = String(form.get('question') ?? '').trim();
   const answer = String(form.get('answer') ?? '').trim();
   if (!question) return fail('Write the question a member would ask.');
-  if (!answer) return fail('Write the answer Sentry should give.');
+  if (!answer) return fail('Write the answer Kalvard should give.');
   const { user } = await requireMember(guildId);
   return add(guildId, {
     title: question,
@@ -101,13 +101,13 @@ async function add(guildId: string, doc: NewDocument): Promise<KnowledgeState> {
     const { chunkCount } = await ingest({ guildId, documentId: inserted.data.id });
     revalidatePath(`/g/${guildId}/knowledge`);
     return {
-      ok: `Added to what Sentry knows, in ${chunkCount} ${chunkCount === 1 ? 'piece' : 'pieces'}.`,
+      ok: `Added to what Kalvard knows, in ${chunkCount} ${chunkCount === 1 ? 'piece' : 'pieces'}.`,
       id: Date.now(),
     };
   } catch (err) {
     revalidatePath(`/g/${guildId}/knowledge`);
     const message = err instanceof Error ? err.message : 'unknown reason';
-    return fail(`Saved, but Sentry could not read it: ${message}`);
+    return fail(`Saved, but Kalvard could not read it: ${message}`);
   }
 }
 

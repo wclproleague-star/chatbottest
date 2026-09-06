@@ -1,4 +1,4 @@
-import { parseLimits, parseSources, serviceClient } from '@sentrybot/core';
+import { parseLimits, parseSources, serviceClient } from '@kalvard/core';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { requireMember } from '@/lib/guild';
 import { standing } from '@/lib/standing';

@@ -1,6 +1,6 @@
 'use client';
 
-import { Surface } from '@sentrybot/ui';
+import { Surface } from '@kalvard/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Beacon } from '@/components/beacon/beacon';
 import type { Light } from '@/components/sky/beacon';

@@ -18,7 +18,7 @@ import {
   Sections,
   Select,
   Textarea,
-} from '@sentrybot/ui';
+} from '@kalvard/ui';
 import { useActionState } from 'react';
 import { deleteEverything, removeBot, saveGuildSettings } from './actions';
 import { SourcesPanel } from './sources-panel';
@@ -94,7 +94,7 @@ export function SettingsForm({
           >
             {channels.length === 0 ? (
               <p className="text-ui-sm text-ink-soft">
-                Sentry has not read your channels yet. Add it to the server first.
+                Kalvard has not read your channels yet. Add it to the server first.
               </p>
             ) : (
               <div className="space-y-2">

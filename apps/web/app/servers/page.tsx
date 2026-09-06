@@ -1,11 +1,11 @@
-import { serviceClient } from '@sentrybot/core';
+import { serviceClient } from '@kalvard/core';
 import { guildIconUrl } from '@/lib/discord';
 import { supabaseServer } from '@/lib/supabase/server';
 import { Servers, SignedOut } from './servers';
 import type { ServerCard } from './servers';
 import type { Light } from '@/components/sky/beacon';
 
-// Your servers, and what each one's sentry is doing. The state on a card is
+// Your servers, and what each one's vard is doing. The state on a card is
 // read from what actually happened, never from a setting: green means it
 // answered somebody in the last hour, and if it did not, it is not green.
 
@@ -67,7 +67,7 @@ export default async function Page({
 type State = { light: Light; line: string };
 
 /**
- * What each sentry is doing, from what it has actually done. One query per
+ * What each vard is doing, from what it has actually done. One query per
  * kind of fact across every guild at once, rather than one round trip per
  * card: this page is a list, and a list must not scale badly.
  */

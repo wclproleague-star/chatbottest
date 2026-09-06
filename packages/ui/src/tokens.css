@@ -1,4 +1,4 @@
-/* Sentry design tokens. Section 6 of CLAUDE.md, verbatim wherever it gives a number. */
+/* Kalvard design tokens. Section 6 of CLAUDE.md, verbatim wherever it gives a number. */
 
 @theme {
   /* Drop Tailwind's palette entirely: the site has these nine colours and no third one. */
@@ -53,7 +53,7 @@
   --duration-stagger: 120ms;
   /* Display type is slightly condensed on the width axis. Options are shown at /dev/ui. */
   --display-width: 92%;
-  /* Focus rings and Sentry's left rule take the section's state colour. */
+  /* Focus rings and Kalvard's left rule take the section's state colour. */
   --state: var(--color-green);
 }
 

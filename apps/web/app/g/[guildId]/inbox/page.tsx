@@ -1,11 +1,11 @@
-import { serviceClient } from '@sentrybot/core';
+import { serviceClient } from '@kalvard/core';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { formatDate } from '@/lib/format';
 import { requireMember } from '@/lib/guild';
 import { Inbox } from './inbox-rows';
 import type { Answered, Waiting } from './inbox-rows';
 
-// What Sentry could not answer, waiting on a person. Answering here posts to
+// What Kalvard could not answer, waiting on a person. Answering here posts to
 // the member in the channel they asked in and becomes knowledge at the same
 // time, which is the whole loop the product is built around.
 
@@ -76,7 +76,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
     <div>
       <PageTitle
         title="Inbox"
-        lede="What Sentry could not answer. Your answer goes back to the member and becomes something it knows."
+        lede="What Kalvard could not answer. Your answer goes back to the member and becomes something it knows."
       />
       <Inbox guildId={guildId} waiting={waiting} answered={done} />
     </div>

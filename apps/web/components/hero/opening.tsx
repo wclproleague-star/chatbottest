@@ -2,7 +2,7 @@
 
 // The opening: two pinned screens and the dawn, all over one scene.
 //
-// Screen 1, the hero: the scene full-bleed, SENTRY spanning the container
+// Screen 1, the hero: the scene full-bleed, KALVARD spanning the container
 // behind the beacon, the headline and body bottom-left, the button bottom-right.
 // Screen 2, the thread: as you scroll, the scene holds and darkens 20% while
 // the hero's type slides away and the glass panel slides in and pins; the
@@ -11,7 +11,7 @@
 // the sky dissolves to paper. Scroll-linked directly; reduced motion gets a
 // still thread and a 300ms dawn.
 
-import { ButtonLink, Display, Nav, Surface, TextLink } from '@sentrybot/ui';
+import { ButtonLink, Display, Nav, Surface, TextLink } from '@kalvard/ui';
 import { useEffect, useRef, useState } from 'react';
 import type { SkyRect } from '@/components/sky/sky';
 import { HeroThread } from './hero-thread';

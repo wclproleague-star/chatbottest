@@ -1,4 +1,4 @@
-import { Skeleton } from '@sentrybot/ui';
+import { Skeleton } from '@kalvard/ui';
 
 export default function Loading() {
   return (

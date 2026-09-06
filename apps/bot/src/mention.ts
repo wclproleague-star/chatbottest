@@ -5,10 +5,10 @@
 // moderator's reply can become knowledge. Tier 4 says nothing in public and
 // reports quietly to the mod channel.
 
-import { HISTORY_LIMIT, classify, converse, forModel, outageReply } from '@sentrybot/core';
-import type { Action, AnswerResult, Effects, HistoryTurn } from '@sentrybot/core';
-import { MODS } from '@sentrybot/core/tokens';
-import { serviceClient } from '@sentrybot/core/supabase';
+import { HISTORY_LIMIT, classify, converse, forModel, outageReply } from '@kalvard/core';
+import type { Action, AnswerResult, Effects, HistoryTurn } from '@kalvard/core';
+import { MODS } from '@kalvard/core/tokens';
+import { serviceClient } from '@kalvard/core/supabase';
 import type { Message, TextChannel } from 'discord.js';
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import type { GuildSettings } from './guild';
@@ -25,7 +25,7 @@ export async function handleMention(message: Message, settings: GuildSettings): 
 
   const question = forModel(cleanMention(message), settings.limits);
   if (!question) {
-    // A picture, a GIF, a sticker: Sentry cannot read it, so it asks rather
+    // A picture, a GIF, a sticker: Kalvard cannot read it, so it asks rather
     // than inventing what the member might have meant by it.
     const hasFile = message.attachments.size > 0 || message.stickers.size > 0;
     await message.reply(
@@ -82,7 +82,7 @@ export async function handleMention(message: Message, settings: GuildSettings): 
     // owner can tell an outage from a gap in the knowledge.
     const kind = classify(err);
     await logEvent(guild.id, 'tool_failed', { tool: 'answer', class: kind, question });
-    console.error(`sentry: answering failed (${kind}): ${String(err)}`);
+    console.error(`kalvard: answering failed (${kind}): ${String(err)}`);
     await message.reply(outageReply(kind)).catch(() => undefined);
     return;
   }
@@ -163,7 +163,7 @@ function discordEffects(message: Message, settings: GuildSettings): Effects {
 }
 
 /**
- * A permission Sentry is missing is the owner's to fix, and telling them once
+ * A permission Kalvard is missing is the owner's to fix, and telling them once
  * is help; telling them on every message is noise. The last report is found in
  * the events themselves, so this survives a restart.
  */
@@ -217,7 +217,7 @@ async function postEscalation(
     bot_draft: summary,
     status: 'pending',
   });
-  if (error) console.error(`sentry: could not record the question: ${error.message}`);
+  if (error) console.error(`kalvard: could not record the question: ${error.message}`);
   await logEvent(guildId, 'mod_pinged', {
     question,
     tier: 'escalate',
@@ -250,7 +250,7 @@ async function postGraded(
       await reportQuietly(message, result.category, result.note, settings);
       return;
     case 'ignore':
-      // It was not addressed to Sentry. Saying nothing is the whole behaviour.
+      // It was not addressed to Kalvard. Saying nothing is the whole behaviour.
       return;
     case 'sensitive':
       await message.reply(result.reply.slice(0, MAX_MESSAGE));
@@ -330,7 +330,7 @@ async function postFallback(
       top_chunk_ids: result.topChunkIds,
       status: 'pending',
     });
-  if (error) console.error(`sentry: could not record the question: ${error.message}`);
+  if (error) console.error(`kalvard: could not record the question: ${error.message}`);
 
   await logEvent(guildId, 'mod_pinged', {
     question,
@@ -370,7 +370,7 @@ export function withMention(text: string, settings: GuildSettings, mayPing: bool
 
 /**
  * The one action the model proposed, checked again here against the guild's
- * allowlist before anything happens. Sentry never kicks, bans, times out or
+ * allowlist before anything happens. Kalvard never kicks, bans, times out or
  * deletes; those are not actions it can take.
  */
 async function runAction(message: Message, action: Action, settings: GuildSettings): Promise<void> {
@@ -401,6 +401,6 @@ async function runAction(message: Message, action: Action, settings: GuildSettin
     }
     await logEvent(guild.id, 'action', { action, messageId: message.id });
   } catch (err) {
-    console.error(`sentry: could not run the action: ${String(err)}`);
+    console.error(`kalvard: could not run the action: ${String(err)}`);
   }
 }

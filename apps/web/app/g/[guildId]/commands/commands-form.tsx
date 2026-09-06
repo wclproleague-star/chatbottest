@@ -7,7 +7,7 @@
 // numbered rather than run together, because that is the point at which people
 // stop reading a paragraph.
 
-import { Button, GrowingInput, Panel, Section, cx } from '@sentrybot/ui';
+import { Button, GrowingInput, Panel, Section, cx } from '@kalvard/ui';
 
 /** How long each line of the plan takes to arrive. */
 const LINE_MS = 420;
@@ -40,7 +40,7 @@ export function Commands({ guildId, examples }: { guildId: string; examples: str
 
   const decided = answer ?? cancelled;
 
-  // The beacon says what Sentry is doing: steady while you think, breathing
+  // The beacon says what Kalvard is doing: steady while you think, breathing
   // while it works something out, green once it has done it.
   const reading = state?.kind === 'plan' && said < state.sentences.length;
   const light =
@@ -53,7 +53,7 @@ export function Commands({ guildId, examples }: { guildId: string; examples: str
           <Beacon
             light={light}
             className="hidden h-[180px] w-[64px] shrink-0 sm:block"
-            label={light === 'working' ? 'Sentry is working' : 'Sentry'}
+            label={light === 'working' ? 'Kalvard is working' : 'Kalvard'}
           />
           <div className="min-w-0 flex-1">
             <form action={plan}>
@@ -63,7 +63,7 @@ export function Commands({ guildId, examples }: { guildId: string; examples: str
                 value={request}
                 onChange={(e) => setRequest(e.target.value)}
                 placeholder="crée un channel #finale-wcl et mets les rôles Joueur et Caster dedans"
-                aria-label="What should Sentry do?"
+                aria-label="What should Kalvard do?"
               />
               <div className="mt-3 flex justify-end">
                 <Button type="submit" disabled={planning || !request.trim()}>

@@ -4,8 +4,8 @@
 // goes, and everything keyed to it goes with it, because every table cascades
 // on guild_id.
 //
-//   pnpm --filter @sentrybot/core purge          # says what it would delete
-//   pnpm --filter @sentrybot/core purge -- --run # deletes it
+//   pnpm --filter @kalvard/core purge          # says what it would delete
+//   pnpm --filter @kalvard/core purge -- --run # deletes it
 
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';

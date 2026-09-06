@@ -1,7 +1,7 @@
 // Runs the pipeline against a guild from the command line.
 //
-//   pnpm --filter @sentrybot/core cli ingest [--guild <id>]
-//   pnpm --filter @sentrybot/core cli ask "<question>" [--guild <id>]
+//   pnpm --filter @kalvard/core cli ingest [--guild <id>]
+//   pnpm --filter @kalvard/core cli ask "<question>" [--guild <id>]
 //
 // Defaults to the guild seeded by supabase/seed.sql.
 

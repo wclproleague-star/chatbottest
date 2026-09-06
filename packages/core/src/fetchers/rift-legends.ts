@@ -14,7 +14,7 @@
 //   Player { id, handle, role, isCaptain, discordId? }
 //
 // discordId is the field that makes a roster worth having here: it is what
-// lets Sentry check who somebody is, and who to ask on match day. Everything
+// lets Kalvard check who somebody is, and who to ask on match day. Everything
 // else is readable by a member anyway.
 
 import { readFileSync } from 'node:fs';

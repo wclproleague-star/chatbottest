@@ -2,7 +2,7 @@
 // Everything on screen is a pure function of elapsed time, so replaying is
 // just resetting the clock.
 
-import type { ThreadRole, ThreadState } from '@sentrybot/ui';
+import type { ThreadRole, ThreadState } from '@kalvard/ui';
 
 export type Line = {
   /** When the line starts, in ms from load. */
@@ -12,7 +12,7 @@ export type Line = {
   text: string;
   /** Typed out at reading speed instead of appearing whole. */
   typed?: boolean;
-  /** Sentry's rule colour while this line stands. */
+  /** Kalvard's rule colour while this line stands. */
   state?: ThreadState;
   /** Lands with the spring. */
   lands?: boolean;
@@ -21,7 +21,7 @@ export type Line = {
 /** Milliseconds per typed character. Reading speed, not typing speed. */
 export const TYPE_MS = 35;
 
-/** When Sentry's first answer begins. */
+/** When Kalvard's first answer begins. */
 export const ANSWER_AT = 1000;
 /** When "Not sure about that one" begins: the light turns amber. */
 export const ASK_AT = 4400;
@@ -36,8 +36,8 @@ export const LINES: Line[] = [
   { at: 400, role: 'member', name: 'kestrel', text: "when's the finals bracket posted?" },
   {
     at: ANSWER_AT,
-    role: 'sentry',
-    name: 'Sentry',
+    role: 'kalvard',
+    name: 'Kalvard',
     text: 'Sunday 18:00 CET, in #announcements. Check-in closes an hour before.',
     typed: true,
     state: 'answered',
@@ -45,8 +45,8 @@ export const LINES: Line[] = [
   { at: 3600, role: 'member', name: 'kestrel', text: "and if my duo can't make check-in?" },
   {
     at: ASK_AT,
-    role: 'sentry',
-    name: 'Sentry',
+    role: 'kalvard',
+    name: 'Kalvard',
     text: 'Not sure about that one. Asking @Mods.',
     typed: true,
     state: 'waiting',
@@ -60,8 +60,8 @@ export const LINES: Line[] = [
   },
   {
     at: RESOLVE_AT,
-    role: 'sentry',
-    name: 'Sentry',
+    role: 'kalvard',
+    name: 'Kalvard',
     text: "Got it. Next time I'll know.",
     typed: true,
     state: 'answered',
@@ -71,7 +71,7 @@ export const LINES: Line[] = [
 export type Light = 'green' | 'amber' | 'off';
 
 /**
- * The beacon's light: amber at rest, the sentry watching, and through "Asking
+ * The beacon's light: amber at rest, the vard watching, and through "Asking
  * @Mods"; green only from "Got it. Next time I'll know." Green is only ever
  * the result of an answer. The off state exists and is not used on the page.
  */

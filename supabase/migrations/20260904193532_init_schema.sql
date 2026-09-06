@@ -1,4 +1,4 @@
--- Sentry: core schema. Every table is scoped by guild_id.
+-- Kalvard: core schema. Every table is scoped by guild_id.
 -- This project shares its Postgres instance with another app, so everything
 -- here is additive and namespaced under names that app does not use.
 
@@ -38,7 +38,7 @@ create table public.guilds (
 create index guilds_owner_user_id_idx on public.guilds (owner_user_id);
 
 -- The raw Discord guild list for a user, refreshed at login. Most rows are
--- guilds Sentry knows nothing about, so this does not reference guilds.
+-- guilds Kalvard knows nothing about, so this does not reference guilds.
 create table public.user_guilds (
   user_id uuid not null references auth.users (id) on delete cascade,
   guild_id text not null,

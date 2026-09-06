@@ -499,7 +499,7 @@
     "turns": [
       {
         "message": "salut, donne moi le rôle Fast Forward stp",
-        "why": "the member qualifies and Sentry cannot act: it says why, plainly, and does not pretend it worked",
+        "why": "the member qualifies and Kalvard cannot act: it says why, plainly, and does not pretend it worked",
         "expect": {
           "outcome": "escalate",
           "language": "French",

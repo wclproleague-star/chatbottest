@@ -1,7 +1,7 @@
 // What to do when something the bot depends on is down.
 //
 // The rule everywhere: never hang, never guess, never wake a moderator over an
-// outage. A dependency that fails is Sentry's problem and the member is told
+// outage. A dependency that fails is Kalvard's problem and the member is told
 // so in one honest line; the failure is recorded with its class so an owner can
 // see that Monday's silence was the model, not the knowledge.
 
@@ -100,7 +100,7 @@ export async function withRetry<T>(
 }
 
 /**
- * What a member is told when Sentry itself is broken. Short, honest, no
+ * What a member is told when Kalvard itself is broken. Short, honest, no
  * moderators: they cannot fix an outage, and being paged for one is noise.
  */
 export function outageReply(kind: ErrorClass): string {

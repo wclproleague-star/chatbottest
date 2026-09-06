@@ -2,7 +2,7 @@
 
 // The automation section: the beacon working, and a run writing itself out.
 //
-// The claim on this page is that Sentry does things, not just answers. So the
+// The claim on this page is that Kalvard does things, not just answers. So the
 // section is the doing: the light breathes while the lines arrive, one at a
 // time at reading speed, and settles to green on the last one. Nothing here is
 // a video and nothing is a screenshot; it is the same object as the hero.
@@ -65,7 +65,7 @@ export function Automation() {
         <Beacon
           light={working ? 'working' : shown === 0 ? 'amber' : 'green'}
           className="h-[220px] w-[80px] shrink-0"
-          label={working ? 'Sentry is working' : 'Sentry'}
+          label={working ? 'Kalvard is working' : 'Kalvard'}
         />
         <div className="min-w-0 pt-2">
           <p className="text-ui-sm text-ink-soft">Match day, this Thursday</p>

@@ -4,9 +4,9 @@
 // A member rarely names the thing in full. They say "the game", "my next
 // match", "is it cancelled". What they mean is usually decidable from what is
 // around them, so this step takes every signal the bot may legitimately see:
-// the message itself, the last few messages including Sentry's own, who is
+// the message itself, the last few messages including Kalvard's own, who is
 // asking and what they hold, where they are writing, what the server has said
-// about who belongs to what, what Sentry has already done for them, the time
+// about who belongs to what, what Kalvard has already done for them, the time
 // where the server lives, and how much of the knowledge could be meant. It
 // returns a target and says whether it is unique, ambiguous, or not resolvable
 // at all. One mechanism, rather than a rule per kind of reference.
@@ -34,7 +34,7 @@ export type Resolution = {
   /** When ambiguous: the one short question to put to the member. */
   question: string | null;
   /**
-   * Whether they are asking what Sentry itself holds rather than about one
+   * Whether they are asking what Kalvard itself holds rather than about one
    * instance of a thing. Such a question is never ambiguous: it is about the
    * whole of what is known, so there is nothing to choose between.
    */
@@ -70,7 +70,7 @@ export type ResolutionContext = {
   threadTopic: string | null;
   /** Rosters and other documents that say who belongs to what, as text. */
   rosters: string[];
-  /** What Sentry has recently done for this member or in this channel. */
+  /** What Kalvard has recently done for this member or in this channel. */
   recentActions: string[];
   /** How many things in the knowledge could be what they mean. */
   knowledgeCandidates: number;
@@ -100,7 +100,7 @@ Read their message, the conversation before it, and the context around them, and
 - addressedToSomeoneElse: true when the message is aimed at another member and only mentions you in passing, so nothing is being asked of you.
 - aboutHoldings: true when they are asking what you yourself know or have ("what do you know about X", "is that the only match you know about", "do you have anything on Y"), rather than about one instance of a thing.
 
-Use every signal you are given, in this order of weight: what they wrote, then the conversation just before it, then who they are and what they hold, then where they wrote it, then what Sentry has just done for them.
+Use every signal you are given, in this order of weight: what they wrote, then the conversation just before it, then who they are and what they hold, then where they wrote it, then what Kalvard has just done for them.
 
 Rules:
 - Resolve from the context, never from what you imagine the server to be. If the context does not contain it, do not invent it.
@@ -182,10 +182,10 @@ export async function resolveTarget(input: {
     `The channel: ${c.channelName ?? 'unknown'}${c.categoryName ? `, under ${c.categoryName}` : ''}${c.threadTopic ? `, topic: ${c.threadTopic}` : ''}`,
     `Things in the knowledge that could be meant: ${c.knowledgeCandidates}`,
     c.recentActions.length > 0
-      ? `What Sentry has recently done here: ${c.recentActions.join('; ')}`
-      : 'Sentry has done nothing here recently.',
+      ? `What Kalvard has recently done here: ${c.recentActions.join('; ')}`
+      : 'Kalvard has done nothing here recently.',
     c.rosters.length > 0
-      ? `Rosters and lists the server has given Sentry:\n${c.rosters.join('\n---\n').slice(0, 4000)}`
+      ? `Rosters and lists the server has given Kalvard:\n${c.rosters.join('\n---\n').slice(0, 4000)}`
       : 'No rosters are known.',
   ];
 
@@ -211,7 +211,7 @@ export async function resolveTarget(input: {
   }
   if (outcome === 'unique' && candidates.length > 1 && !raw.entity) outcome = 'ambiguous';
 
-  // Asking what Sentry holds is about the whole of it, so there is nothing to
+  // Asking what Kalvard holds is about the whole of it, so there is nothing to
   // choose between and nothing to ask.
   if (raw.asksNothing) outcome = 'unique';
   if (raw.aboutHoldings) outcome = 'unique';

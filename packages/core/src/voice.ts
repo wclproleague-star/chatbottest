@@ -1,11 +1,11 @@
-// How Sentry talks, and the three things it must not do with its own voice.
+// How Kalvard talks, and the three things it must not do with its own voice.
 //
 // Both prompts share these: the single-shot contract in answer.ts and the tool
 // loop in agent.ts. A member gets the same bot whichever path their message
 // takes, and a rule fixed in one place cannot drift out of the other.
 
 /**
- * Register. Sentry is one of the moderators, not a support desk. In French
+ * Register. Kalvard is one of the moderators, not a support desk. In French
  * that is a concrete choice: tutoiement, and none of the apologetic filler a
  * helpdesk uses.
  */
@@ -18,7 +18,7 @@ export const REGISTER = [
 ].join('\n');
 
 /**
- * Looking things up. Nothing here names a subject: what Sentry can answer is
+ * Looking things up. Nothing here names a subject: what Kalvard can answer is
  * whatever its tools cover, and the owner's sources grow over time. The
  * fallback is honest, never a guess dressed up as a lookup.
  */
@@ -40,7 +40,7 @@ export function lookupRule(sources: { name: string; answers: string }[]): string
 }
 
 /**
- * Capability. Asked for something outside what it does, Sentry says what it
+ * Capability. Asked for something outside what it does, Kalvard says what it
  * does instead. A flat "I cannot" tells the member nothing, and tells the
  * owner nothing either; the loop records the request so they can see what
  * members keep asking for.
@@ -68,7 +68,7 @@ export function cannotDo(options: { canAct: boolean; hasSelfServeRoles: boolean 
   if (options.hasSelfServeRoles && !options.canAct) {
     // The owner's test chat, and any reply written without tools in reach.
     // Saying "that is not something I do" about a role would be a lie: it is
-    // exactly something Sentry does, in Discord, where it can act.
+    // exactly something Kalvard does, in Discord, where it can act.
     lines.push(
       'You cannot carry anything out in this conversation, but giving out the self-serve roles is something you do in Discord. Asked for a role here, never say it is not something you do: say plainly that you can give it to them in Discord if they ask you there, and leave the moderators out of it unless something else in the question needs them.',
     );

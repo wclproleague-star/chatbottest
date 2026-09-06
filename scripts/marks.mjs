@@ -55,7 +55,7 @@ if (!fontFile) {
 const ttf = Buffer.from(await decompress(readFileSync(fontFile)));
 const font = fontkit.create(ttf).getVariation({ wdth: 86, wght: 500 });
 const tracking = -0.035 * font.unitsPerEm;
-const run = font.layout('Sentry');
+const run = font.layout('Kalvard');
 
 // The box follows the glyph outlines, not the advances: the y overhangs its advance.
 let x = 0;
@@ -75,7 +75,7 @@ run.glyphs.forEach((glyph, i) => {
 });
 
 const wordmark = tidy(
-  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${round(minX)} ${round(-maxY)} ${round(maxX - minX)} ${round(maxY - minY)}" role="img" aria-label="Sentry">` +
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${round(minX)} ${round(-maxY)} ${round(maxX - minX)} ${round(maxY - minY)}" role="img" aria-label="Kalvard">` +
     `<g fill="currentColor" transform="scale(1 -1)">${glyphPaths.join('')}</g></svg>`,
 );
 writeFileSync(join(assets, 'wordmark.svg'), wordmark);
@@ -96,7 +96,7 @@ function avatarSvg({ fill, field, inset = 0 }) {
     ? `<g fill="${fill}" transform="translate(${round(64 * inset)} ${round(64 * inset)}) scale(${scale})">${MARK}</g>`
     : `<g fill="${fill}">${MARK}</g>`;
   return (
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Sentry">' +
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Kalvard">' +
     (field ? `<rect width="64" height="64" fill="${field}"/>` : '') +
     g +
     '</svg>'

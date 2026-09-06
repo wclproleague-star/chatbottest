@@ -1,6 +1,6 @@
 'use client';
 
-// SENTRY across the hero, behind the beacon. Instrument Sans at the condensed
+// KALVARD across the hero, behind the beacon. Instrument Sans at the condensed
 // end of its width axis, weight 700 for this single use, tracking -0.01em so
 // the letters nearly touch, star white. The size is whatever makes the word
 // span the container exactly.
@@ -34,7 +34,7 @@ export function Wordmark() {
         className="text-star inline-block whitespace-nowrap leading-none"
         style={{ fontStretch: '75%', fontWeight: 700, letterSpacing: '-0.01em' }}
       >
-        SENTRY
+        KALVARD
       </span>
     </div>
   );

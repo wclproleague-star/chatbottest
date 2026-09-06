@@ -4,10 +4,10 @@
 //
 // Every source shows a Try box, because the only way to know a source works is
 // to ask it something and read what comes back. A source that fails its test is
-// not saved: a broken one is worse than none, since Sentry would stop saying it
+// not saved: a broken one is worse than none, since Kalvard would stop saying it
 // cannot look things up and start saying nothing useful instead.
 
-import { Button, Field, Input, Panel, Section, Select } from '@sentrybot/ui';
+import { Button, Field, Input, Panel, Section, Select } from '@kalvard/ui';
 import { useActionState, useState } from 'react';
 import { addSource, removeSource, trySource } from './sources';
 import type { SourceState } from './sources';
@@ -26,7 +26,7 @@ const KINDS: { kind: string; label: string; needsAddress: boolean; hint: string 
     kind: 'http_json',
     label: 'Any JSON address',
     needsAddress: true,
-    hint: 'The full address. Put {question} in it and Sentry fills in what was asked.',
+    hint: 'The full address. Put {question} in it and Kalvard fills in what was asked.',
   },
 ];
 
@@ -38,7 +38,7 @@ export function SourcesPanel({ guildId, sources }: { guildId: string; sources: L
   return (
     <Section
       heading="What it may look up"
-      lede="Anything no source covers, Sentry says it cannot look up rather than guessing."
+      lede="Anything no source covers, Kalvard says it cannot look up rather than guessing."
     >
       {sources.length > 0 && (
         <Panel className="divide-hairline divide-y p-0 shadow-none">
@@ -59,7 +59,7 @@ export function SourcesPanel({ guildId, sources }: { guildId: string; sources: L
             ))}
           </Select>
         </Field>
-        <Field label="What do you call it?" help="Sentry uses your words when it explains itself.">
+        <Field label="What do you call it?" help="Kalvard uses your words when it explains itself.">
           <Input name="name" placeholder="the league schedule" maxLength={60} />
         </Field>
         <Field label="What can it answer?">

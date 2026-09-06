@@ -45,7 +45,7 @@ export function safeUrl(raw: string): URL {
     throw new SourceError('Put credentials in a header, not in the address.');
   }
   if (isPrivateHost(url.hostname)) {
-    throw new SourceError('That address is on a private network, so Sentry will not call it.');
+    throw new SourceError('That address is on a private network, so Kalvard will not call it.');
   }
   return url;
 }
@@ -71,7 +71,7 @@ export async function getJson(
   });
 
   if (response.status >= 300 && response.status < 400) {
-    throw new SourceError('It redirected somewhere else, so Sentry stopped.');
+    throw new SourceError('It redirected somewhere else, so Kalvard stopped.');
   }
   if (response.status === 401 || response.status === 403) {
     throw new SourceError('It refused the request. Check the key.');
@@ -79,7 +79,7 @@ export async function getJson(
   if (!response.ok) throw new SourceError(`It answered ${response.status}.`);
 
   const length = Number(response.headers.get('content-length') ?? 0);
-  if (length > MAX_BYTES) throw new SourceError('It sent back more than Sentry will read.');
+  if (length > MAX_BYTES) throw new SourceError('It sent back more than Kalvard will read.');
   const text = (await response.text()).slice(0, MAX_BYTES);
   try {
     return JSON.parse(text);

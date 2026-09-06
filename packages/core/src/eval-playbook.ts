@@ -6,7 +6,7 @@
 // the day this runs; the Sunday after it has nothing, and a run on that day
 // must do nothing rather than announce something it made up.
 //
-//   pnpm --filter @sentrybot/core eval:playbook
+//   pnpm --filter @kalvard/core eval:playbook
 
 import process from 'node:process';
 import { MATCH_DAY, matchDayContext } from './playbooks/match-day';

@@ -4,7 +4,7 @@
 // twenty messages in half a minute, a three-thousand-character paste going to
 // the model whole. They run in a second, so they run on every change.
 //
-//   pnpm --filter @sentrybot/core eval:units
+//   pnpm --filter @kalvard/core eval:units
 
 import process from 'node:process';
 import {

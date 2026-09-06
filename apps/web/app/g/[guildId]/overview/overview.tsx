@@ -1,4 +1,4 @@
-import { Panel, Section, Sections } from '@sentrybot/ui';
+import { Panel, Section, Sections } from '@kalvard/ui';
 import { Beacon } from '@/components/beacon/beacon';
 import { PageTitle } from '@/components/dashboard/page-title';
 import type { Light } from '@/components/sky/beacon';
@@ -23,7 +23,7 @@ export type OverviewData = {
   /** The nudge, when there is one: what happened and where to go. */
   nudge: { line: string; href: string; label: string } | null;
   knowledge: { word: string; line: string };
-  /** What the sentry is doing this morning, from what is actually waiting. */
+  /** What the vard is doing this morning, from what is actually waiting. */
   light: Light;
   bot: {
     name: string;
@@ -46,7 +46,7 @@ export function Overview({ data }: { data: OverviewData }) {
           label={STANDING[data.light]}
         />
         <div className="min-w-0">
-          <PageTitle title="Overview" lede={`How ${data.guildName} used Sentry this week.`} />
+          <PageTitle title="Overview" lede={`How ${data.guildName} used Kalvard this week.`} />
           <p className="text-ui-sm text-ink-soft mt-2">{STANDING[data.light]}</p>
         </div>
       </div>
@@ -77,7 +77,7 @@ export function Overview({ data }: { data: OverviewData }) {
           <Section heading="What nobody has answered yet">
             {data.pending.length === 0 ? (
               <p className="text-body text-ink-soft">
-                Nothing is waiting. What Sentry could not answer, somebody already did.
+                Nothing is waiting. What Kalvard could not answer, somebody already did.
               </p>
             ) : (
               <ul className="space-y-2">
@@ -117,10 +117,10 @@ export function Overview({ data }: { data: OverviewData }) {
 
 /** What the light means this morning, said in words as well. */
 const STANDING: Record<Light, string> = {
-  off: 'Not answering yet',
-  amber: 'Watching, and something is waiting on you',
-  working: 'Carrying something out right now',
-  green: 'Everything it was asked, it answered',
+  off: 'Your vard is dark',
+  amber: 'Your vard is lit, and something is waiting on you',
+  working: 'Your vard is working',
+  green: 'Your vard answered everything it was asked',
 };
 
 function Count({ label, value }: { label: string; value: number }) {
@@ -142,7 +142,7 @@ export function score(chunks: number): { word: string; line: string } {
   if (chunks < 10) {
     return {
       word: 'Thin',
-      line: 'Sentry will send most questions to a moderator. Add your rules and your schedule.',
+      line: 'Kalvard will send most questions to a moderator. Add your rules and your schedule.',
     };
   }
   if (chunks <= 50) {

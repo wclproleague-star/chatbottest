@@ -1,4 +1,4 @@
-import { Column, Surface } from '@sentrybot/ui';
+import { Column, Surface } from '@kalvard/ui';
 import type { ReactNode } from 'react';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { requireMember } from '@/lib/guild';

@@ -1,6 +1,6 @@
 'use server';
 
-import { serviceClient } from '@sentrybot/core/supabase';
+import { serviceClient } from '@kalvard/core/supabase';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { supabaseServer } from '@/lib/supabase/server';

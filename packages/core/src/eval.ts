@@ -4,7 +4,7 @@
 // Any change to the prompt or the schema runs this and passes every case
 // before it is reported.
 //
-//   pnpm --filter @sentrybot/core eval [--guild <id>]
+//   pnpm --filter @kalvard/core eval [--guild <id>]
 
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
@@ -114,7 +114,7 @@ type PersonaCase =
   | { kind: 'forbidden'; topics: string[]; warn: boolean; why: string };
 
 /**
- * What an owner may tell Sentry to be. These run here rather than in the unit
+ * What an owner may tell Kalvard to be. These run here rather than in the unit
  * checks because they are judgements, and they belong next to the answer cases
  * for the same reason: a persona that gets through changes every answer.
  */
