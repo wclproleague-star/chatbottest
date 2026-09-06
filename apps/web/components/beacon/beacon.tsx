@@ -11,11 +11,13 @@
 // breathes, so it runs while it is working and stops when it is not. Reduced
 // motion never animates: it draws the end state once.
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { CSSProperties } from 'react';
 import * as THREE from 'three';
 import { PHOTO, createBeacon } from '../sky/beacon';
 import type { Light } from '../sky/beacon';
 import { cx } from '@sentrybot/ui';
+import { BeaconSvg } from './beacon-svg';
 
 export type BeaconProps = {
   /** What the light is doing. */
@@ -25,24 +27,84 @@ export type BeaconProps = {
   /** How much of the height the beacon takes, 0 to 1. */
   height?: number;
   className?: string;
+  style?: CSSProperties;
   /** Read by anyone who cannot see it. */
   label?: string;
+  /**
+   * Hands the caller a way to draw one frame on demand. Used by the bench on
+   * /dev/beacon to time the real thing, since a hidden tab never animates.
+   */
+  onReady?: (api: { draw: (now: number) => void }) => void;
+  /**
+   * Forces one of the two drawings. Only the comparison page sets it; every
+   * other caller lets the size decide.
+   */
+  render?: 'auto' | '3d' | 'svg';
 };
 
-const PIXEL_RATIO_CAP = 1.5;
+/**
+ * How many device pixels a beacon is drawn with. Two on a desktop, where the
+ * frame budget is not the problem and the near-vertical edges are; one and a
+ * half on a phone, where it is the other way round.
+ */
+function pixelRatioCap(): number {
+  const coarse = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768;
+  return coarse ? 1.5 : 2;
+}
+
+/**
+ * Below this, on screen, the object is mostly edge: it is drawn at twice its
+ * size and let the browser downscale, which is cheap at that size and the
+ * difference is the whole of it.
+ */
+const SMALL_PX = 200;
+const SUPERSAMPLE = 2;
+/**
+ * Below this, the object is one or two pixels of edge and the whole of it is
+ * the silhouette and the line of light. That is drawn in vector instead, which
+ * is sharp at any density and costs nothing to run.
+ */
+const VECTOR_PX = 64;
 /** How long a change is animated for before the beacon goes still again. */
 const CHANGE_MS = 600;
 
-export function Beacon({ light, progress = 1, height = 0.8, className, label }: BeaconProps) {
+export function Beacon({
+  light,
+  progress = 1,
+  height = 0.8,
+  className,
+  style,
+  label,
+  onReady,
+  render = 'auto',
+}: BeaconProps) {
   const host = useRef<HTMLDivElement>(null);
+  // Which of the two drawings this box is big enough for. Null until measured,
+  // so nothing is built for a size that turns out to be wrong.
+  const [vector, setVector] = useState<boolean | null>(render === 'auto' ? null : render === 'svg');
+  const onReadyRef = useRef(onReady);
+  onReadyRef.current = onReady;
   const state = useRef({ light, progress, changedAt: 0 });
   if (state.current.light !== light || state.current.progress !== progress) {
     state.current = { light, progress, changedAt: Date.now() };
   }
 
+  useLayoutEffect(() => {
+    const node = host.current;
+    if (!node || render !== 'auto') return;
+    const measure = () => {
+      const rect = node.getBoundingClientRect();
+      setVector(Math.max(rect.width, rect.height) < VECTOR_PX);
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [render]);
+
   useEffect(() => {
     const node = host.current;
-    if (!node) return;
+    if (!node || vector !== false) return;
 
     const canvas = document.createElement('canvas');
     canvas.style.width = '100%';
@@ -58,7 +120,8 @@ export function Beacon({ light, progress = 1, height = 0.8, className, label }: 
       canvas.remove();
       return;
     }
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, PIXEL_RATIO_CAP));
+    // Set per frame, because it depends on how big the box turns out to be.
+    let pixelRatio = 0;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
@@ -71,6 +134,14 @@ export function Beacon({ light, progress = 1, height = 0.8, className, label }: 
       const rect = node!.getBoundingClientRect();
       const w = Math.max(1, Math.round(rect.width));
       const h = Math.max(1, Math.round(rect.height));
+      const wanted =
+        Math.min(pixelRatioCap(), window.devicePixelRatio || 1) *
+        (Math.max(w, h) < SMALL_PX ? SUPERSAMPLE : 1);
+      if (wanted !== pixelRatio) {
+        pixelRatio = wanted;
+        renderer.setPixelRatio(pixelRatio);
+        size = { w: 0, h: 0 };
+      }
       if (w !== size.w || h !== size.h) {
         size = { w, h };
         renderer.setSize(w, h, false);
@@ -115,6 +186,7 @@ export function Beacon({ light, progress = 1, height = 0.8, className, label }: 
     }
 
     draw(performance.now());
+    onReadyRef.current?.({ draw });
     if (!still) frame = requestAnimationFrame(loop);
 
     const observer = new ResizeObserver(() => draw(performance.now()));
@@ -137,14 +209,19 @@ export function Beacon({ light, progress = 1, height = 0.8, className, label }: 
       renderer.dispose();
       canvas.remove();
     };
-  }, [height]);
+  }, [height, vector]);
 
   return (
     <div
       ref={host}
-      role="img"
-      aria-label={label ?? 'Sentry'}
+      style={style}
+      role={vector ? undefined : 'img'}
+      aria-label={vector ? undefined : (label ?? 'Sentry')}
       className={cx('pointer-events-none select-none', className)}
-    />
+    >
+      {vector ? (
+        <BeaconSvg light={light} progress={progress} label={label} className="h-full w-full" />
+      ) : null}
+    </div>
   );
 }

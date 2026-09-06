@@ -78,7 +78,14 @@ const SLIT_WIDTH = 0.1;
 const RECESS = 0.06;
 
 const MAX_PARALLAX_PX = 12;
-const BEACON_PARALLAX_PX = 4;
+/**
+ * The beacon stands on the headland, so it does not move with the cursor at
+ * all: only the stars do. What it may do is turn, by less than a third of a
+ * degree, and its contact shadow turns with it because both are one group.
+ */
+const BEACON_YAW_DEG = 0.25;
+/** How many samples the beacon's own pass is drawn with. */
+const MSAA_SAMPLES = 4;
 /** The slit's colour change, ms. */
 const LIGHT_MS = 240;
 /** The slit is lit in fifths, so setup can light one per thing decided. */
@@ -378,23 +385,28 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     const f = p.frame;
     camera.setViewOffset(f.width, f.height * fullHeight, -f.left, -f.top, css.x, css.y);
     camera.updateProjectionMatrix();
-    // One frame height is one unit at the beacon's depth; parallax is 4px at most.
-    const unit = 1 / f.height;
-    const k = BEACON_PARALLAX_PX / MAX_PARALLAX_PX;
-    group.position.set(
-      (p.x - 0.5) * FRAME_ASPECT + parallax.x * k * unit,
-      parallax.y * k * unit,
-      -depth,
-    );
+    // Locked to the photograph: the object and its shadow do not move with the
+    // cursor, or it reads as floating in front of the headland rather than
+    // standing on it.
+    group.position.set((p.x - 0.5) * FRAME_ASPECT, 0, -depth);
+    // The one liberty: a fraction of a degree of turn, which the shadow follows.
+    const turn = Math.max(-1, Math.min(1, parallax.x / MAX_PARALLAX_PX));
+    group.rotation.y = THREE.MathUtils.degToRad(BEACON_YAW_DEG) * turn;
     setLight(p.light, p.progress ?? 1, performance.now());
     fade = p.fade;
   }
 
   // Post: HDR target, threshold, two blurs, composite.
+  // The object is nearly all near-vertical edges, which is the worst case for
+  // a hard edge against a dark sky, so the pass it is drawn into is
+  // multisampled. The bloom chain reads the resolved texture, so the samples
+  // are not thrown away by the post pass the way they would be with a plain
+  // target.
   const hdr = new THREE.WebGLRenderTarget(1, 1, {
     type: THREE.HalfFloatType,
     depthBuffer: true,
     stencilBuffer: false,
+    samples: MSAA_SAMPLES,
   });
   const flat = { type: THREE.HalfFloatType, depthBuffer: false, stencilBuffer: false } as const;
   const bright = new THREE.WebGLRenderTarget(1, 1, flat);

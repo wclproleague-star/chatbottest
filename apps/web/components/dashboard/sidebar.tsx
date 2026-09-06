@@ -6,6 +6,7 @@
 // Below 1024px it collapses to a top bar with a menu that opens the same list.
 
 import { Wordmark, cx } from '@sentrybot/ui';
+import { Beacon } from '../beacon/beacon';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
 
@@ -64,10 +65,15 @@ export function Sidebar({ guildId, guildName }: { guildId: string; guildName: st
   return (
     <>
       <aside className="border-hairline hidden h-screen w-60 shrink-0 flex-col border-r px-6 py-6 lg:sticky lg:top-0 lg:flex">
-        <a href="/" className="text-ui text-ink">
-          <Wordmark />
-        </a>
-        <p className="text-ui-sm text-ink-soft mt-1 truncate">{guildName}</p>
+        <div className="flex items-center gap-3">
+          <Beacon light="amber" className="h-10 w-[27px] shrink-0" label="Sentry, watching" />
+          <div className="min-w-0">
+            <a href="/" className="text-ui text-ink">
+              <Wordmark />
+            </a>
+            <p className="text-ui-sm text-ink-soft mt-1 truncate">{guildName}</p>
+          </div>
+        </div>
         <nav className="mt-10 flex-1" aria-label="Pages">
           {list}
         </nav>
