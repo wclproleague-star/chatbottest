@@ -23,6 +23,7 @@ import { handleMention } from './mention';
 import { claim, sweepClaims } from './once';
 import { onCommandButton, watchDashboardCommands } from './command';
 import { onButton } from './workflow';
+import { startScheduler } from './scheduler';
 
 const client = new Client({
   intents: [
@@ -54,6 +55,9 @@ client.once(Events.ClientReady, async (ready) => {
   }
   watchDashboardApprovals(client);
   watchDashboardCommands(client);
+  // The clock that starts a scheduled workflow. It reads backwards, so a
+  // restart at four minutes past still finds the run that was due on the hour.
+  startScheduler(client);
   // Whatever expired while the worker was down, and whatever it has already
   // seen, are cleared on the way in rather than accumulating for ever.
   await sweepConversations().catch(() => undefined);

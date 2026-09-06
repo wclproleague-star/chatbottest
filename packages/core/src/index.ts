@@ -35,6 +35,8 @@ export type { Workflow, WorkflowEffects, RunResult, Step } from './workflows';
 export { MATCH_DAY, matchDayContext } from './workflows/match-day';
 
 export { authorWorkflow, checkStep, readBack, whatChanged } from './workflow-author';
+export { isDue, lastDue, readSchedule } from './schedule';
+export type { Schedule } from './schedule';
 export type { Checked, Draft, RawStep, WorkflowShape } from './workflow-author';
 
 export {

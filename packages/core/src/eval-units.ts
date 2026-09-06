@@ -19,6 +19,7 @@ import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
 import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
+import { isDue, lastDue, readSchedule } from './schedule';
 import { checkStep, readBack, whatChanged } from './workflow-author';
 import type { RawStep } from './workflow-author';
 import { summarise } from './fetchers/http-json';
@@ -415,6 +416,57 @@ console.log(['', 'writing a workflow by describing it'].join(String.fromCharCode
     diff.length === 1 && diff[0]!.startsWith('Removed: Ask'),
     diff.join(' | '),
   );
+}
+
+console.log(['', 'when a scheduled workflow is due'].join(String.fromCharCode(10)));
+{
+  const paris = 'Europe/Paris';
+  // A Thursday in September, 18:30 Paris time, so 18:00 has just gone.
+  const thursdayEvening = new Date('2026-09-03T16:30:00Z');
+  const due = lastDue('every Thursday at 18:00', thursdayEvening, paris);
+  check(
+    'a weekly schedule finds this evening',
+    due?.toISOString() === '2026-09-03T16:00:00.000Z',
+    String(due),
+  );
+
+  // Ten minutes before it, the most recent one is last week's.
+  const beforeIt = new Date('2026-09-03T15:50:00Z');
+  const earlier = lastDue('every Thursday at 18:00', beforeIt, paris);
+  check(
+    'and before the hour it finds the week before',
+    earlier?.toISOString() === '2026-08-27T16:00:00.000Z',
+    String(earlier),
+  );
+
+  check(
+    'a daily schedule reads too',
+    lastDue('every day at 09:00', new Date('2026-09-03T10:00:00Z'), paris)?.toISOString() ===
+      '2026-09-03T07:00:00.000Z',
+  );
+
+  // Never guessed at: a phrase this does not understand does not run.
+  check(
+    'a phrase with no time is not a schedule',
+    lastDue('when the season starts', thursdayEvening, paris) === null,
+  );
+  check('nor is an impossible hour', readSchedule('every day at 25:00') === null);
+
+  // A run that already happened for that moment does not happen twice.
+  const already = isDue({
+    when: 'every Thursday at 18:00',
+    now: thursdayEvening,
+    timezone: paris,
+    lastRun: '2026-09-03T16:00:05.000Z',
+  });
+  check('a workflow that already ran for that moment is not due again', already.due === false);
+  const notYet = isDue({
+    when: 'every Thursday at 18:00',
+    now: thursdayEvening,
+    timezone: paris,
+    lastRun: '2026-08-27T16:00:05.000Z',
+  });
+  check('but last week does not count as this week', notYet.due === true);
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);
