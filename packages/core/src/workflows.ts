@@ -266,6 +266,8 @@ export async function resumeWorkflow(
     // A look first, so a nudge speaks from the site as it is now and not as
     // it was a minute ago. Live, "the draft has not started" was posted in
     // the same breath as the finished draft.
+    // Anything that changed the run — a look, a nudge — is reported as taken,
+    // or the caller does not save it and a fired nudge fires again.
     let looked = false;
     if (wait.kind === 'poll' && (!wait.pollAt || new Date(wait.pollAt) <= now)) {
       const frame = state.frames.at(-1)!;
@@ -285,6 +287,7 @@ export async function resumeWorkflow(
     // Then the nudges, then the deadline.
     const due = (wait.nudgesAt ?? []).filter((n) => new Date(n.at) <= now);
     if (due.length > 0) {
+      looked = true;
       wait.nudgesAt = (wait.nudgesAt ?? []).filter((n) => new Date(n.at) > now);
       const frame = state.frames.at(-1)!;
       const step = frame.steps[frame.index]!;
@@ -985,7 +988,7 @@ export async function recordRun(input: {
         stoppedBecause: input.result.stoppedBecause ?? null,
       } as unknown as Json,
       state: (input.result.state ?? null) as unknown as Json,
-      channel_id: input.channelId ?? input.result.state?.wait?.channelId ?? null,
+      channel_id: input.channelId ?? channelOf(input.result.state) ?? null,
     })
     .select('id')
     .single();
@@ -1011,10 +1014,22 @@ export async function saveRun(runId: string, state: RunState): Promise<void> {
         stoppedBecause: state.stoppedBecause ?? null,
       } as unknown as Json,
       state: (paused ? state : null) as unknown as Json,
-      channel_id: state.wait?.channelId ?? null,
+      channel_id: channelOf(state),
     })
     .eq('id', runId);
   if (error) console.error(`kalvard: could not save the run: ${error.message}`);
+}
+
+/**
+ * The channel a run lives in: the one it is waiting in, else the one its
+ * context names. A poll of a site waits in no channel, and a run that lost its
+ * channel while polling was a run whose room nobody was keeping.
+ */
+function channelOf(state: RunState | undefined): string | null {
+  if (!state) return null;
+  if (state.wait?.channelId) return state.wait.channelId;
+  const named = state.variables.channel;
+  return typeof named === 'string' && /^\d{15,22}$/.test(named) ? named : null;
 }
 
 /** Every run in this guild that is paused on a wait. */
