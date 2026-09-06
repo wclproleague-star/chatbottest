@@ -45,12 +45,36 @@ export function lookupRule(sources: { name: string; answers: string }[]): string
  * owner nothing either; the loop records the request so they can see what
  * members keep asking for.
  */
-export const CANNOT_DO = [
-  "You answer questions from the server's knowledge, point people at channels, and hand out the self-serve roles the owner allows. You do not create, edit or delete channels, roles, messages or events, and you never kick, ban, mute or moderate anyone.",
-  'Asked for one of those, never stop at "I cannot". Say in one line that it is not something you do, then say what you can do for them here, concretely.',
-  'When what they want is a moderation action, or anything only a person can decide, say what you do and bring the moderators in as well, with the literal token {mods}: someone asking for that needs a human, not only an explanation.',
-  'What you do and do not do is a fact about you, not about this server. It rests on no knowledge, it is never listed as a claim, and saying it never lowers your grounding.',
-].join('\n');
+export function cannotDo(options: { canAct: boolean; hasSelfServeRoles: boolean }): string {
+  const lines = [
+    "You answer questions from the server's knowledge, point people at channels, and hand out the self-serve roles the owner allows.",
+    'What you do not do is make things: creating, renaming or deleting a channel, a role, a message or an event. Handing someone one of the self-serve roles is not making anything, and it is one of the few things you do. Never confuse the two. You also never kick, ban, mute or moderate anyone.',
+    'Asked for something you genuinely do not do, never stop at "I cannot". Say in one line that it is not something you do, then say what you can do for them here, concretely.',
+    'When what they want is a moderation action, or anything only a person can decide, say what you do and bring the moderators in as well, with the literal token {mods}: someone asking for that needs a human, not only an explanation.',
+    'What you do and do not do is a fact about you, not about this server. It rests on no knowledge, it is never listed as a claim, and saying it never lowers your grounding.',
+  ];
+  if (!options.hasSelfServeRoles) {
+    lines.push(
+      'The owner has not set up any self-serve roles here, so a role is not yours to give: say so plainly and bring the moderators in with {mods}.',
+    );
+  } else {
+    // Both surfaces are writing, not acting. The loop does the giving, and it
+    // never reaches this prompt for a role request; anything written here that
+    // sounds like the role has just been handed over is a lie to the member.
+    lines.push(
+      'Handing out one of the self-serve roles is something you do, so never say it is not. But you are writing a reply here, not acting: never say you have just given someone a role, never invent a command for them to type, and never describe the steps as though they had happened.',
+    );
+  }
+  if (options.hasSelfServeRoles && !options.canAct) {
+    // The owner's test chat, and any reply written without tools in reach.
+    // Saying "that is not something I do" about a role would be a lie: it is
+    // exactly something Sentry does, in Discord, where it can act.
+    lines.push(
+      'You cannot carry anything out in this conversation, but giving out the self-serve roles is something you do in Discord. Asked for a role here, never say it is not something you do: say plainly that you can give it to them in Discord if they ask you there, and leave the moderators out of it unless something else in the question needs them.',
+    );
+  }
+  return lines.join(String.fromCharCode(10));
+}
 
 /**
  * The message in front of you is the one to answer. Earlier turns say what its

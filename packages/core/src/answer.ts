@@ -12,7 +12,7 @@ import { serviceClient } from './supabase';
 import './fetchers/weather';
 import { parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
-import { ANSWER_THIS_MESSAGE, CANNOT_DO, REGISTER, lookupRule } from './voice';
+import { ANSWER_THIS_MESSAGE, REGISTER, cannotDo, lookupRule } from './voice';
 import { MODS } from './tokens';
 
 type SettingsRow = Database['public']['Tables']['guild_settings']['Row'];
@@ -40,6 +40,12 @@ export type AnswerInput = {
   asker?: { nickname?: string; roles?: string[]; isStaff?: boolean };
   /** Where they wrote, which is often what tells you what they mean. */
   channel?: { name?: string; category?: string; topic?: string };
+  /**
+   * Whether the caller can actually carry things out. False in the owner's
+   * test chat, where there are no tools: Sentry must then say where it does a
+   * thing rather than claim it does not do it.
+   */
+  canAct?: boolean;
 };
 
 /** Why a message was flagged, from the model. */
@@ -317,6 +323,27 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
     },
   };
 
+  // Asked for a role the owner lets Sentry hand out. This is answered on its
+  // own rather than through the main prompt: that prompt is mostly about what
+  // Sentry does not do, and a reply written under it kept saying that giving a
+  // role was not something it does, which is the opposite of the truth. It is
+  // also the one thing this path must not pretend to have done: only the tool
+  // loop in Discord actually assigns.
+  if (settings.selfServeRoleIds.length > 0 && asksForARole(resolution, question)) {
+    await logEvent(guildId, 'answered', { ...base, kind: 'conversation', roleRequest: true });
+    return {
+      tier: 'answer',
+      resolution,
+      answered: true,
+      kind: 'conversation',
+      answer: await roleReply(settings, Boolean(input.canAct), resolution.entity),
+      claims: [],
+      confidence: 1,
+      usedChunkIds: [],
+      topChunkIds: matches.map((m) => m.id),
+    };
+  }
+
   // More than one thing could have been meant: one short question, no
   // moderators. Asking is not escalating.
   if (resolution.outcome === 'ambiguous') {
@@ -353,7 +380,15 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
   const conflict = (await conflictsFor(guildId, [...seen.keys()]))[0] ?? null;
   if (conflict) Object.assign(base, { conflict });
   const raw = await generateJson<ModelOutput>({
-    system: systemPrompt(settings, matches, meta, resolution, context, conflict),
+    system: systemPrompt(
+      settings,
+      matches,
+      meta,
+      resolution,
+      context,
+      conflict,
+      Boolean(input.canAct),
+    ),
     messages: [
       ...history,
       { role: 'user', text: input.askerName ? `${input.askerName} says: ${question}` : question },
@@ -630,6 +665,53 @@ async function overQuota(guildId: string, limits: Limits): Promise<boolean> {
   }
 }
 
+/** Whether this message is a member asking to be given a role. */
+function asksForARole(resolution: Resolution, question: string): boolean {
+  if (!resolution.asksForAnAction) return false;
+  const subject = `${resolution.subject} ${question}`.toLowerCase();
+  return subject.includes('role') || subject.includes('rôle') || subject.includes('rol ');
+}
+
+/**
+ * What to say to someone asking for a role, written on its own so the long
+ * prompt about what Sentry does not do cannot contradict it.
+ */
+async function roleReply(s: Settings, canAct: boolean, entity: string | null): Promise<string> {
+  const named = entity?.trim()
+    ? `They asked for: ${entity.trim()}.`
+    : 'They did not say which one.';
+  try {
+    const out = await generateJson<{ reply: string }>({
+      system: [
+        `You are ${s.botName}, a Discord assistant. A member has just asked you for a role.`,
+        s.persona ?? '',
+        'Handing out the roles the owner allows is something you do. Say so warmly, in one short sentence.',
+        canAct
+          ? 'Say you will check whether they may have it and hand it over.'
+          : 'You cannot act in this conversation, so say you can give it to them in Discord if they ask you there. Do not explain why, and do not mention test chats or dashboards.',
+        'Never claim you have already given it. Never invent a command for them to type. Never say giving roles is not something you do. Do not mention moderators.',
+        'One or two short sentences, nothing else.',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      messages: [{ role: 'user', text: named }],
+      schema: {
+        type: Type.OBJECT,
+        properties: { reply: { type: Type.STRING } },
+        required: ['reply'],
+      },
+      temperature: 0.6,
+    });
+    const reply = out.reply.trim();
+    if (reply) return reply;
+  } catch {
+    // Fall through to something plain rather than nothing.
+  }
+  return canAct
+    ? 'I can do that. Let me check you may have it and I will hand it over.'
+    : 'I can give you that one in Discord, just ask me there.';
+}
+
 async function retrieve(guildId: string, query: string, threshold: number): Promise<Match[]> {
   const [vector] = await embed([query], 'RETRIEVAL_QUERY');
   if (!vector) throw new Error('Embedding the question returned nothing.');
@@ -813,6 +895,7 @@ function systemPrompt(
   resolution: Resolution,
   context: ResolutionContext,
   conflict: Conflict | null,
+  canAct: boolean,
 ): string {
   const clock = s.timezone ? clockLine(s.timezone) : null;
   const lines: string[] = [
@@ -832,7 +915,7 @@ function systemPrompt(
     // what the guild can fetch would invite it to claim data it never got.
     lookupRule([]),
     '',
-    CANNOT_DO,
+    cannotDo({ canAct, hasSelfServeRoles: s.selfServeRoleIds.length > 0 }),
     '',
     'The one rule: converse naturally, and never state a fact about this server (dates, times, rules, names, prices, results, roles, who does what) that is not grounded in the knowledge below.',
     '',

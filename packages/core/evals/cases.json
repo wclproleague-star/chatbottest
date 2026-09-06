@@ -297,5 +297,15 @@
     "tier": "answer",
     "mods": false,
     "note": "the check-in documents disagree with each other, and that must not hedge an answer about the trophy"
+  },
+  {
+    "message": "can i have the ff role ?",
+    "guild": "900000000000000002",
+    "kind": "conversation",
+    "tier": "answer",
+    "replyMatches": "[Dd]iscord",
+    "note": "a role is Sentry's to give, so this claims nothing about the server: it must not say handing out roles is not something it does, and must not pretend it already has",
+    "replyNotMatches": "(isn't|is not|not) something I do|I can't give|I cannot give|je ne (donne|fais) pas",
+    "mods": false
   }
 ]

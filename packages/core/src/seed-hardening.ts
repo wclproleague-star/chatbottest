@@ -52,6 +52,9 @@ await db.from('guild_settings').upsert({
   fallback_mode: 'ping_role',
   confidence_threshold: 0.55,
   allowed_actions: ['point_to_channel', 'escalate'],
+  // Two roles the bot may hand out itself, so the cases about what it can and
+  // cannot do have something real to be about.
+  self_serve_role_ids: ['role_ff_hard', 'role_eu_hard'],
 });
 
 for (const doc of DOCUMENTS) {

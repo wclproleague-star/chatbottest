@@ -44,6 +44,8 @@ type Case = {
   candidatesInclude?: string[];
   /** A pattern the reply has to match, for a caveat that must be there. */
   replyMatches?: string;
+  /** A pattern the reply must not match, for a thing it must never say. */
+  replyNotMatches?: string;
   /**
    * The guild to ask. Defaults to the seed; the hardening guild holds the
    * knowledge the seed must not have, such as two documents that disagree.
@@ -189,8 +191,11 @@ async function main(): Promise<void> {
       ) {
         problems.push(`the reply never names the target (${names.join(' or ')})`);
       }
+      if (c.replyNotMatches && new RegExp(c.replyNotMatches, 'i').test(replyOf(result))) {
+        problems.push('the reply says something it must not');
+      }
       if (c.replyMatches && !new RegExp(c.replyMatches, 'i').test(replyOf(result))) {
-        problems.push('the reply carries no staleness caveat');
+        problems.push('the reply is missing something it must say');
       }
       for (const candidate of c.candidatesInclude ?? []) {
         const offered = result.tier === 'clarify' ? result.candidates.join(' ') : '';

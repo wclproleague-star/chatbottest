@@ -27,7 +27,7 @@ import { fetchFrom, parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
 import { serviceClient } from './supabase';
 import { MODS } from './tokens';
-import { ANSWER_THIS_MESSAGE, CANNOT_DO, REGISTER, lookupRule } from './voice';
+import { ANSWER_THIS_MESSAGE, REGISTER, cannotDo, lookupRule } from './voice';
 
 /** How many tool calls one turn may make. */
 export const MAX_TOOL_CALLS = 5;
@@ -348,6 +348,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           history: earlier.length > 0 ? undefined : input.history,
           asker: input.asker,
           channel: input.channel,
+          canAct: true,
         });
         return {
           outcome: 'reply',
@@ -891,7 +892,7 @@ function systemPrompt(s: AgentSettings, budget: number, language: string): strin
       ? `Call fetch_data with the id of the source that covers it: ${s.dataSources.map((d) => `${d.id} for ${d.answers}`).join('; ')}.`
       : '',
     '',
-    CANNOT_DO,
+    cannotDo({ canAct: true, hasSelfServeRoles: s.selfServeRoleIds.length > 0 }),
     'Call note_unavailable once when they ask for something you do not do, so the owner sees what is being asked for, then tell them what you can do instead.',
     '',
     'You have tools. Use them when the member wants something done; answer plainly when they just want to talk or to know something.',
