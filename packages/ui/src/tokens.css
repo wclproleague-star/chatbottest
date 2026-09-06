@@ -14,6 +14,11 @@
   --color-amber: #d9a21b;
   /* Hairlines and skeletons on paper, from the craft addendum. */
   --color-hairline: #e3e6ea;
+  /* A surface above a panel, and what a field is made of. Light values here;
+     the dark theme gives them its own. */
+  --color-raised: #ffffff;
+  --color-field: #ffffff;
+  --color-field-line: #e3e6ea;
 
   /* One family for everything, including the thread. */
   --font-*: initial;
@@ -60,6 +65,48 @@
   }
 }
 
+/* Themes.
+ *
+ * The palette above names roles, not literal colours: `paper` is the page,
+ * `panel` the surface a subject sits on, `raised` the one above that, `ink`
+ * the text and `ink-soft` the text beside it. A theme is one block that says
+ * what those roles are worth, so every component built on them changes at
+ * once and none of them has to know a theme exists.
+ *
+ * The dashboard is dark. The marketing site sets no theme and keeps the light
+ * values above, which is also what a light dashboard would be: one more block
+ * like this one, and an attribute.
+ *
+ * Green and amber never move. They carry state, and state is not decoration.
+ */
+[data-theme='dark'] {
+  --color-paper: #0e1116;
+  --color-panel: #161a21;
+  --color-raised: #1c222b;
+  --color-hairline: #242a33;
+  --color-ink: #e8eaed;
+  --color-ink-soft: #9aa3ae;
+  --color-field: #12161c;
+  --color-field-line: #2a313b;
+
+  /* A panel reads by being lighter than the page, not by casting onto it:
+     in the dark a shadow is invisible, and a raised edge is not. */
+  --shadow-panel-paper: none;
+
+  /* Ticks, radios and the slider take the state colour rather than the
+     browser's blue, which is the one colour the palette does not have. */
+  accent-color: var(--color-green);
+}
+
+/* Buttons on the dark dashboard: primary is star white with ink text, and
+   secondary is a hairline outline with nothing filled. Written against both
+   attributes so it lands after the surface block that sets the light pair. */
+[data-theme='dark'][data-surface='paper'] {
+  --button-bg: var(--color-star);
+  --button-fg: #111418;
+  --button-bg-hover: color-mix(in srgb, var(--color-star) 94%, #111418);
+}
+
 [data-state='answered'] {
   --state: var(--color-green);
 }
@@ -72,7 +119,7 @@
   --surface-bg: var(--color-paper);
   --surface-fg: var(--color-ink);
   --surface-fg-soft: var(--color-ink-soft);
-  --surface-hairline: rgb(17 20 24 / 0.12);
+  --surface-hairline: var(--color-hairline);
   --surface-panel-shadow: var(--shadow-panel-paper);
   --button-bg: var(--color-ink);
   --button-fg: var(--color-paper);

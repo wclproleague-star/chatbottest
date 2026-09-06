@@ -16,7 +16,7 @@ export default async function GuildLayout({
   const { guildId } = await params;
   const { guild } = await requireMember(guildId);
   return (
-    <Surface surface="paper" className="min-h-screen lg:flex">
+    <Surface surface="paper" theme="dark" className="min-h-screen lg:flex">
       <Sidebar guildId={guildId} guildName={guild.name ?? guildId} />
       <main className="min-w-0 flex-1 px-6 pb-24 pt-10 lg:px-12">
         <Column>{children}</Column>

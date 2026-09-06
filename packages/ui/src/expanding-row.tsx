@@ -71,7 +71,7 @@ export function RowBlock({
   className?: string;
 }) {
   return (
-    <div className={cx('border-hairline rounded-lg border p-4', className)}>
+    <div className={cx('border-hairline bg-raised rounded-lg border p-4', className)}>
       <p className="text-ui-sm text-ink-soft">{label}</p>
       <div className="mt-2">{children}</div>
     </div>

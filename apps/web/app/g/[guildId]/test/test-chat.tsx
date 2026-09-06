@@ -149,7 +149,7 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
                   type="button"
                   onClick={() => void send(s)}
                   disabled={pending}
-                  className="text-ui-sm text-ink border-hairline hover:bg-panel h-9 rounded-full border px-4 transition-colors disabled:opacity-40"
+                  className="text-ui-sm text-ink border-hairline hover:bg-raised h-9 rounded-full border px-4 transition-colors disabled:opacity-40"
                 >
                   {s}
                 </button>

@@ -22,7 +22,7 @@ const WIDTH: Record<FieldWidth, string> = {
 };
 
 const fieldClass =
-  'text-ui text-ink placeholder:text-ink-soft/70 border-hairline focus-visible:outline-green rounded-lg border bg-panel px-3 outline-offset-2 focus-visible:outline-2 disabled:opacity-40';
+  'text-ui text-ink placeholder:text-ink-soft/70 border-field-line focus-visible:outline-green rounded-lg border bg-field px-3 outline-offset-2 focus-visible:outline-2 disabled:opacity-40';
 
 export function Input({
   className,

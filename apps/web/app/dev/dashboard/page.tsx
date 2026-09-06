@@ -32,7 +32,7 @@ export default async function Page({
 }) {
   const { p = 'inbox', open } = await searchParams;
   return (
-    <Surface surface="paper" className="min-h-screen lg:flex">
+    <Surface surface="paper" theme="dark" className="min-h-screen lg:flex">
       <Sidebar guildId="900000000000000001" guildName="Wild Champions League" />
       <main className="min-w-0 flex-1 px-6 pb-24 pt-10 lg:px-12">
         <Column>

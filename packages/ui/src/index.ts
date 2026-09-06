@@ -1,9 +1,10 @@
 // Design tokens (tokens.css) and base components. Same tokens on paper and night.
 
 export { Surface } from './surface';
-export type { SurfaceName } from './surface';
+export type { SurfaceName, ThemeName } from './surface';
 
 export { Button, ButtonLink, buttonClass } from './button';
+export type { ButtonVariant } from './button';
 export { TextLink } from './text-link';
 export { Panel } from './panel';
 export { Display } from './display';

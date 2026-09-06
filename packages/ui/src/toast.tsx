@@ -23,7 +23,7 @@ export function Toast({ id, message }: { id: number; message: string | null }) {
   return (
     <div
       role="status"
-      className="text-ui bg-ink text-star fade-in fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full px-4 py-2"
+      className="text-ui bg-ink text-paper fade-in fixed bottom-6 left-1/2 z-40 -translate-x-1/2 rounded-full px-4 py-2"
     >
       {shown.message}
     </div>

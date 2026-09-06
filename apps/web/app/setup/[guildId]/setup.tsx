@@ -102,6 +102,7 @@ export function Setup({
 
   return (
     <main
+      data-theme="dark"
       data-surface={night ? 'night' : 'paper'}
       className={cx(
         'min-h-screen transition-colors duration-700',
@@ -635,7 +636,7 @@ function Finish({
         <select
           name="mod_role"
           defaultValue=""
-          className="border-hairline text-ui text-ink bg-panel h-11 w-full rounded-lg border px-3"
+          className="border-field-line text-ui text-ink bg-field h-11 w-full rounded-lg border px-3"
         >
           <option value="">Choose a role</option>
           {roles.map((role) => (
@@ -652,7 +653,7 @@ function Finish({
         <select
           name="mod_channel"
           defaultValue=""
-          className="border-hairline text-ui text-ink bg-panel h-11 w-full rounded-lg border px-3"
+          className="border-field-line text-ui text-ink bg-field h-11 w-full rounded-lg border px-3"
         >
           <option value="">Nowhere, just record it</option>
           {channels.map((channel) => (

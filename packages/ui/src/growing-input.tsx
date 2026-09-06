@@ -35,7 +35,7 @@ export function GrowingInput({
         onInput?.(e);
       }}
       className={cx(
-        'text-ui text-ink placeholder:text-ink-soft/70 border-hairline focus-visible:outline-green bg-panel w-full resize-none overflow-hidden rounded-lg border px-3 py-2.5 outline-offset-2 focus-visible:outline-2 disabled:opacity-40',
+        'text-ui text-ink placeholder:text-ink-soft/70 border-field-line focus-visible:outline-green bg-field w-full resize-none overflow-hidden rounded-lg border px-3 py-2.5 outline-offset-2 focus-visible:outline-2 disabled:opacity-40',
         className,
       )}
       {...props}
