@@ -144,11 +144,9 @@ export async function onTick(
       const line = ok
         ? `Done, ${mention}has the ${roles.join(' and ')} role. I'll know ${who} is part of the ${roles.join(' and ')} roster from now on.`
         : `${mention}${report}`;
-      await settleQuestion({
-        questionId: pending.id,
-        answer: ok ? noted : report,
-        answeredBy: user.id,
-      });
+      // A failure leaves the question open: once the moderator has fixed what
+      // stopped it, the same reply and the same tick finish the job.
+      if (ok) await settleQuestion({ questionId: pending.id, answer: noted, answeredBy: user.id });
       if (message.channel.isSendable()) await message.channel.send(line);
       await logEvent(guild.id, 'approved', {
         questionId: pending.id,
