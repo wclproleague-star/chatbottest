@@ -23,6 +23,7 @@ import { Type } from './gemini';
 // cannot be called, so this import is the whole enabling of a source.
 import './fetchers/weather';
 import './fetchers/rift-legends';
+import './fetchers/draft-flow';
 import './fetchers/http-json';
 import { detectLanguage, inLanguage } from './language';
 import { answersTheQuestion } from './conversation';
@@ -1226,7 +1227,7 @@ async function memberName(guildId: string, userId: string): Promise<string | nul
   return memberNames.get(`${guildId}:${userId}`) ?? null;
 }
 
-async function searchKnowledge(
+export async function searchKnowledge(
   guildId: string,
   query: string,
   threshold: number,

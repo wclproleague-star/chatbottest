@@ -151,3 +151,48 @@ function toContent(turn: ToolTurn): Content {
   }
   return { role: turn.role, parts: [{ text: turn.text }] };
 }
+
+/**
+ * One structured-output call about a picture. The bytes go inline, so nothing
+ * about where the picture came from reaches the model.
+ */
+export async function generateJsonFromImage<T>(input: {
+  system: string;
+  prompt: string;
+  image: { data: Uint8Array; mimeType: string };
+  schema: Schema;
+}): Promise<T> {
+  const response = await withRetry(() =>
+    ai().models.generateContent({
+      model: env().geminiModel,
+      contents: [
+        {
+          role: 'user',
+          parts: [
+            { text: input.prompt },
+            {
+              inlineData: {
+                data: Buffer.from(input.image.data).toString('base64'),
+                mimeType: input.image.mimeType,
+              },
+            },
+          ],
+        },
+      ],
+      config: {
+        systemInstruction: input.system,
+        responseMimeType: 'application/json',
+        responseSchema: input.schema,
+        temperature: 0,
+        maxOutputTokens: 512,
+      },
+    }),
+  );
+  const text = response.text;
+  if (!text) throw new Error('Gemini returned an empty response.');
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(`Gemini did not return JSON (${text.length} characters).`);
+  }
+}

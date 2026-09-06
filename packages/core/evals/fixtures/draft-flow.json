@@ -1,0 +1,18 @@
+{
+  "_comment": "What the guild's draft site answers when a source is pointed at fixture:draft-flow. Each session created goes waiting -> drafting -> done, one step per look, and ends with these picks. The evals and the Bo3 series run against this, so neither needs the site to be up.",
+  "links": {
+    "blue": "https://draft.example/session/{id}/blue",
+    "red": "https://draft.example/session/{id}/red",
+    "spectator": "https://draft.example/session/{id}"
+  },
+  "done": {
+    "picks": {
+      "blue": ["Ahri", "Lee Sin", "Jinx", "Nautilus", "Camille"],
+      "red": ["Orianna", "Xin Zhao", "Kai'Sa", "Thresh", "Riven"]
+    },
+    "bans": {
+      "blue": ["Yasuo", "Zed", "Akali"],
+      "red": ["Lux", "Ezreal", "Vayne"]
+    }
+  }
+}

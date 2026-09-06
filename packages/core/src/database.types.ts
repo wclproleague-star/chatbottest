@@ -329,6 +329,8 @@ export type Database = {
           mode: 'live' | 'dry_run';
           status: 'running' | 'done' | 'stopped' | 'failed';
           summary: Json;
+          state: Json | null;
+          channel_id: string | null;
         };
         Insert: {
           id?: string;
@@ -339,11 +341,15 @@ export type Database = {
           mode?: 'live' | 'dry_run';
           status?: 'running' | 'done' | 'stopped' | 'failed';
           summary?: Json;
+          state?: Json | null;
+          channel_id?: string | null;
         };
         Update: {
           finished_at?: string | null;
           status?: 'running' | 'done' | 'stopped' | 'failed';
           summary?: Json;
+          state?: Json | null;
+          channel_id?: string | null;
         };
         Relationships: [];
       };

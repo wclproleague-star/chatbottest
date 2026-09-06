@@ -22,7 +22,7 @@ import {
 import { handleMention } from './mention';
 import { claim, sweepClaims } from './once';
 import { onCommandButton, watchDashboardCommands } from './command';
-import { onButton } from './workflow';
+import { deliverMessage, onButton, startRunTicker } from './workflow';
 import { startScheduler } from './scheduler';
 
 const client = new Client({
@@ -58,6 +58,7 @@ client.once(Events.ClientReady, async (ready) => {
   // The clock that starts a scheduled workflow. It reads backwards, so a
   // restart at four minutes past still finds the run that was due on the hour.
   startScheduler(client);
+  startRunTicker(client);
   // Whatever expired while the worker was down, and whatever it has already
   // seen, are cleared on the way in rather than accumulating for ever.
   await sweepConversations().catch(() => undefined);
@@ -118,6 +119,10 @@ client.on(Events.MessageCreate, async (message: Message) => {
     }
     if (!(await isClaimed(message.guild.id))) return;
     const settings = await loadSettings(message.guild.id);
+
+    // A run waiting in this channel — a screenshot, a word from a team — takes
+    // its message before anything else reads it as a question.
+    if (await deliverMessage(message)) return;
 
     // A moderator replying to a question Kalvard could not answer is answering
     // it, not asking a new one.

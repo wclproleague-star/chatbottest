@@ -21,6 +21,7 @@ import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import type { GuildSettings } from './guild';
 import { logEvent, mayPingMods } from './guild';
 import { handleCommand } from './command';
+import { startSeries } from './workflow';
 import { findPending } from './knowledge';
 
 /** Discord's own limit on a message. */
@@ -50,6 +51,11 @@ export async function handleMention(message: Message, settings: GuildSettings): 
     await message.reply(`Someone just asked this and the moderators have it: ${pending.link}`);
     return;
   }
+
+  // A moderator starting a series: two team roles named, and the word for it.
+  // "bo3 @CEO vs @PPG" in the match channel is the whole instruction; the
+  // workflow takes it from there.
+  if (await startSeriesIfAsked(message, settings, question)) return;
 
   // A moderator asking for something to be done gets a plan and two buttons,
   // not an answer. A moderator asking a question falls straight through. And
@@ -424,4 +430,47 @@ async function runAction(message: Message, action: Action, settings: GuildSettin
   } catch (err) {
     console.error(`kalvard: could not run the action: ${String(err)}`);
   }
+}
+
+/**
+ * Whether this is a moderator starting a best-of-three, and if so, starting
+ * it. Exactly two roles mentioned and a word for the series is the shape;
+ * anything else is not one and falls through to the usual paths.
+ */
+async function startSeriesIfAsked(
+  message: Message,
+  settings: GuildSettings,
+  question: string,
+): Promise<boolean> {
+  const guild = message.guild;
+  if (!guild) return false;
+  const isStaff = settings.modRoleId
+    ? (message.member?.roles.cache.has(settings.modRoleId) ?? false)
+    : false;
+  if (!isStaff && guild.ownerId !== message.author.id) return false;
+  const words = new Set(
+    question
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter(Boolean),
+  );
+  const wanted =
+    words.has('bo3') ||
+    words.has('series') ||
+    words.has('serie') ||
+    /best of (3|three)/i.test(question);
+  if (!wanted) return false;
+  const roles = [...message.mentions.roles.values()].filter((r) => r.id !== settings.modRoleId);
+  if (roles.length !== 2) return false;
+  const [a, b] = roles as [(typeof roles)[number], (typeof roles)[number]];
+  const started = await startSeries({
+    guild,
+    channelId: message.channelId,
+    teamA: { name: a.name, roleId: a.id },
+    teamB: { name: b.name, roleId: b.id },
+    modRoleId: settings.modRoleId,
+    startedBy: message.author.id,
+  });
+  if (!started.ok) await message.reply(`I could not start it: ${started.because}`);
+  return true;
 }

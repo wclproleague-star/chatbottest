@@ -34,7 +34,23 @@ export {
   runDryEffects,
   WORKFLOW_ACTIONS,
 } from './workflows';
-export type { Workflow, WorkflowEffects, RunResult, Step } from './workflows';
+export type {
+  Workflow,
+  WorkflowEffects,
+  RunResult,
+  RunState,
+  RunEvent,
+  Delivery,
+  Step,
+} from './workflows';
+export { resumeWorkflow, saveRun, pausedRuns } from './workflows';
+export { BO3_SERIES, seriesContext } from './workflows/series';
+export type { SeriesContext } from './workflows/series';
+export { readEndScreen } from './vision';
+export type { EndScreen } from './vision';
+export { runOp } from './sources';
+export { resetDraftFixture, FIXTURE_LOOKS_TO_DONE, draftCard } from './fetchers/draft-flow';
+export type { DraftSession } from './fetchers/draft-flow';
 
 export { MATCH_DAY, matchDayContext } from './workflows/match-day';
 export {
@@ -147,3 +163,4 @@ export { serviceClient, DOCUMENTS_BUCKET } from './supabase';
 export type { ServiceClient } from './supabase';
 
 export type * from './database.types';
+export { searchKnowledge } from './agent';

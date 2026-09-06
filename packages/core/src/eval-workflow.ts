@@ -10,8 +10,11 @@
 
 import process from 'node:process';
 import { MATCH_DAY, matchDayContext } from './workflows/match-day';
-import { WORKFLOW_ACTIONS, runWorkflow } from './workflows';
-import type { WorkflowEffects, RunResult } from './workflows';
+import { WORKFLOW_ACTIONS, resumeWorkflow, runWorkflow } from './workflows';
+import type { WorkflowEffects, RunEvent, RunResult, RunState } from './workflows';
+import { BO3_SERIES, seriesContext } from './workflows/series';
+import { runOp } from './sources';
+import { FIXTURE_LOOKS_TO_DONE, resetDraftFixture } from './fetchers/draft-flow';
 
 const THURSDAY = new Date('2026-09-10T17:00:00.000Z');
 const SUNDAY = new Date('2026-09-13T17:00:00.000Z');
@@ -162,6 +165,376 @@ check(
   'and names the channel it wanted',
   (noChannel.stoppedBecause ?? '').includes('match-info'),
   noChannel.stoppedBecause ?? '',
+);
+
+// The Bo3 series --------------------------------------------------------
+// A whole best-of-three, scripted: two fake teams, the draft site played by
+// the fixture, screenshots read by a scripted reader, and the clock moved by
+// hand. What is checked is the flow: who gets pinged, what fires on silence,
+// what is refused, and what reaches the results channel.
+
+console.log(['', 'a best-of-three, start to finish'].join(String.fromCharCode(10)));
+resetDraftFixture();
+
+const A = { name: 'CEO', roleId: 'role-a' };
+const B = { name: 'PPG', roleId: 'role-b' };
+const ALICE = { id: 'u-alice', roles: ['role-a'] }; // team A
+const ANNE = { id: 'u-anne', roles: ['role-a'] }; // team A, not the reporter
+const BOB = { id: 'u-bob', roles: ['role-b'] }; // team B
+const NOBODY = { id: 'u-rando', roles: [] as string[] };
+
+const posted: { channel: string; text: string; attachments?: string[] }[] = [];
+const asked: { question: string; who: string[] }[] = [];
+const DRAFT_SOURCE = {
+  id: 'draft',
+  name: 'the draft site',
+  answers: 'draft sessions',
+  kind: 'draft_flow',
+  config: { baseUrl: 'fixture:draft-flow' },
+};
+const effects: WorkflowEffects = {
+  async postMessage(channel, text, attachments) {
+    posted.push({ channel, text, attachments });
+  },
+  async askButtons({ question, whoMayAnswer }) {
+    asked.push({ question, who: whoMayAnswer });
+  },
+  async addReaction() {},
+  async pinMessage() {},
+  async channelId(name) {
+    return name === 'results' ? 'channel-results' : name;
+  },
+  fetch: (source, op, args) => runOp([DRAFT_SOURCE], source, op, args),
+  // The scripted reader: the file name says what the model would have said.
+  async readImage(url) {
+    if (url.includes('lobby')) {
+      return { isEndScreen: false, result: 'unknown', confidence: 0.9, seen: 'a lobby' };
+    }
+    if (url.includes('defeat')) {
+      return { isEndScreen: true, result: 'defeat', confidence: 0.95, seen: 'DEFEAT screen' };
+    }
+    return { isEndScreen: true, result: 'victory', confidence: 0.95, seen: 'VICTORY screen' };
+  },
+};
+
+let clock = new Date('2026-09-12T18:00:00.000Z');
+const minutes = (n: number): Date => new Date(clock.getTime() + n * 60_000);
+const run = await runWorkflow({
+  guildId: '900000000000000001',
+  workflow: BO3_SERIES,
+  context: seriesContext({
+    teamA: A,
+    teamB: B,
+    channel: 'channel-match',
+    results: 'results',
+    rules: 'Best of three. Loser of a game picks side for the next.',
+    mods: '@mods',
+  }),
+  effects,
+  allowedActions: [...WORKFLOW_ACTIONS],
+  now: clock,
+});
+let state = run.state as RunState;
+const lastPost = (): string => posted.at(-1)?.text ?? '';
+const since = (n: number): string =>
+  posted
+    .slice(n)
+    .map((p) => p.text)
+    .join(' | ');
+async function feed(event: RunEvent, at: Date): Promise<{ taken: boolean; say?: string }> {
+  clock = at;
+  const out = await resumeWorkflow(state, event, {
+    guildId: '900000000000000001',
+    effects,
+    allowedActions: [...WORKFLOW_ACTIONS],
+    now: at,
+  });
+  if (out.taken) state = out.state;
+  return out;
+}
+
+check(
+  'the greeting mentions both teams',
+  posted[0]?.text.includes('<@&role-a>') === true &&
+    posted[0]?.text.includes('<@&role-b>') === true,
+  posted[0]?.text ?? '',
+);
+check('and reads back the rules', posted[0]?.text.includes('Loser of a game picks side') === true);
+check(
+  'the coin flip is announced',
+  /Coin flip for side: (CEO|PPG) starts on blue side/.test(posted[1]?.text ?? ''),
+  posted[1]?.text ?? '',
+);
+const blueFirst = (run.variables.blue as { roleId: string }).roleId;
+const redFirst = (run.variables.red as { roleId: string }).roleId;
+const links = posted.find((p) => p.text.includes('your draft'))?.text ?? '';
+check(
+  'the blue link goes to the blue team',
+  links.includes(`<@&${blueFirst}> your draft: https://draft.example/session/draft-1/blue`),
+  links,
+);
+check(
+  'and the red link to the red team',
+  links.includes(`<@&${redFirst}> yours: https://draft.example/session/draft-1/red`),
+  links,
+);
+check('it is waiting on the draft site', state?.wait?.kind === 'poll', JSON.stringify(state?.wait));
+
+// One minute of silence: the first nudge, and a look that finds the draft started.
+let before = posted.length;
+await feed({ kind: 'tick' }, minutes(1));
+check(
+  'after a minute it asks whether the draft started',
+  posted.slice(before).some((p) => p.text.includes('Did you start the draft')),
+  since(before),
+);
+before = posted.length;
+await feed({ kind: 'tick' }, minutes(2));
+check(
+  'the second nudge stays quiet once drafting has begun',
+  !posted.slice(before).some((p) => p.text.includes('has not started')),
+  since(before),
+);
+for (let i = 0; state.wait?.kind === 'poll' && i < 20; i++)
+  await feed({ kind: 'tick' }, minutes(3 + i));
+check(
+  `the draft finished after ${FIXTURE_LOOKS_TO_DONE} looks`,
+  posted.some((p) => p.text.startsWith('Draft done.')),
+  lastPost(),
+);
+check(
+  'the blue team is told to make the lobby',
+  posted.some((p) => p.text.includes(`<@&${blueFirst}> create the lobby`)),
+);
+check(
+  'then it waits two minutes for a word from either team',
+  state.wait?.event === 'message' && state.wait.from.includes(blueFirst),
+  JSON.stringify(state.wait),
+);
+
+// Nobody says anything: one check-in, then the screenshot wait.
+clock = new Date(state.wait!.deadline);
+before = posted.length;
+await feed({ kind: 'tick' }, minutes(1));
+check(
+  'after two quiet minutes it asks once',
+  posted.slice(before).some((p) => p.text.includes('Everything fine?')),
+  since(before),
+);
+check(
+  'and waits for a screenshot from either team',
+  state.wait?.event === 'attachment' && state.wait.from.length === 2,
+  JSON.stringify(state.wait),
+);
+
+// A picture that is not an end screen is refused and the wait holds.
+const stranger = await feed(
+  {
+    kind: 'message',
+    from: NOBODY.id,
+    roles: NOBODY.roles,
+    text: '',
+    attachments: ['https://cdn.example/lobby.png'],
+  },
+  minutes(2),
+);
+check('a screenshot from neither team is not taken', !stranger.taken);
+before = posted.length;
+await feed(
+  {
+    kind: 'message',
+    from: ALICE.id,
+    roles: ALICE.roles,
+    text: 'gg',
+    attachments: ['https://cdn.example/lobby.png'],
+  },
+  minutes(3),
+);
+check(
+  'a lobby picture is refused with one line',
+  posted.slice(before).some((p) => p.text.includes('not an end-of-game screen')),
+  since(before),
+);
+check(
+  'and the wait for the real one holds',
+  state.wait?.event === 'attachment',
+  JSON.stringify(state.wait),
+);
+
+// DEFEAT from a member of team A is a win for team B.
+before = posted.length;
+await feed(
+  {
+    kind: 'message',
+    from: ALICE.id,
+    roles: ALICE.roles,
+    text: '',
+    attachments: ['https://cdn.example/g1-defeat.png'],
+  },
+  minutes(4),
+);
+check(
+  'a defeat posted by team A records a win for team B',
+  posted
+    .slice(before)
+    .some((p) => p.text.includes('<@&role-b> wins') && p.text.includes('CEO 0 - 1 PPG')),
+  since(before),
+);
+check(
+  'the loser is asked for its side, as buttons',
+  asked.at(-1)?.who.includes('role-a') === true &&
+    asked.at(-1)?.question.includes('which side') === true,
+  JSON.stringify(asked.at(-1)),
+);
+check(
+  'Alice is now the reporter',
+  state.variables.reporter === ALICE.id,
+  String(state.variables.reporter),
+);
+
+// The wrong team cannot pick a side; the right one does.
+const wrong = await feed(
+  { kind: 'button', from: BOB.id, roles: BOB.roles, chose: 'Red' },
+  minutes(5),
+);
+check(
+  'a button from the winning team is refused',
+  !wrong.taken && Boolean(wrong.say),
+  wrong.say ?? '',
+);
+await feed({ kind: 'button', from: ANNE.id, roles: ANNE.roles, chose: 'Red' }, minutes(5));
+check(
+  'team A takes red for game 2',
+  (state.variables.red as { name: string }).name === 'CEO' &&
+    (state.variables.blue as { name: string }).name === 'PPG',
+  JSON.stringify([state.variables.blue, state.variables.red]),
+);
+const links2 = posted.filter((p) => p.text.includes('your draft')).at(-1)?.text ?? '';
+check(
+  'game 2 links follow the new sides',
+  links2.includes('<@&role-b> your draft: https://draft.example/session/draft-2/blue') &&
+    links2.includes('<@&role-a> yours: https://draft.example/session/draft-2/red'),
+  links2,
+);
+
+// The draft again, then a word from a team, then the screenshot.
+for (let i = 0; state.wait?.kind === 'poll' && i < 20; i++)
+  await feed({ kind: 'tick' }, minutes(6 + i));
+check('game 2 draft finished', state.wait?.event === 'message', JSON.stringify(state.wait));
+before = posted.length;
+await feed(
+  { kind: 'message', from: BOB.id, roles: BOB.roles, text: 'lobby is up', attachments: [] },
+  minutes(7),
+);
+check(
+  'a word from a team settles the check-in without a nudge',
+  state.wait?.event === 'attachment' &&
+    !posted.slice(before).some((p) => p.text.includes('Everything fine')),
+  JSON.stringify(state.wait),
+);
+check(
+  'only the reporter may send the screenshot now',
+  state.wait?.from.length === 1 && state.wait.from[0] === ALICE.id,
+  JSON.stringify(state.wait?.from),
+);
+const dup = await feed(
+  {
+    kind: 'message',
+    from: ANNE.id,
+    roles: ANNE.roles,
+    text: '',
+    attachments: ['https://cdn.example/g2-defeat.png'],
+  },
+  minutes(8),
+);
+check(
+  'a screenshot from anyone else is refused as not the reporter',
+  !dup.taken && (dup.say ?? '').includes('reporter'),
+  dup.say ?? '',
+);
+before = posted.length;
+await feed(
+  {
+    kind: 'message',
+    from: ALICE.id,
+    roles: ALICE.roles,
+    text: '',
+    attachments: ['https://cdn.example/g2-defeat.png'],
+  },
+  minutes(9),
+);
+check(
+  'a second defeat from team A ends it 2-0 for team B',
+  posted.slice(before).some((p) => p.text.includes('CEO 0 - 2 PPG')),
+  since(before),
+);
+check(
+  'gg is said',
+  posted.some((p) => p.text.startsWith('gg.') && p.text.includes('<@&role-b>')),
+  lastPost(),
+);
+const results = posted.find((p) => p.channel === 'channel-results');
+check(
+  'the results channel gets exactly WINNER 2-0 LOSER',
+  results?.text === 'PPG 2-0 CEO',
+  results?.text ?? '(nothing)',
+);
+check(
+  'with the two stored screenshots and nothing else',
+  results?.attachments?.length === 2 && results.attachments.every((a) => a.includes('defeat')),
+  JSON.stringify(results?.attachments),
+);
+check('the run is done', state.done && !state.stoppedBecause, state.stoppedBecause ?? '');
+
+console.log(['', 'a series with what it needs missing'].join(String.fromCharCode(10)));
+resetDraftFixture();
+const plainContext = () =>
+  seriesContext({
+    teamA: A,
+    teamB: B,
+    channel: 'channel-match',
+    results: 'results',
+    rules: '',
+    mods: '@mods',
+  });
+const noPost = await runWorkflow({
+  guildId: '900000000000000001',
+  workflow: BO3_SERIES,
+  context: plainContext(),
+  effects,
+  allowedActions: ['ask_buttons'],
+  now: clock,
+});
+check(
+  'with post_message off it stops and names it',
+  (noPost.stoppedBecause ?? '').includes('post_message'),
+  noPost.stoppedBecause ?? '',
+);
+resetDraftFixture();
+const noResults = await runWorkflow({
+  guildId: '900000000000000001',
+  workflow: { ...BO3_SERIES, steps: BO3_SERIES.steps.slice(-1) },
+  context: {
+    ...plainContext(),
+    results: 'gone',
+    champion: B,
+    runnerUp: A,
+    score: '2-0',
+    shotList: 'x',
+  },
+  effects: {
+    ...effects,
+    async channelId(name) {
+      return name === 'gone' ? null : name;
+    },
+  },
+  allowedActions: [...WORKFLOW_ACTIONS],
+  now: clock,
+});
+check(
+  'with the results channel gone it stops and names it',
+  (noResults.stoppedBecause ?? '').includes('gone'),
+  noResults.stoppedBecause ?? '',
 );
 
 console.log(

@@ -87,3 +87,44 @@ export async function getJson(
     throw new SourceError('It did not send back JSON.');
   }
 }
+
+/**
+ * One POST with a JSON body, under the same rules as getJson. The one write a
+ * source is ever asked for: opening a draft session on the guild's own site.
+ */
+export async function postJson(
+  raw: string,
+  body: unknown,
+  options: { headers?: Record<string, string>; timeoutMs?: number } = {},
+): Promise<unknown> {
+  const url = safeUrl(raw);
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      ...(options.headers ?? {}),
+    },
+    body: JSON.stringify(body),
+    redirect: 'manual',
+    signal: AbortSignal.timeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS),
+  }).catch((err: unknown) => {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new SourceError(
+      /timeout|abort/i.test(message) ? 'It did not answer in time.' : 'It could not be reached.',
+    );
+  });
+  if (response.status >= 300 && response.status < 400) {
+    throw new SourceError('It redirected somewhere else, so Kalvard stopped.');
+  }
+  if (response.status === 401 || response.status === 403) {
+    throw new SourceError('It refused the request. Check the key.');
+  }
+  if (!response.ok) throw new SourceError(`It answered ${response.status}.`);
+  const text = (await response.text()).slice(0, MAX_BYTES);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new SourceError('It did not send back JSON.');
+  }
+}

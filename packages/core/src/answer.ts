@@ -11,6 +11,7 @@ import type { Resolution, ResolutionContext } from './resolve';
 import { serviceClient } from './supabase';
 import './fetchers/weather';
 import './fetchers/rift-legends';
+import './fetchers/draft-flow';
 import './fetchers/http-json';
 import { parseSources, runnable } from './sources';
 import type { DataSource } from './sources';

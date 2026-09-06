@@ -12,6 +12,7 @@
 // trigger says what it is for and the owner sets the hour.
 
 import { MATCH_DAY } from './match-day';
+import { BO3_SERIES } from './series';
 import type { Workflow } from '../workflows';
 
 /**
@@ -172,6 +173,7 @@ export const WEEKLY_ANNOUNCEMENT: Workflow = {
 /** Everything a server can adopt, in the order it is offered. */
 export const TEMPLATES: Workflow[] = [
   MATCH_DAY,
+  BO3_SERIES,
   TOURNAMENT_WEEK,
   WEEKLY_ANNOUNCEMENT,
   MEMBER_ONBOARDING,

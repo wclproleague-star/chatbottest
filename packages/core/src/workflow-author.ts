@@ -318,6 +318,32 @@ export function readBack(workflow: Workflow): string[] {
         lines.push(`${pad}For each ${step.items}:`);
         step.steps.forEach((s) => say(s, depth + 1));
         break;
+      case 'while':
+        lines.push(`${pad}While ${step.when}:`);
+        step.steps.forEach((s) => say(s, depth + 1));
+        break;
+      case 'set':
+        lines.push(
+          step.add !== undefined
+            ? `${pad}Add ${step.add} to ${step.var}`
+            : `${pad}Remember ${step.var} as ${step.value ?? ''}`,
+        );
+        break;
+      case 'fetch':
+        lines.push(`${pad}Read ${step.op} from ${step.source}${detail(step.with ?? {})}`);
+        break;
+      case 'wait_until':
+        lines.push(
+          `${pad}Keep reading ${step.source} until ${step.when}, every ${step.everyMinutes ?? 1} minute(s), and after ${step.timeoutMinutes} minutes:`,
+        );
+        step.onTimeout.forEach((s) => say(s, depth + 1));
+        break;
+      case 'read_image':
+        lines.push(`${pad}Read the picture ${step.url}: is it an end screen, and who won`);
+        break;
+      case 'stop':
+        lines.push(`${pad}Stop: ${step.because}`);
+        break;
     }
   };
   workflow.steps.forEach((s) => say(s, 0));

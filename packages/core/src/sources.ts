@@ -89,6 +89,37 @@ export async function testSource(
   }
 }
 
+/**
+ * An operation a workflow may call on a kind of source, by name: open a draft,
+ * read its state. Reads and the one write a site is built for; never Discord.
+ */
+export type SourceOp = (source: DataSource, args: Record<string, string>) => Promise<unknown>;
+
+const OPS = new Map<string, SourceOp>();
+
+export function registerOp(kind: string, op: string, run: SourceOp): void {
+  OPS.set(`${kind}:${op}`, run);
+}
+
+/**
+ * Runs one operation on the source with this id (or, failing that, the one
+ * source of the kind named). Throws when nothing can run it, so a workflow
+ * stops and says so rather than carrying on with nothing.
+ */
+export async function runOp(
+  sources: DataSource[],
+  sourceIdOrKind: string,
+  op: string,
+  args: Record<string, string>,
+): Promise<unknown> {
+  const source =
+    sources.find((s) => s.id === sourceIdOrKind) ?? sources.find((s) => s.kind === sourceIdOrKind);
+  if (!source) throw new Error(`this server has no source called ${sourceIdOrKind}`);
+  const run = OPS.get(`${source.kind}:${op}`);
+  if (!run) throw new Error(`${source.kind} cannot ${op}`);
+  return run(source, args);
+}
+
 /** The kinds something has registered, for the screen that offers them. */
 export function kinds(): string[] {
   return [...FETCHERS.keys()].sort();
