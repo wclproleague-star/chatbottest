@@ -14,6 +14,7 @@ const PAGES = [
   ['knowledge', 'Knowledge'],
   ['personality', 'Personality'],
   ['inbox', 'Inbox'],
+  ['commands', 'Commands'],
   ['settings', 'Settings'],
   ['test', 'Test'],
 ] as const;

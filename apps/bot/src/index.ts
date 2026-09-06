@@ -21,6 +21,7 @@ import {
 } from './guild';
 import { handleMention } from './mention';
 import { claim, sweepClaims } from './once';
+import { onCommandButton, watchDashboardCommands } from './command';
 import { onButton } from './playbook';
 
 const client = new Client({
@@ -52,6 +53,7 @@ client.once(Events.ClientReady, async (ready) => {
     }
   }
   watchDashboardApprovals(client);
+  watchDashboardCommands(client);
   // Whatever expired while the worker was down, and whatever it has already
   // seen, are cleared on the way in rather than accumulating for ever.
   await sweepConversations().catch(() => undefined);
@@ -160,6 +162,8 @@ client.on(Events.InteractionCreate, async (interaction) => {
   try {
     if (!interaction.isButton() || !interaction.guildId) return;
     if (!(await isClaimed(interaction.guildId))) return;
+    // A command's own buttons first; anything else belongs to a playbook.
+    if (await onCommandButton(interaction)) return;
     await onButton(interaction);
   } catch (err) {
     console.error(`sentry: interaction handler failed: ${String(err)}`);

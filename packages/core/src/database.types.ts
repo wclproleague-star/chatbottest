@@ -89,6 +89,7 @@ type GuildSettingsRow = {
 type GuildDiscordMetaRow = {
   guild_id: string;
   channels: Json;
+  categories: Json;
   roles: Json;
   synced_at: string;
 };
@@ -343,6 +344,40 @@ export type Database = {
           finished_at?: string | null;
           status?: 'running' | 'done' | 'stopped' | 'failed';
           summary?: Json;
+        };
+        Relationships: [];
+      };
+      commands: {
+        Row: {
+          id: string;
+          guild_id: string;
+          asked_by: string;
+          asked_by_name: string | null;
+          request: string;
+          plan: Json;
+          question: string | null;
+          status: 'planned' | 'asked' | 'cancelled' | 'ran' | 'failed';
+          ran: Json;
+          created_at: string;
+          ran_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          guild_id: string;
+          asked_by: string;
+          asked_by_name?: string | null;
+          request: string;
+          plan?: Json;
+          question?: string | null;
+          status?: 'planned' | 'asked' | 'cancelled' | 'ran' | 'failed';
+          ran?: Json;
+          created_at?: string;
+          ran_at?: string | null;
+        };
+        Update: {
+          status?: 'planned' | 'asked' | 'cancelled' | 'ran' | 'failed';
+          ran?: Json;
+          ran_at?: string | null;
         };
         Relationships: [];
       };

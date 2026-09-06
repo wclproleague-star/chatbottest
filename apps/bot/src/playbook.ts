@@ -54,12 +54,16 @@ export function playbookEffects(guild: Guild): PlaybookEffects {
     },
 
     async addReaction(channelId, messageId, emoji) {
-      const message = await textChannel(channelId)?.messages.fetch(messageId).catch(() => null);
+      const message = await textChannel(channelId)
+        ?.messages.fetch(messageId)
+        .catch(() => null);
       await message?.react(emoji).catch(() => undefined);
     },
 
     async pinMessage(channelId, messageId) {
-      const message = await textChannel(channelId)?.messages.fetch(messageId).catch(() => null);
+      const message = await textChannel(channelId)
+        ?.messages.fetch(messageId)
+        .catch(() => null);
       await message?.pin().catch(() => undefined);
     },
 

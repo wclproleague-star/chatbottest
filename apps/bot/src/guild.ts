@@ -61,6 +61,9 @@ export async function syncMeta(guild: Guild): Promise<void> {
   const channels = guild.channels.cache
     .filter((c) => c.type === ChannelType.GuildText || c.type === ChannelType.GuildAnnouncement)
     .map((c) => ({ id: c.id, name: c.name }));
+  const categories = guild.channels.cache
+    .filter((c) => c.type === ChannelType.GuildCategory)
+    .map((c) => ({ id: c.id, name: c.name }));
   const roles = guild.roles.cache
     .filter((r) => r.name !== '@everyone')
     .map((r) => ({ id: r.id, name: r.name }));
@@ -75,6 +78,7 @@ export async function syncMeta(guild: Guild): Promise<void> {
       {
         guild_id: guild.id,
         channels: channels as unknown as Json,
+        categories: categories as unknown as Json,
         roles: roles as unknown as Json,
         synced_at: new Date().toISOString(),
       },

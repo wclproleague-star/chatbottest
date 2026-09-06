@@ -13,6 +13,7 @@ import type { Message, TextChannel } from 'discord.js';
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
 import type { GuildSettings } from './guild';
 import { logEvent, mayPingMods } from './guild';
+import { handleCommand } from './command';
 import { findPending } from './knowledge';
 
 /** Discord's own limit on a message. */
@@ -42,6 +43,10 @@ export async function handleMention(message: Message, settings: GuildSettings): 
     await message.reply(`Someone just asked this and the moderators have it: ${pending.link}`);
     return;
   }
+
+  // A moderator asking for something to be done gets a plan and two buttons,
+  // not an answer. A moderator asking a question falls straight through.
+  if (await handleCommand(message, settings, question)) return;
 
   const history = await recentHistory(message);
   const channel = message.channel;

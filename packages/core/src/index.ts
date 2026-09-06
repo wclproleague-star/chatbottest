@@ -1,5 +1,24 @@
 // The AI pipeline and the typed Supabase client. Server side and the bot only.
 
+export {
+  planCommand,
+  runPlan,
+  describePlan,
+  recordCommand,
+  cancelCommand,
+  COMMAND_ACTIONS,
+  ITEMISE_ABOVE,
+} from './command';
+export type {
+  Plan,
+  PlannedStep,
+  ExecutedStep,
+  CommandEffects,
+  CommandAction,
+  Commander,
+  GuildShape,
+} from './command';
+
 export { runPlaybook, recordRun, PLAYBOOK_ACTIONS } from './playbooks';
 export type { Playbook, PlaybookEffects, RunResult, Step } from './playbooks';
 

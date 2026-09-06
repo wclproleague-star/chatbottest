@@ -4,6 +4,7 @@ import { PageTitle } from '@/components/dashboard/page-title';
 import { Inbox } from '@/app/g/[guildId]/inbox/inbox-rows';
 import { PersonalityForm } from '@/app/g/[guildId]/personality/personality-form';
 import { SettingsForm } from '@/app/g/[guildId]/settings/settings-form';
+import { Commands } from '@/app/g/[guildId]/commands/commands-form';
 
 // The dashboard screens with fixed data, so they can be looked at and checked
 // against the design without a Discord session. The forms post to the real
@@ -29,6 +30,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ p
         {p === 'inbox' && <InboxPreview />}
         {p === 'personality' && <PersonalityPreview />}
         {p === 'settings' && <SettingsPreview />}
+        {p === 'commands' && <CommandsPreview />}
       </main>
     </Surface>
   );
@@ -105,6 +107,18 @@ function PersonalityPreview() {
           selfServeRoleIds: ['11'],
         }}
       />
+    </div>
+  );
+}
+
+function CommandsPreview() {
+  return (
+    <div>
+      <PageTitle
+        title="Commands"
+        lede="Tell Sentry what to change. It shows you the plan first, and nothing happens until you confirm."
+      />
+      <Commands guildId="900000000000000001" />
     </div>
   );
 }

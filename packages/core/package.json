@@ -20,7 +20,8 @@
     "eval:units": "tsx src/eval-units.ts",
     "purge": "tsx src/purge.ts",
     "eval:db": "tsx src/eval-db.ts",
-    "eval:playbook": "tsx src/eval-playbook.ts"
+    "eval:playbook": "tsx src/eval-playbook.ts",
+    "eval:command": "tsx src/eval-command.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.5",
