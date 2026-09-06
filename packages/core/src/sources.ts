@@ -67,6 +67,33 @@ export async function fetchFrom(
   }
 }
 
+/**
+ * Runs a source once and says what happened in words an owner can act on. The
+ * screen where a source is added uses this: a source that cannot be tested
+ * before it is saved is a source nobody trusts.
+ */
+export async function testSource(
+  source: DataSource,
+  question: string,
+  guildId: string,
+): Promise<{ ok: true; sample: string } | { ok: false; reason: string }> {
+  const fetcher = FETCHERS.get(source.kind);
+  if (!fetcher) return { ok: false, reason: `Sentry has no fetcher for "${source.kind}".` };
+  try {
+    const said = (await fetcher({ source, question, guildId })).trim();
+    return said
+      ? { ok: true, sample: said.slice(0, 800) }
+      : { ok: false, reason: 'It answered, but with nothing in it.' };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : 'It could not be reached.' };
+  }
+}
+
+/** The kinds something has registered, for the screen that offers them. */
+export function kinds(): string[] {
+  return [...FETCHERS.keys()].sort();
+}
+
 /** Reads the column, keeping only entries shaped like a source. */
 export function parseSources(value: Json | null | undefined): DataSource[] {
   if (!Array.isArray(value)) return [];

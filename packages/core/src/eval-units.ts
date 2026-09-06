@@ -17,6 +17,9 @@ import {
 } from './limits';
 import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
 import { applyAnswer, missing } from './onboard';
+import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
+import { isPrivateHost, safeUrl } from './fetchers/http';
+import { fetchFrom } from './sources';
 import { findPersonal, personalSummary } from './personal';
 import { clockIn, inZone, pastRetention } from './times';
 
@@ -199,6 +202,70 @@ console.log(['', 'setting a bot up'].join(String.fromCharCode(10)));
   );
   check('the name is not overwritten once given', full.botName === 'bogoss');
   check('nothing is left to ask', missing(full).length === 0);
+}
+
+console.log(['', 'what a source may be pointed at'].join(String.fromCharCode(10)));
+{
+  for (const host of [
+    'localhost',
+    '127.0.0.1',
+    '10.0.0.4',
+    '192.168.1.20',
+    '172.16.4.4',
+    '169.254.169.254',
+    'db.internal',
+  ]) {
+    check(`${host} is refused`, isPrivateHost(host));
+  }
+  check('a real host is allowed', !isPrivateHost('api.riftlegends.gg'));
+
+  const refuses = (url: string): string => {
+    try {
+      safeUrl(url);
+      return '';
+    } catch (err) {
+      return err instanceof Error ? err.message : 'refused';
+    }
+  };
+  check('http is refused', refuses('http://api.riftlegends.gg/matches') !== '');
+  check('a password in the address is refused', refuses('https://a:b@x.gg/') !== '');
+  check('a private address is refused', refuses('https://10.1.2.3/matches') !== '');
+  check('a plain https address is allowed', refuses('https://api.riftlegends.gg/matches') === '');
+}
+
+console.log(['', 'the league fixture'].join(String.fromCharCode(10)));
+{
+  const source = {
+    id: 'league',
+    name: 'the league schedule',
+    answers: 'fixtures, times, results and rosters',
+    kind: 'rift_legends',
+    config: { baseUrl: 'fixture:rift-legends' },
+  };
+  const matches = await riftMatches(source);
+  check('the fixture has matches', matches.length >= 3);
+  check(
+    'a match reads as a sentence',
+    describeMatch(matches[0]!).includes('vs') && describeMatch(matches[0]!).includes('best of'),
+  );
+  const played = matches.find((m) => m.status === 'done');
+  check('a played match shows its score', describeMatch(played!).includes('2-1'));
+
+  const roster = await riftRoster(source, 't-ff');
+  check('a roster comes back', (roster?.players.length ?? 0) === 3);
+  check(
+    'the captain is marked',
+    (roster?.players ?? []).some((p) => p.isCaptain && p.handle === 'kestrel'),
+  );
+
+  const said = (await fetchFrom([source], 'league', 'who plays for Baguette?', 'g')) ?? '';
+  check('asking who plays brings the roster', said.includes('brioche'));
+  const quiet = (await fetchFrom([source], 'league', 'when do we play next?', 'g')) ?? '';
+  check('asking the schedule does not', !quiet.includes('brioche'));
+  check(
+    'and no Discord id ever reaches a member',
+    !said.includes('2001') && !quiet.includes('2001'),
+  );
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);

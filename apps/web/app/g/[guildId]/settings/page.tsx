@@ -48,7 +48,14 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
         basedOn={settings?.updated_at ?? null}
         channels={channels}
         roles={roles}
-        sources={sources.map((s) => ({ name: s.name, answers: s.answers }))}
+        sources={sources.map((s) => ({
+          id: s.id,
+          name: s.name,
+          answers: s.answers,
+          kind: s.kind,
+          // The address, never the key.
+          address: typeof s.config.baseUrl === 'string' ? s.config.baseUrl : '',
+        }))}
         issues={issues}
         values={{
           allowedChannelIds: settings?.allowed_channel_ids ?? [],

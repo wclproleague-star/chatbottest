@@ -8,6 +8,7 @@
 import { Button, Field, Input, Panel, Textarea } from '@sentrybot/ui';
 import { useActionState } from 'react';
 import { deleteEverything, removeBot, saveGuildSettings } from './actions';
+import { SourcesPanel } from './sources-panel';
 import type { SettingsState } from './actions';
 
 type Named = { id: string; name: string };
@@ -39,7 +40,7 @@ export function SettingsForm({
     memberBurst: number;
     monthlyAnswers: number;
   };
-  sources: { name: string; answers: string }[];
+  sources: { id: string; name: string; answers: string; kind: string; address: string }[];
   issues: { setting: string; id: string }[];
 }) {
   const [state, act, pending] = useActionState<SettingsState, FormData>(saveGuildSettings, null);
@@ -202,23 +203,7 @@ export function SettingsForm({
         </Button>
       </form>
 
-      <section className="mt-16 max-w-[60ch]">
-        <h2 className="text-ui-sm text-ink-soft">What it can look up</h2>
-        {sources.length === 0 ? (
-          <p className="text-body text-ink-soft mt-2">
-            Nothing yet, beyond your knowledge. Anything it cannot look up, it says so plainly
-            rather than guessing.
-          </p>
-        ) : (
-          <ul className="mt-3 space-y-1">
-            {sources.map((s) => (
-              <li key={s.name} className="text-thread text-ink">
-                {s.name} <span className="text-ink-soft">· {s.answers}</span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <SourcesPanel guildId={guildId} sources={sources} />
 
       <DangerZone guildId={guildId} guildName={guildName} />
     </div>

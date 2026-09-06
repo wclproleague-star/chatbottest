@@ -1,0 +1,68 @@
+{
+  "_comment": "The shape Sentry expects from a Rift Legends JSON endpoint. Point a source at the real base URL and it reads the same fields; point it at fixture:rift-legends and it reads this file, which is what the evals and the match-day playbook run against.",
+  "matches": [
+    {
+      "id": "m-401",
+      "stage": "Group stage, week 6",
+      "bestOf": 3,
+      "scheduledAt": "2026-09-10T19:00:00.000Z",
+      "status": "scheduled",
+      "teams": [
+        { "id": "t-ff", "name": "Fast Forward", "tag": "FF" },
+        { "id": "t-bag", "name": "Baguette", "tag": "BAG" }
+      ]
+    },
+    {
+      "id": "m-402",
+      "stage": "Group stage, week 6",
+      "bestOf": 3,
+      "scheduledAt": "2026-09-10T21:00:00.000Z",
+      "status": "scheduled",
+      "teams": [
+        { "id": "t-cn", "name": "Chromanova", "tag": "CN" },
+        { "id": "t-kite", "name": "Obsidian Kite", "tag": "KITE" }
+      ]
+    },
+    {
+      "id": "m-399",
+      "stage": "Group stage, week 5",
+      "bestOf": 3,
+      "scheduledAt": "2026-09-03T19:00:00.000Z",
+      "status": "done",
+      "score": [2, 1],
+      "teams": [
+        { "id": "t-ff", "name": "Fast Forward", "tag": "FF" },
+        { "id": "t-cn", "name": "Chromanova", "tag": "CN" }
+      ]
+    }
+  ],
+  "rosters": {
+    "t-ff": {
+      "team": { "id": "t-ff", "name": "Fast Forward", "tag": "FF" },
+      "players": [
+        { "id": "p-1", "handle": "kestrel", "role": "mid", "isCaptain": true, "discordId": "1001" },
+        { "id": "p-2", "handle": "PPG", "role": "jungle", "isCaptain": false, "discordId": "1002" },
+        { "id": "p-3", "handle": "ephemera", "role": "support", "isCaptain": false }
+      ]
+    },
+    "t-bag": {
+      "team": { "id": "t-bag", "name": "Baguette", "tag": "BAG" },
+      "players": [
+        { "id": "p-9", "handle": "brioche", "role": "top", "isCaptain": true, "discordId": "2001" },
+        { "id": "p-10", "handle": "levain", "role": "adc", "isCaptain": false }
+      ]
+    },
+    "t-cn": {
+      "team": { "id": "t-cn", "name": "Chromanova", "tag": "CN" },
+      "players": [
+        { "id": "p-20", "handle": "prism", "role": "mid", "isCaptain": true, "discordId": "3001" }
+      ]
+    },
+    "t-kite": {
+      "team": { "id": "t-kite", "name": "Obsidian Kite", "tag": "KITE" },
+      "players": [
+        { "id": "p-30", "handle": "tern", "role": "top", "isCaptain": true, "discordId": "4001" }
+      ]
+    }
+  }
+}

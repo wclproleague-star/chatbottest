@@ -74,7 +74,7 @@ export type { ErrorClass, RetryOptions } from './resilience';
 export { allowMessage, forgetMember, forModel, parseLimits, DEFAULT_LIMITS } from './limits';
 export type { Limits } from './limits';
 
-export { registerFetcher, parseSources, runnable } from './sources';
+export { registerFetcher, parseSources, runnable, testSource, kinds } from './sources';
 export type { DataSource, Fetcher } from './sources';
 
 export { serviceClient, DOCUMENTS_BUCKET } from './supabase';

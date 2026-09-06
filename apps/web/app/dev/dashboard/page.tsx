@@ -119,7 +119,22 @@ function SettingsPreview() {
         basedOn={null}
         channels={CHANNELS}
         roles={ROLES}
-        sources={[{ name: 'the weather', answers: 'the weather right now anywhere' }]}
+        sources={[
+          {
+            id: 'weather',
+            name: 'the weather',
+            answers: 'the weather right now anywhere',
+            kind: 'open_meteo',
+            address: '',
+          },
+          {
+            id: 'league',
+            name: 'the league schedule',
+            answers: 'fixtures, times, results and rosters',
+            kind: 'rift_legends',
+            address: 'https://api.riftlegends.gg/v1',
+          },
+        ]}
         issues={[{ setting: 'mod_channel_id', id: '99999' }]}
         values={{
           allowedChannelIds: ['2'],

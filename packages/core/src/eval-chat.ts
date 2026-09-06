@@ -8,6 +8,7 @@
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
+import type { Json } from './database.types';
 import { converse } from './agent';
 import type { ConversationResult, Effects } from './agent';
 import { Type, generateJson } from './gemini';
@@ -52,6 +53,8 @@ type Turn = {
 };
 type Script = {
   name: string;
+  /** The data sources this guild has for the run, as the owner would add them. */
+  sources?: { id: string; name: string; answers: string; kind: string; config: Json }[];
   /** When set, Discord refuses the assignment for this reason. */
   cannotAssign?: 'missing_permission' | 'role_too_high' | 'unknown';
   roles: { id: string; name: string }[];
@@ -254,7 +257,7 @@ async function withSettings(guildId: string, script: Script, run: () => Promise<
   const db = serviceClient();
   const { data: before } = await db
     .from('guild_settings')
-    .select('self_serve_role_ids, role_proofs, language')
+    .select('self_serve_role_ids, role_proofs, language, data_sources')
     .eq('guild_id', guildId)
     .maybeSingle();
   // The proof for every scripted role is "holds the qualifying role", which the
@@ -265,7 +268,12 @@ async function withSettings(guildId: string, script: Script, run: () => Promise<
   );
   await db
     .from('guild_settings')
-    .update({ self_serve_role_ids: script.selfServe, role_proofs: proofs, language: null })
+    .update({
+      self_serve_role_ids: script.selfServe,
+      role_proofs: proofs,
+      language: null,
+      data_sources: (script.sources ?? []) as unknown as Json,
+    })
     .eq('guild_id', guildId);
   try {
     await run();
@@ -276,6 +284,7 @@ async function withSettings(guildId: string, script: Script, run: () => Promise<
         self_serve_role_ids: before?.self_serve_role_ids ?? [],
         role_proofs: before?.role_proofs ?? {},
         language: before?.language ?? null,
+        data_sources: before?.data_sources ?? [],
       })
       .eq('guild_id', guildId);
   }

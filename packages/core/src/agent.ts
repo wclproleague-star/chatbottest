@@ -22,6 +22,7 @@ import { Type } from './gemini';
 // Importing the fetchers is what registers them; a kind nothing registers
 // cannot be called, so this import is the whole enabling of a source.
 import './fetchers/weather';
+import './fetchers/rift-legends';
 import { detectLanguage, inLanguage } from './language';
 import { fetchFrom, parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
