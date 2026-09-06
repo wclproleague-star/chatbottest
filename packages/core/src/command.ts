@@ -102,6 +102,11 @@ export async function planCommand(input: {
    * "whoever the model wrote in that field" is not a plan anybody can check.
    */
   whoIs?: (nameOrId: string) => Promise<{ id: string; name: string } | null>;
+  /**
+   * The member this request is about when it names nobody: a moderator
+   * answering "give him the role" means the member who asked.
+   */
+  about?: { id: string; name: string };
 }): Promise<Plan> {
   if (!input.by.isOwner && !input.by.isStaff) {
     return {
@@ -189,6 +194,7 @@ export async function planCommand(input: {
           if (found) break;
         }
       }
+      if (!found && input.about) found = input.about;
       if (!found) {
         return {
           kind: 'question',

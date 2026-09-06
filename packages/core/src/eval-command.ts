@@ -389,6 +389,36 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
     `${nobody.kind}: ${'question' in nobody ? nobody.question : ''}`,
   );
 
+  // A moderator answering an escalation writes "give him the role": him is
+  // the member who asked. Live, that sentence was filed as knowledge and read
+  // back with "Got it. Next time I'll know." instead of being done.
+  const him = await planCommand({
+    guildId: '900000000000000001',
+    request: "give him the Caster role, he's part of the roster",
+    by: MOD,
+    shape: SHAPE,
+    whoIs,
+    about: { id: '7777', name: 'kestrel' },
+  });
+  check(
+    '"give him the role" is about the member who asked',
+    him.kind === 'plan' && him.steps[0]?.args.member === '7777',
+    `${him.kind}: ${'question' in him ? him.question : him.kind === 'plan' ? JSON.stringify(him.steps[0]?.args) : ''}`,
+  );
+  const named = await planCommand({
+    guildId: '900000000000000001',
+    request: 'give Craig the Caster role',
+    by: MOD,
+    shape: SHAPE,
+    whoIs,
+    about: { id: '7777', name: 'kestrel' },
+  });
+  check(
+    'a name in the reply beats the member who asked',
+    named.kind === 'plan' && named.steps[0]?.args.member === '4242',
+    named.kind,
+  );
+
   // A real request that this server has switched off is still a refusal: the
   // two must not be told apart by reading the model's English.
   const off = await planCommand({

@@ -61,6 +61,32 @@ export async function recordAnswer(input: {
   }
 }
 
+/**
+ * Closes a pending question with what was done about it, filing nothing: the
+ * moderator's reply was an instruction, and the thing it caused (a role, a
+ * vouch on a roster) is already on record.
+ */
+export async function settleQuestion(input: {
+  questionId: string;
+  answer: string;
+  answeredBy: string;
+}): Promise<boolean> {
+  const { data } = await serviceClient()
+    .from('questions')
+    .update({
+      status: 'answered',
+      answer: input.answer,
+      answered_by: input.answeredBy,
+      answered_via: 'discord',
+      answered_at: new Date().toISOString(),
+    })
+    .eq('id', input.questionId)
+    .eq('status', 'pending')
+    .select('id')
+    .maybeSingle();
+  return Boolean(data);
+}
+
 export type PendingMatch = { id: string; link: string | null; question: string };
 
 /**

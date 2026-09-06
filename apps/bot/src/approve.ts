@@ -15,7 +15,9 @@ import type {
 } from 'discord.js';
 import type { GuildSettings } from './guild';
 import { logEvent } from './guild';
-import { recordAnswer } from './knowledge';
+import { recordAnswer, settleQuestion } from './knowledge';
+import { commandEffects, shapeOf, whoIsIn } from './command';
+import { planCommand, recordCommand, runPlan } from '@kalvard/core';
 
 const TICK = '✅';
 const UNSURE = '❓';
@@ -100,6 +102,69 @@ export async function onTick(
   const fromBot = message.author?.id === message.client.user?.id;
   const answer = (fromBot ? pending.bot_draft : message.content)?.trim();
   if (!answer) return;
+
+  // A moderator's reply is not always an answer to write down. "give him the
+  // role, he's on the roster" is an instruction, and the tick is the
+  // go-ahead: it is planned like any command, "him" being the member who
+  // asked, carried out, and the vouch it implies is what becomes knowledge.
+  if (!fromBot && pending.asker_discord_id) {
+    const asker = await guild.members.fetch(pending.asker_discord_id).catch(() => null);
+    const by = { id: user.id, name: member.displayName, isStaff: true, isOwner: false };
+    const shape = await shapeOf(guild);
+    const plan = await planCommand({
+      guildId: guild.id,
+      request: answer,
+      by,
+      shape,
+      whoIs: whoIsIn(guild),
+      about: asker ? { id: asker.id, name: asker.displayName } : undefined,
+    });
+    if (plan.kind === 'plan' && plan.steps.every((step) => step.action === 'assign_role')) {
+      const commandId = await recordCommand({ guildId: guild.id, by, request: answer, plan });
+      const done = await runPlan({
+        guildId: guild.id,
+        commandId,
+        plan: plan.steps,
+        shape,
+        effects: commandEffects(guild),
+        by,
+      });
+      // What is said back is what was written down, word for word: the role
+      // given, and the roster line the proof will find next time.
+      const roles = plan.steps.map((step) => step.args.roles ?? '').filter(Boolean);
+      const who = asker?.displayName ?? 'They';
+      const noted = roles
+        .map((role) => `${who} is part of ${role}, confirmed by ${member.displayName}.`)
+        .join(' ');
+      const report = done
+        .map((step) => (step.ok ? step.detail : `Stopped: ${step.detail}`))
+        .join(' ');
+      const mention = pending.asker_discord_id ? `<@${pending.asker_discord_id}> ` : '';
+      const ok = done.every((step) => step.ok);
+      const line = ok
+        ? `Done, ${mention}has the ${roles.join(' and ')} role. I'll know ${who} is part of the ${roles.join(' and ')} roster from now on.`
+        : `${mention}${report}`;
+      await settleQuestion({
+        questionId: pending.id,
+        answer: ok ? noted : report,
+        answeredBy: user.id,
+      });
+      if (message.channel.isSendable()) await message.channel.send(line);
+      await logEvent(guild.id, 'approved', {
+        questionId: pending.id,
+        answered_via: 'discord',
+        answeredBy: user.id,
+        ran: done.length,
+      });
+      return;
+    }
+    // It read as an order and could not be planned: the moderator is told
+    // why, and the question stays open for them to answer or fix.
+    if (plan.kind === 'question' || plan.kind === 'refused') {
+      await message.reply(`${plan.because}${'question' in plan ? ` ${plan.question}` : ''}`);
+      return;
+    }
+  }
 
   await recordAnswer({
     guildId: guild.id,

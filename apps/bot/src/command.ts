@@ -94,7 +94,7 @@ export async function handleCommand(
  * names: an exact display name or username wins; one result is that person;
  * several is nobody, because picking one would be giving a role to a guess.
  */
-function whoIsIn(guild: Guild) {
+export function whoIsIn(guild: Guild) {
   return async (nameOrId: string): Promise<{ id: string; name: string } | null> => {
     if (/^\d{15,22}$/.test(nameOrId)) {
       const member = await guild.members.fetch(nameOrId).catch(() => null);
