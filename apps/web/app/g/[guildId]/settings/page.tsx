@@ -68,6 +68,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
           timezone: settings?.timezone ?? '',
           memberBurst: limits.memberBurst,
           monthlyAnswers: limits.monthlyAnswers,
+          modPingsPerHour: limits.modPingsPerHour,
         }}
       />
     </div>

@@ -32,6 +32,7 @@ export async function saveGuildSettings(
         ...DEFAULT_LIMITS,
         memberBurst: number(form.get('member_burst'), DEFAULT_LIMITS.memberBurst),
         monthlyAnswers: number(form.get('monthly_answers'), DEFAULT_LIMITS.monthlyAnswers),
+        modPingsPerHour: number(form.get('mod_pings_per_hour'), DEFAULT_LIMITS.modPingsPerHour),
       },
     },
     String(form.get('based_on') ?? '') || null,

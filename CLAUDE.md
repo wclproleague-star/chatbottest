@@ -105,7 +105,7 @@ Actions the model may propose, each with typed params: `point_to_channel { chann
 * A reply from a member holding `mod_role_id` to one of those messages: react ✅ and ❓. On ✅ from a mod: store the answer, create a `mod_answer` document, call `ingest`, and post it in the channel addressed to the member who asked, ending "Got it. Next time I'll know."
 * Watch `bot_events` of type `approved` with `answered_via = 'dashboard'` (poll every 15s or Supabase realtime) and post the answer in the channel the question was asked in.
 * Dedup: if a pending question in the same guild has cosine similarity above 0.92, reply with a link to that message instead of pinging again.
-* Rate limit mod pings to 5 per guild per hour; beyond that, queue silently and mark `quiet_queue` in the event payload.
+* Mod pings per hour are a limit in `guild_settings.limits` (`modPingsPerHour`, default 0, no cap); past a cap the question is still recorded, posted without the ping, and marked `quiet_queue` in the event payload.
 * No kicks, bans, timeouts, or deletes. Ever.
 
 ### When something is down

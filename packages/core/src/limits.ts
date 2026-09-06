@@ -16,6 +16,8 @@ export type Limits = {
   maxMessageChars: number;
   /** How many questions Kalvard answers for one guild in a calendar month. */
   monthlyAnswers: number;
+  /** How many times an hour it may ping the mod role. 0 is no cap. */
+  modPingsPerHour: number;
   /** The longest single document that may be ingested. */
   maxDocumentChars: number;
   /** How much a guild may hold in total, in chunks. */
@@ -28,6 +30,7 @@ export const DEFAULT_LIMITS: Limits = {
   memberCooldownMs: 60_000,
   maxMessageChars: 2000,
   monthlyAnswers: 2000,
+  modPingsPerHour: 0,
   maxDocumentChars: 200_000,
   maxGuildChunks: 5000,
 };
@@ -84,6 +87,7 @@ export function parseLimits(value: unknown): Limits {
     memberCooldownMs: number('memberCooldownMs'),
     maxMessageChars: number('maxMessageChars'),
     monthlyAnswers: number('monthlyAnswers'),
+    modPingsPerHour: number('modPingsPerHour'),
     maxDocumentChars: number('maxDocumentChars'),
     maxGuildChunks: number('maxGuildChunks'),
   };

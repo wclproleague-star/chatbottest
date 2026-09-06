@@ -52,6 +52,7 @@ type Values = {
   timezone: string;
   memberBurst: number;
   monthlyAnswers: number;
+  modPingsPerHour: number;
 };
 
 export function SettingsForm({
@@ -254,6 +255,20 @@ export function SettingsForm({
                   defaultValue={values.monthlyAnswers}
                 />
               </Field>
+
+              <Field
+                label="How many times an hour may it ping the moderators?"
+                help="0 means no cap. Past the cap a question is still recorded for the inbox, without the ping."
+              >
+                <Input
+                  name="mod_pings_per_hour"
+                  type="number"
+                  width="number"
+                  min={0}
+                  max={500}
+                  defaultValue={values.modPingsPerHour}
+                />
+              </Field>
             </FormSection>
 
             <SourcesPanel guildId={guildId} sources={sources} />
@@ -314,6 +329,7 @@ function Elsewhere({
     <>
       <input type="hidden" name="member_burst" value={values.memberBurst} />
       <input type="hidden" name="monthly_answers" value={values.monthlyAnswers} />
+      <input type="hidden" name="mod_pings_per_hour" value={values.modPingsPerHour} />
     </>
   );
 

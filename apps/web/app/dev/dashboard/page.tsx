@@ -376,6 +376,7 @@ function SettingsPreview() {
           timezone: 'Europe/Paris',
           memberBurst: 8,
           monthlyAnswers: 2000,
+          modPingsPerHour: 0,
         }}
       />
     </div>

@@ -178,7 +178,11 @@ export async function logEvent(
  * Whether the mod role may be pinged now: five pings per guild per hour. Past
  * that the question is still recorded, the mods are simply not woken.
  */
-export async function mayPingMods(guildId: string): Promise<boolean> {
+export async function mayPingMods(guildId: string, perHour: number): Promise<boolean> {
+  // A cap is the owner's to set. Without one every escalation pings, and
+  // duplicates are already handled by pointing at the question that is
+  // pending rather than asking twice.
+  if (perHour <= 0) return true;
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const { count } = await serviceClient()
     .from('bot_events')
@@ -186,5 +190,5 @@ export async function mayPingMods(guildId: string): Promise<boolean> {
     .eq('guild_id', guildId)
     .eq('type', 'mod_pinged')
     .gte('created_at', since);
-  return (count ?? 0) < 5;
+  return (count ?? 0) < perHour;
 }

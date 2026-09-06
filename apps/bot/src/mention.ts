@@ -219,7 +219,9 @@ async function postEscalation(
   question: string,
 ): Promise<void> {
   const guildId = message.guild!.id;
-  const mayPing = settings.fallbackMode === 'ping_role' && (await mayPingMods(guildId));
+  const mayPing =
+    settings.fallbackMode === 'ping_role' &&
+    (await mayPingMods(guildId, settings.limits.modPingsPerHour));
   const posted = await message.reply(withMention(text, settings, mayPing).slice(0, MAX_MESSAGE));
   const { error } = await serviceClient().from('questions').insert({
     guild_id: guildId,
@@ -324,7 +326,9 @@ async function postFallback(
   question: string,
 ): Promise<void> {
   const guildId = message.guild!.id;
-  const mayPing = settings.fallbackMode === 'ping_role' && (await mayPingMods(guildId));
+  const mayPing =
+    settings.fallbackMode === 'ping_role' &&
+    (await mayPingMods(guildId, settings.limits.modPingsPerHour));
   const text = withMention(result.reply, settings, mayPing);
 
   const posted = await message.reply(text.slice(0, MAX_MESSAGE));
@@ -409,7 +413,9 @@ async function runAction(message: Message, action: Action, settings: GuildSettin
         break;
       }
       case 'escalate': {
-        const mayPing = settings.fallbackMode === 'ping_role' && (await mayPingMods(guild.id));
+        const mayPing =
+          settings.fallbackMode === 'ping_role' &&
+          (await mayPingMods(guild.id, settings.limits.modPingsPerHour));
         await message.reply(withMention(`${MODS}, this one needs you.`, settings, mayPing));
         break;
       }
