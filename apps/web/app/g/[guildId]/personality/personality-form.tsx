@@ -12,7 +12,18 @@
 // test chat as the Test page: a change of voice is something you hear, not
 // something you imagine.
 
-import { Field, FormSection, Input, Panel, Section, Textarea, cx } from '@kalvard/ui';
+import {
+  CheckboxRow,
+  Field,
+  FormSection,
+  Input,
+  Panel,
+  Section,
+  Slider,
+  Split,
+  Textarea,
+  cx,
+} from '@kalvard/ui';
 import { useActionState, useState } from 'react';
 import { TestChat } from '../test/test-chat';
 import { regenerateTones, savePersonality } from './actions';
@@ -75,184 +86,203 @@ export function PersonalityForm({
   );
 
   return (
-    <div className="mt-10 space-y-8">
-      <FormSection
-        heading="Its voice"
-        action={act}
-        pending={pending}
-        note={note}
-        changed={tone !== values.toneSample}
-      >
-        {hidden}
-        {/* What the other panel holds, so a save here writes the whole row. */}
-        <input type="hidden" name="forbidden_topics" value={values.forbidden.join('\n')} />
-        <input type="hidden" name="max_reply_chars" value={values.maxReplyChars} />
-        <input type="hidden" name="confidence_threshold" value={values.threshold} />
-        {values.allowedActions.map((a) => (
-          <input key={a} type="hidden" name="allowed_actions" value={a} />
-        ))}
-        {values.selfServeRoleIds.map((r) => (
-          <input key={r} type="hidden" name="self_serve_role_ids" value={r} />
-        ))}
-
-        <Field label="What is it called?">
-          <Input name="bot_name" defaultValue={values.botName} maxLength={60} />
-        </Field>
-
-        <Field
-          label="What is this server for, and how should it talk?"
-          help="Tone only. It always answers from what your server knows, whatever you write here."
-        >
-          <Textarea
-            name="persona_prompt"
-            rows={4}
-            value={persona}
-            onChange={(e) => setPersona(e.target.value)}
-          />
-        </Field>
-
-        <Field label="What language should it reply in?" help="Leave empty to follow each member.">
-          <Input name="language" defaultValue={values.language} />
-        </Field>
-
-        <input type="hidden" name="tone_sample" value={tone} />
-        <div>
-          <span className="text-ui-sm text-ink-soft block">How that sounds</span>
-          {tone ? (
-            <blockquote className="text-thread text-ink border-green mt-2 border-l-2 pl-3">
-              {tone}
-            </blockquote>
-          ) : (
-            <p className="text-ui-sm text-ink-soft mt-2">
-              Nothing yet. Ask for three and pick the one that sounds like your server.
-            </p>
-          )}
-          <button
-            type="button"
-            onClick={() => void newSamples()}
-            disabled={thinking}
-            className="text-ui-sm text-ink-soft hover:text-ink mt-3 underline underline-offset-[3px] disabled:opacity-40"
-          >
-            {thinking ? 'Writing three' : 'Write me three'}
-          </button>
-          {samples && samples.length === 0 && (
-            <p className="text-ui-sm text-ink-soft mt-2">Could not think of any just now.</p>
-          )}
-          {samples && samples.length > 0 && (
-            <ul className="mt-3 space-y-2">
-              {samples.map((s) => (
-                <li key={s}>
-                  <button
-                    type="button"
-                    onClick={() => setTone(s)}
-                    className={cx(
-                      'text-ui-sm block w-full rounded-lg border px-4 py-2 text-left',
-                      s === tone ? 'border-ink bg-ink text-paper' : 'border-hairline text-ink',
-                    )}
-                  >
-                    {s}
-                  </button>
-                </li>
+    <div className="mt-10">
+      <Split
+        left={
+          <>
+            <FormSection
+              heading="Its voice"
+              action={act}
+              pending={pending}
+              note={note}
+              changed={tone !== values.toneSample}
+            >
+              {hidden}
+              {/* What the other panel holds, so a save here writes the whole row. */}
+              <input type="hidden" name="forbidden_topics" value={values.forbidden.join('\n')} />
+              <input type="hidden" name="max_reply_chars" value={values.maxReplyChars} />
+              <input type="hidden" name="confidence_threshold" value={values.threshold} />
+              {values.allowedActions.map((a) => (
+                <input key={a} type="hidden" name="allowed_actions" value={a} />
               ))}
-            </ul>
-          )}
-        </div>
-      </FormSection>
+              {values.selfServeRoleIds.map((r) => (
+                <input key={r} type="hidden" name="self_serve_role_ids" value={r} />
+              ))}
 
-      <FormSection heading="Its limits" action={act} pending={pending} note={note}>
-        {hidden}
-        <input type="hidden" name="bot_name" value={values.botName} />
-        <input type="hidden" name="persona_prompt" value={persona} />
-        <input type="hidden" name="language" value={values.language} />
-        <input type="hidden" name="tone_sample" value={tone} />
+              <Field label="What is it called?">
+                <Input name="bot_name" defaultValue={values.botName} maxLength={60} />
+              </Field>
 
-        <Field label="What should it leave to people?" help="One per line.">
-          <Textarea name="forbidden_topics" rows={4} defaultValue={values.forbidden.join('\n')} />
-        </Field>
-
-        <Field label="How long may a reply be?" help="In characters. 900 is about six lines.">
-          <Input
-            name="max_reply_chars"
-            type="number"
-            width="number"
-            min={200}
-            max={2000}
-            step={50}
-            defaultValue={values.maxReplyChars}
-          />
-        </Field>
-
-        <div>
-          <span className="text-ui-sm text-ink-soft mb-1.5 block">How sure must it be?</span>
-          <input
-            name="confidence_threshold"
-            type="range"
-            min={0.2}
-            max={0.9}
-            step={0.05}
-            value={threshold}
-            onChange={(e) => setThreshold(Number(e.target.value))}
-            className="accent-ink w-full max-w-[420px]"
-            aria-label="How sure must it be"
-          />
-          <div className="text-ui-sm text-ink-soft mt-1 flex max-w-[420px] justify-between">
-            <span>Cautious</span>
-            <span>Confident</span>
-          </div>
-          <p className="text-ui-sm text-ink-soft mt-2">{thresholdLine(threshold)}</p>
-        </div>
-
-        <Field label="What may it do?">
-          <div className="space-y-2">
-            {ACTIONS.map(([value, label]) => (
-              <label key={value} className="text-ui text-ink flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  name="allowed_actions"
-                  value={value}
-                  defaultChecked={values.allowedActions.includes(value)}
+              <Field
+                label="What is this server for, and how should it talk?"
+                help="Tone only. It always answers from what your server knows, whatever you write here."
+              >
+                <Textarea
+                  name="persona_prompt"
+                  rows={4}
+                  value={persona}
+                  onChange={(e) => setPersona(e.target.value)}
                 />
-                {label}
-              </label>
-            ))}
-          </div>
-        </Field>
+              </Field>
 
-        <Field
-          label="Which roles may it hand out?"
-          help="Only these, and only after the proof you set for each one."
-        >
-          {roles.length === 0 ? (
-            <p className="text-ui-sm text-ink-soft">
-              Kalvard has not read your roles yet. Add it to the server first.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {roles.map((role) => (
-                <label key={role.id} className="text-ui text-ink flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    name="self_serve_role_ids"
-                    value={role.id}
-                    defaultChecked={values.selfServeRoleIds.includes(role.id)}
-                  />
-                  {role.name}
-                </label>
-              ))}
-            </div>
-          )}
-        </Field>
-      </FormSection>
+              <Field
+                label="What language should it reply in?"
+                help="Leave empty to follow each member."
+              >
+                <Input name="language" defaultValue={values.language} />
+              </Field>
+
+              <input type="hidden" name="tone_sample" value={tone} />
+              <div>
+                <span className="text-ui-sm text-ink-soft block">How that sounds</span>
+                {tone ? (
+                  <blockquote className="text-thread text-ink border-green mt-2 border-l-2 pl-3">
+                    {tone}
+                  </blockquote>
+                ) : (
+                  <p className="text-ui-sm text-ink-soft mt-2">
+                    Nothing yet. Ask for three and pick the one that sounds like your server.
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={() => void newSamples()}
+                  disabled={thinking}
+                  className="text-ui-sm text-ink-soft hover:text-ink mt-3 underline underline-offset-[3px] disabled:opacity-40"
+                >
+                  {thinking ? 'Writing three' : 'Write me three'}
+                </button>
+                {samples && samples.length === 0 && (
+                  <p className="text-ui-sm text-ink-soft mt-2">Could not think of any just now.</p>
+                )}
+                {samples && samples.length > 0 && (
+                  <ul className="mt-3 space-y-2">
+                    {samples.map((s) => (
+                      <li key={s}>
+                        <button
+                          type="button"
+                          onClick={() => setTone(s)}
+                          className={cx(
+                            'text-ui-sm block w-full rounded-lg border px-4 py-2 text-left',
+                            s === tone
+                              ? 'border-ink bg-ink text-paper'
+                              : 'border-hairline text-ink',
+                          )}
+                        >
+                          {s}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </FormSection>
+
+            <Section
+              heading="Hear it"
+              lede="The same dry run as the test page, in the voice above."
+            >
+              <TestChat guildId={guildId} botName={values.botName || 'Kalvard'} />
+            </Section>
+          </>
+        }
+        right={
+          <>
+            <FormSection heading="Its limits" action={act} pending={pending} note={note}>
+              {hidden}
+              <input type="hidden" name="bot_name" value={values.botName} />
+              <input type="hidden" name="persona_prompt" value={persona} />
+              <input type="hidden" name="language" value={values.language} />
+              <input type="hidden" name="tone_sample" value={tone} />
+
+              <Field label="What should it leave to people?" help="One per line.">
+                <Textarea
+                  name="forbidden_topics"
+                  rows={4}
+                  defaultValue={values.forbidden.join('\n')}
+                />
+              </Field>
+
+              <Field label="How long may a reply be?" help="In characters. 900 is about six lines.">
+                <Input
+                  name="max_reply_chars"
+                  type="number"
+                  width="number"
+                  min={200}
+                  max={2000}
+                  step={50}
+                  defaultValue={values.maxReplyChars}
+                />
+              </Field>
+
+              <div>
+                <span className="text-ink-soft/60 mb-2 block text-[13px]">
+                  How sure must it be?
+                </span>
+                <input type="hidden" name="confidence_threshold" value={threshold} />
+                <Slider
+                  value={threshold}
+                  onValueChange={setThreshold}
+                  min={0.2}
+                  max={0.9}
+                  step={0.05}
+                  ariaLabel="How sure must it be"
+                />
+                <div className="text-ink-soft/60 mt-2 flex max-w-[420px] justify-between text-[13px]">
+                  <span>Cautious</span>
+                  <span>Confident</span>
+                </div>
+                <p className="text-ui text-ink mt-3">{thresholdLine(threshold)}</p>
+              </div>
+
+              <Field label="What may it do?">
+                <div className="-mx-2">
+                  {ACTIONS.map(([value, label]) => (
+                    <CheckboxRow
+                      key={value}
+                      name="allowed_actions"
+                      value={value}
+                      defaultChecked={values.allowedActions.includes(value)}
+                    >
+                      {label}
+                    </CheckboxRow>
+                  ))}
+                </div>
+              </Field>
+
+              <Field
+                label="Which roles may it hand out?"
+                help="Only these, and only after the proof you set for each one."
+              >
+                {roles.length === 0 ? (
+                  <p className="text-ui-sm text-ink-soft">
+                    Kalvard has not read your roles yet. Add it to the server first.
+                  </p>
+                ) : (
+                  <div className="-mx-2">
+                    {roles.map((role) => (
+                      <CheckboxRow
+                        key={role.id}
+                        name="self_serve_role_ids"
+                        value={role.id}
+                        defaultChecked={values.selfServeRoleIds.includes(role.id)}
+                      >
+                        {role.name}
+                      </CheckboxRow>
+                    ))}
+                  </div>
+                )}
+              </Field>
+            </FormSection>
+          </>
+        }
+      />
 
       {state?.warning && (
-        <Panel className="border-amber border-l-2 shadow-none">
+        <Panel className="border-amber mt-6 border-l-2 shadow-none">
           <p className="text-ui text-ink">{state.warning}</p>
         </Panel>
       )}
-
-      <Section heading="Hear it" lede="The same dry run as the test page, in the voice above.">
-        <TestChat guildId={guildId} botName={values.botName || 'Kalvard'} />
-      </Section>
     </div>
   );
 }

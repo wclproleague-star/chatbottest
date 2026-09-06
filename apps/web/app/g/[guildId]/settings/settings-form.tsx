@@ -170,11 +170,6 @@ export function SettingsForm({
               </Field>
             </FormSection>
 
-            <SourcesPanel guildId={guildId} sources={sources} />
-          </>
-        }
-        right={
-          <>
             <FormSection heading="Who it wakes" action={act} pending={pending} note={note}>
               <Hidden guildId={guildId} basedOn={basedOn} />
               <Elsewhere values={values} panel="who" allowed={allowed} />
@@ -212,6 +207,11 @@ export function SettingsForm({
               </Field>
             </FormSection>
 
+            <DangerZone guildId={guildId} guildName={guildName} />
+          </>
+        }
+        right={
+          <>
             <FormSection heading="What it may spend" action={act} pending={pending} note={note}>
               <Hidden guildId={guildId} basedOn={basedOn} />
               <Elsewhere values={values} panel="spend" allowed={allowed} />
@@ -243,7 +243,7 @@ export function SettingsForm({
               </Field>
             </FormSection>
 
-            <DangerZone guildId={guildId} guildName={guildName} />
+            <SourcesPanel guildId={guildId} sources={sources} />
           </>
         }
       />

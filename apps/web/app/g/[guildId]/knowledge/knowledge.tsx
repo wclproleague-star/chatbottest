@@ -1,4 +1,4 @@
-import { Section, Sections } from '@kalvard/ui';
+import { Section, Split } from '@kalvard/ui';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { KnowledgeForms } from './knowledge-forms';
 
@@ -43,39 +43,43 @@ export function Knowledge({
       />
 
       <div className="mt-10">
-        <Sections>
-          <Section heading="How much it knows">
-            <p className="display text-ink" style={{ ['--display-size' as string]: '48px' }}>
-              {score.word}
-            </p>
-            <p className="text-ink-soft">{score.sentence}</p>
-          </Section>
+        <Split
+          left={<KnowledgeForms guildId={guildId} />}
+          right={
+            <>
+              <Section heading="How much it knows">
+                {/* The one thing this page is about, at the size of one thing. */}
+                <p className="display text-ink" style={{ ['--display-size' as string]: '64px' }}>
+                  {score.word}
+                </p>
+                <p className="text-ink-soft">{score.sentence}</p>
+              </Section>
 
-          <KnowledgeForms guildId={guildId} />
-
-          <Section heading="What it has read">
-            {documents.length === 0 ? (
-              <p className="text-ink-soft">
-                Nothing here yet. Paste your rules above to give Kalvard its first answers.
-              </p>
-            ) : (
-              <ul className="divide-hairline -my-4 divide-y">
-                {documents.map((d) => (
-                  <li key={d.id} className="py-4">
-                    <p className="text-ink">{d.title ?? 'Untitled'}</p>
-                    <p className="text-ui-sm text-ink-soft mt-0.5">
-                      {SOURCE[d.sourceType] ?? d.sourceType}
-                      {' · '}
-                      {statusLine(d.status, d.chunkCount, d.error)}
-                      {' · '}
-                      {d.addedAt}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
-        </Sections>
+              <Section heading="What it has read">
+                {documents.length === 0 ? (
+                  <p className="text-ink-soft">
+                    Nothing here yet. Paste your rules to give Kalvard its first answers.
+                  </p>
+                ) : (
+                  <ul className="divide-hairline -my-3 divide-y">
+                    {documents.map((d) => (
+                      <li key={d.id} className="py-3">
+                        <p className="text-ui text-ink">{d.title ?? 'Untitled'}</p>
+                        <p className="text-ink-soft/60 mt-0.5 text-[13px]">
+                          {SOURCE[d.sourceType] ?? d.sourceType}
+                          {' · '}
+                          {statusLine(d.status, d.chunkCount, d.error)}
+                          {' · '}
+                          {d.addedAt}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+            </>
+          }
+        />
       </div>
     </div>
   );

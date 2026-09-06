@@ -57,7 +57,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
       <Commands guildId={guildId} examples={shown} />
 
       {(history ?? []).length > 0 && (
-        <div className="mt-8">
+        <div className="mt-6">
           <Section heading="What has been asked for">
             <ul className="divide-hairline -my-4 divide-y">
               {(history ?? []).map((row) => {
@@ -70,13 +70,13 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
                 const steps = lines.length;
                 return (
                   <li key={row.id} className="py-4">
-                    <p className="text-thread text-ink">{row.request}</p>
-                    <p className="text-ui-sm text-ink-soft mt-1">
+                    <p className="text-ui text-ink">{row.request}</p>
+                    <p className="text-ink-soft/60 mt-1 text-[13px]">
                       {outcome(row.status, ran.length > 0)} · {steps}{' '}
                       {steps === 1 ? 'step' : 'steps'} · {row.asked_by_name ?? 'somebody'} ·{' '}
                       {formatDate(row.created_at)}
                     </p>
-                    <ul className="text-ui-sm text-ink-soft mt-2 space-y-1">
+                    <ul className="text-ink-soft/60 mt-2 space-y-1 text-[13px]">
                       {lines.map((line, i) => (
                         <li key={i}>{line}</li>
                       ))}

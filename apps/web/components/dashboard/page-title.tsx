@@ -5,41 +5,30 @@ import type { Light } from '@/components/sky/beacon';
 /**
  * A dashboard page's head.
  *
- * Two shapes, and a page picks one. `bare` is the title and its lede, with the
- * vard's state as a line of text underneath: the state still gets said, and
- * nothing competes with the title. `beside` puts the object at 96px next to a
- * two-line head, which is the only size at which it reads as the thing it is
- * rather than as a stray mark.
+ * A page with a vard puts it at 96px beside a two-line head: the title, and
+ * what the light means in words. That is the only size at which the object
+ * reads as the thing it is rather than as a stray mark, and the two lines are
+ * what give it something to stand next to.
  *
- * There is no third shape. A 64px beacon beside a 32px title reads as an
- * accident, which is exactly what it was.
+ * A page without one is the title and its lede, and nothing else.
  */
 export function PageTitle({
   title,
   lede,
   light,
   standing,
-  shape = 'bare',
 }: {
   title: string;
   lede: string;
   light?: Light;
   /** What the light means, in words. Required whenever there is a light. */
   standing?: string;
-  shape?: 'bare' | 'beside';
 }) {
-  const head = (
-    <div className="min-w-0">
-      <Display className="[--display-size:32px]">{title}</Display>
-      <p className="text-ink-soft mt-3">{lede}</p>
-    </div>
-  );
-
-  if (!light || shape === 'bare') {
+  if (!light) {
     return (
       <div>
-        {head}
-        {light && standing && <p className="text-ui text-star/70 mt-3">{standing}</p>}
+        <Display className="[--display-size:32px]">{title}</Display>
+        <p className="text-ink-soft mt-3">{lede}</p>
       </div>
     );
   }

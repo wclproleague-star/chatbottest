@@ -43,18 +43,19 @@ export function ExpandingRow({
   return (
     <div className={cx('border-l-2 p-5', state === 'waiting' ? 'border-amber' : 'border-green')}>
       <div className="flex items-start gap-4">
-        {mark && <div className="shrink-0 pt-0.5">{mark}</div>}
+        {mark && <div className="shrink-0 pt-1">{mark}</div>}
         <button
           type="button"
           onClick={onToggle}
           aria-expanded={open}
           className="min-w-0 flex-1 text-left"
         >
-          <span className="text-thread text-ink block">{title}</span>
-          <span className="text-ui-sm text-ink-soft mt-1 block">{meta}</span>
-          {/* Closed, one line of it; open, the block below says it in full. */}
+          {/* The member's question is the row. Everything around it is 13px,
+              because none of it is what you are deciding about. */}
+          <span className="text-ink block text-[20px] leading-tight">{title}</span>
+          <span className="text-ink-soft/60 mt-1.5 block text-[13px]">{meta}</span>
           {preview && !open && (
-            <span className="text-ui-sm text-ink-soft mt-2 block truncate">{preview}</span>
+            <span className="text-ink-soft/60 mt-2 block truncate text-[13px]">{preview}</span>
           )}
         </button>
         {aside && <div className="text-ui-sm text-ink-soft shrink-0">{aside}</div>}
@@ -76,7 +77,7 @@ export function RowBlock({
 }) {
   return (
     <div className={cx('border-hairline bg-raised rounded-lg border p-4', className)}>
-      <p className="text-ui-sm text-ink-soft">{label}</p>
+      <p className="text-ink-soft/60 text-[13px]">{label}</p>
       <div className="mt-2">{children}</div>
     </div>
   );

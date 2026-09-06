@@ -81,9 +81,9 @@
  */
 [data-theme='dark'] {
   --color-paper: #0e1116;
-  --color-panel: #161a21;
+  --color-panel: #1e242d;
   /* Above a panel: menus, and blocks inside a row. */
-  --color-raised: #1c222b;
+  --color-raised: #242a34;
   --color-hairline: #262d38;
   --color-ink: #f2f4f7;
   --color-ink-soft: #8b95a3;

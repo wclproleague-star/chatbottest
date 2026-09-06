@@ -59,7 +59,7 @@ export function Inbox({
   const [openId, setOpenId] = useState<string | null>(openAt ?? null);
 
   return (
-    <div className="mt-10">
+    <div className="mx-auto mt-10 w-full max-w-[840px]">
       <div className="mb-6 flex gap-6">
         {(['waiting', 'answered'] as const).map((name) => (
           <button

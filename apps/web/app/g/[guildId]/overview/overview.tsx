@@ -1,5 +1,4 @@
-import { Panel, Section, Sections } from '@kalvard/ui';
-import { Beacon } from '@/components/beacon/beacon';
+import { Panel, Section, Split } from '@kalvard/ui';
 import { PageTitle } from '@/components/dashboard/page-title';
 import type { Light } from '@/components/sky/beacon';
 import { OwnerBotCard } from './bot-card';
@@ -7,6 +6,11 @@ import { OwnerBotCard } from './bot-card';
 // The week, in four numbers and one nudge. Nothing here is a chart: an owner
 // wants to know whether anything is waiting on them and whether the bot is
 // getting better, and both of those are sentences.
+//
+// One number is the page. What is waiting on you is the only figure you can
+// act on, so it is set at 72px and the three that are only news are set at 40.
+// Spreading the emphasis evenly across four numbers is the same as having
+// none.
 //
 // The page is separate from the queries that fill it, so it can be looked at
 // on /dev/dashboard without a Discord session behind it.
@@ -37,79 +41,79 @@ export type OverviewData = {
 export function Overview({ data }: { data: OverviewData }) {
   return (
     <div>
-      {/* The report starts with the one who wrote it. */}
-      <div className="flex items-start gap-6">
-        <Beacon
-          light={data.light}
-          className="h-24 w-14 shrink-0"
-          height={0.95}
-          label={STANDING[data.light]}
-        />
-        <div className="min-w-0">
-          <PageTitle title="Overview" lede={`How ${data.guildName} used Kalvard this week.`} />
-          <p className="text-ui-sm text-ink-soft mt-2">{STANDING[data.light]}</p>
-        </div>
-      </div>
-
-      {data.nudge && (
-        <Panel className="border-amber mt-10 border-l-2 shadow-none">
-          <p className="text-thread text-ink">{data.nudge.line}</p>
-          <a
-            href={data.nudge.href}
-            className="text-ui text-ink mt-2 inline-block underline underline-offset-[3px]"
-          >
-            {data.nudge.label}
-          </a>
-        </Panel>
-      )}
+      <PageTitle
+        title="Overview"
+        lede={`How ${data.guildName} used Kalvard this week.`}
+        light={data.light}
+        standing={STANDING[data.light]}
+      />
 
       <div className="mt-10">
-        <Sections>
-          <Section heading="This week">
-            <dl className="grid grid-cols-2 gap-x-10 gap-y-6 sm:grid-cols-4">
-              <Count label="Asked" value={data.received} />
-              <Count label="Answered" value={data.answered} />
-              <Count label="Sent to mods" value={data.toMods} />
-              <Count label="Awaiting you" value={data.waiting} />
-            </dl>
-          </Section>
+        <Split
+          left={
+            <>
+              {data.nudge && (
+                <Panel className="border-amber border-l-2 shadow-none">
+                  <p className="text-thread text-ink">{data.nudge.line}</p>
+                  <a
+                    href={data.nudge.href}
+                    className="text-ui text-ink mt-2 inline-block underline underline-offset-[3px]"
+                  >
+                    {data.nudge.label}
+                  </a>
+                </Panel>
+              )}
 
-          <Section heading="What nobody has answered yet">
-            {data.pending.length === 0 ? (
-              <p className="text-body text-ink-soft">
-                Nothing is waiting. What Kalvard could not answer, somebody already did.
-              </p>
-            ) : (
-              <ul className="space-y-2">
-                {data.pending.map((question) => (
-                  <li key={question} className="text-thread text-ink">
-                    {question}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Section>
+              <Section heading="This week">
+                <dl className="grid grid-cols-3 gap-x-8 gap-y-8">
+                  <Count label="Awaiting you" value={data.waiting} size={72} wide />
+                  <Count label="Asked" value={data.received} size={40} />
+                  <Count label="Answered" value={data.answered} size={40} />
+                  <Count label="Sent to mods" value={data.toMods} size={40} />
+                </dl>
+              </Section>
 
-          <Section heading="What it knows">
-            <p className="display text-ink" style={{ ['--display-size' as string]: '48px' }}>
-              {data.knowledge.word}
-            </p>
-            <p className="text-body text-ink-soft">{data.knowledge.line}</p>
-          </Section>
+              <Section heading="What nobody has answered yet">
+                {data.pending.length === 0 ? (
+                  <p className="text-body text-ink-soft">
+                    Nothing is waiting. What Kalvard could not answer, somebody already did.
+                  </p>
+                ) : (
+                  <ul className="divide-hairline -my-3 divide-y">
+                    {data.pending.map((question) => (
+                      <li key={question} className="text-thread text-ink py-3">
+                        {question}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Section>
+            </>
+          }
+          right={
+            <>
+              <Section heading="What it knows">
+                <p className="display text-ink" style={{ ['--display-size' as string]: '48px' }}>
+                  {data.knowledge.word}
+                </p>
+                <p className="text-body text-ink-soft">{data.knowledge.line}</p>
+              </Section>
 
-          <Section heading="Your bot">
-            <OwnerBotCard
-              values={{
-                name: data.bot.name,
-                tone: data.bot.tone,
-                language: data.bot.language,
-                knows: data.knowledge.word,
-                wontTouch: data.bot.wontTouch,
-                wakes: data.bot.wakes,
-              }}
-            />
-          </Section>
-        </Sections>
+              <Section heading="Your bot">
+                <OwnerBotCard
+                  values={{
+                    name: data.bot.name,
+                    tone: data.bot.tone,
+                    language: data.bot.language,
+                    knows: data.knowledge.word,
+                    wontTouch: data.bot.wontTouch,
+                    wakes: data.bot.wakes,
+                  }}
+                />
+              </Section>
+            </>
+          }
+        />
       </div>
     </div>
   );
@@ -123,13 +127,23 @@ const STANDING: Record<Light, string> = {
   green: 'Your vard answered everything it was asked',
 };
 
-function Count({ label, value }: { label: string; value: number }) {
+function Count({
+  label,
+  value,
+  size,
+  wide,
+}: {
+  label: string;
+  value: number;
+  size: number;
+  wide?: boolean;
+}) {
   return (
-    <div>
-      <dt className="text-ui-sm text-ink-soft">{label}</dt>
+    <div className={wide ? 'col-span-3' : undefined}>
+      <dt className="text-ink-soft/60 text-[13px]">{label}</dt>
       <dd
         className="display text-ink mt-1 tabular-nums"
-        style={{ ['--display-size' as string]: '48px' }}
+        style={{ ['--display-size' as string]: `${size}px` }}
       >
         {value}
       </dd>
