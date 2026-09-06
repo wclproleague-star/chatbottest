@@ -26,7 +26,7 @@ export function PageTitle({
     <div>
       <Display className="[--display-size:32px]">{title}</Display>
       <p className="text-ink-soft mt-3">{lede}</p>
-      {light && standing && <p className="text-ui-sm text-ink-soft mt-2">{standing}</p>}
+      {light && standing && <p className="text-ui text-star/70 mt-2">{standing}</p>}
     </div>
   );
 

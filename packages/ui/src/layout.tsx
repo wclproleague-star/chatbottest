@@ -11,14 +11,38 @@ import { cx } from './cx';
  * belongs to nothing.
  */
 
-/** The content column: centred, 720px, gutters on a phone. */
+/** The content column: centred, 1200px, gutters on a phone. */
 export function Column({ className, ...props }: ComponentProps<'div'>) {
-  return <div className={cx('mx-auto w-full max-w-[720px]', className)} {...props} />;
+  return <div className={cx('mx-auto w-full max-w-[1200px]', className)} {...props} />;
 }
 
-/** Panels down a page, 32px apart. */
+/**
+ * Two columns from 1024 up, one below.
+ *
+ * A dashboard at 1440 with one 720px column is two thirds empty, and empty is
+ * not calm, it is unfinished. What goes left is what you act on; what goes
+ * right is what you look at.
+ */
+export function Split({
+  left,
+  right,
+  className,
+}: {
+  left: ReactNode;
+  right: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cx('grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]', className)}>
+      <div className="min-w-0 space-y-6">{left}</div>
+      <div className="min-w-0 space-y-6">{right}</div>
+    </div>
+  );
+}
+
+/** Panels down a page. */
 export function Sections({ className, ...props }: ComponentProps<'div'>) {
-  return <div className={cx('space-y-8', className)} {...props} />;
+  return <div className={cx('space-y-6', className)} {...props} />;
 }
 
 /**
@@ -29,19 +53,26 @@ export function Section({
   heading,
   lede,
   footer,
+  tone = 'secondary',
   children,
   className,
 }: {
   heading: string;
   lede?: string;
   footer?: ReactNode;
+  /**
+   * The one panel a page is about sits a shade above the others. Every page
+   * has exactly one; if two look primary, neither is.
+   */
+  tone?: 'primary' | 'secondary';
   children: ReactNode;
   className?: string;
 }) {
   return (
     <section
       className={cx(
-        'rounded-panel bg-panel text-ink shadow-(--surface-panel-shadow) p-6',
+        'rounded-panel text-ink shadow-(--surface-panel-shadow) p-6',
+        tone === 'primary' ? 'bg-raised' : 'bg-panel',
         className,
       )}
     >

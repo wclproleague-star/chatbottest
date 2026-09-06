@@ -7,7 +7,7 @@
 // not saved: a broken one is worse than none, since Kalvard would stop saying it
 // cannot look things up and start saying nothing useful instead.
 
-import { Button, Field, Input, Panel, Section, Select } from '@kalvard/ui';
+import { Button, Field, Input, Option, Panel, Section, Select } from '@kalvard/ui';
 import { useActionState, useState } from 'react';
 import { addSource, removeSource, trySource } from './sources';
 import type { SourceState } from './sources';
@@ -51,11 +51,11 @@ export function SourcesPanel({ guildId, sources }: { guildId: string; sources: L
       <form action={add} className="border-hairline space-y-4 border-t pt-5">
         <input type="hidden" name="guild_id" value={guildId} />
         <Field label="What kind is it?">
-          <Select name="kind" value={kind} onChange={(e) => setKind(e.target.value)}>
+          <Select name="kind" value={kind} onValueChange={setKind}>
             {KINDS.map((k) => (
-              <option key={k.kind} value={k.kind}>
+              <Option key={k.kind} value={k.kind}>
                 {k.label}
-              </option>
+              </Option>
             ))}
           </Select>
         </Field>

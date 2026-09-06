@@ -195,7 +195,7 @@ function PersonalityPreview() {
         title="Personality"
         lede="How it talks, and how sure it has to be before it answers."
         light="amber"
-        standing="Watching. Nothing is waiting on you."
+        standing="Your vard is lit. Nothing is waiting on you."
       />
       <PersonalityForm
         guildId="900000000000000001"
@@ -244,7 +244,7 @@ function SettingsPreview() {
         title="Settings"
         lede="Where it answers, who it wakes, and what it may look up."
         light="amber"
-        standing="Watching, and 2 waiting on you."
+        standing="Your vard is lit, and 2 waiting on you."
       />
       <SettingsForm
         guildId="900000000000000001"

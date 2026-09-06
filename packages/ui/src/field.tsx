@@ -22,7 +22,7 @@ const WIDTH: Record<FieldWidth, string> = {
 };
 
 const fieldClass =
-  'text-ui text-ink placeholder:text-ink-soft/70 border-field-line focus-visible:outline-green rounded-lg border bg-field px-3 outline-offset-2 focus-visible:outline-2 disabled:opacity-40';
+  'text-ui text-ink placeholder:text-ink-soft/70 border-field-line focus-visible:outline-green rounded-lg border bg-field px-3 shadow-[inset_0_1px_0_rgb(255_255_255/0.04)] outline-offset-2 focus-visible:outline-2 disabled:opacity-40';
 
 export function Input({
   className,
@@ -30,14 +30,6 @@ export function Input({
   ...props
 }: ComponentProps<'input'> & { width?: FieldWidth }) {
   return <input className={cx(fieldClass, WIDTH[width], 'h-11', className)} {...props} />;
-}
-
-export function Select({
-  className,
-  width = 'select',
-  ...props
-}: ComponentProps<'select'> & { width?: FieldWidth }) {
-  return <select className={cx(fieldClass, WIDTH[width], 'h-11', className)} {...props} />;
 }
 
 export function Textarea({

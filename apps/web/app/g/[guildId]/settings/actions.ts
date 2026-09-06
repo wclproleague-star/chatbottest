@@ -17,14 +17,13 @@ export async function saveGuildSettings(
   const guildId = String(form.get('guild_id') ?? '');
   await requireMember(guildId);
 
-  const modRole = String(form.get('mod_role_id') ?? '').trim();
   const outcome = await saveSettings(
     guildId,
     {
-      allowed_channel_ids: form.getAll('allowed_channel_ids').map(String),
-      mod_role_id: modRole || null,
-      mod_channel_id: String(form.get('mod_channel_id') ?? '').trim() || null,
-      intro_channel_id: String(form.get('intro_channel_id') ?? '').trim() || null,
+      allowed_channel_ids: [...new Set(form.getAll('allowed_channel_ids').map(String))],
+      mod_role_id: chosen(form.get('mod_role_id')),
+      mod_channel_id: chosen(form.get('mod_channel_id')),
+      intro_channel_id: chosen(form.get('intro_channel_id')),
       intro_message: String(form.get('intro_message') ?? '').trim() || null,
       fallback_mode: form.get('fallback_mode') === 'quiet_queue' ? 'quiet_queue' : 'ping_role',
       scope: form.get('scope') === 'server_only' ? 'server_only' : 'open',
@@ -88,4 +87,13 @@ export async function deleteEverything(
 function number(value: FormDataEntryValue | null, fallback: number): number {
   const n = Number(value);
   return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+/**
+ * What a menu chose, or nothing. A menu has no empty value, so "nowhere" and
+ * "nobody" travel as the word `none` and come back as null here.
+ */
+function chosen(value: FormDataEntryValue | null): string | null {
+  const picked = String(value ?? '').trim();
+  return picked && picked !== 'none' ? picked : null;
 }

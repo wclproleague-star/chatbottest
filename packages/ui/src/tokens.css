@@ -89,9 +89,10 @@
   --color-field: #12161c;
   --color-field-line: #2a313b;
 
-  /* A panel reads by being lighter than the page, not by casting onto it:
-     in the dark a shadow is invisible, and a raised edge is not. */
-  --shadow-panel-paper: none;
+  /* A panel reads by being lighter than the page, not by casting onto it: in
+     the dark a shadow is invisible and an edge is not. One lit line along the
+     top, one dark line along the bottom, both inside the panel. */
+  --shadow-panel-paper: inset 0 1px 0 rgb(255 255 255 / 0.04), inset 0 -1px 0 rgb(0 0 0 / 0.3);
 
   /* Ticks, radios and the slider take the state colour rather than the
      browser's blue, which is the one colour the palette does not have. */
