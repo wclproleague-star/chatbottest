@@ -125,7 +125,8 @@ const GAME: Step[] = [
     with: { id: '{draft.id}' },
     as: 'draft',
     when: '{draft.status} == done',
-    everyMinutes: 1,
+    // A finished draft is noticed within a quarter of a minute, not a minute.
+    everyMinutes: 0.25,
     nudges: [
       {
         afterMinutes: 1,

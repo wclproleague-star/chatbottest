@@ -59,8 +59,8 @@ function plainName(name: string): string {
     .replace(/[^a-z0-9]+/g, '');
 }
 
-/** How often paused runs are given the clock. */
-const TICK_MS = 60_000;
+/** How often paused runs are given the clock: polls, nudges, deadlines. */
+const TICK_MS = 15_000;
 
 /** What the engine needs from the guild's settings to run anything. */
 async function runSettings(

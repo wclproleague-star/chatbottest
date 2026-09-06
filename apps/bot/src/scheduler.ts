@@ -37,8 +37,12 @@ import { logEvent } from './guild';
 import { claim } from './once';
 import { startSeries, workflowEffects } from './workflow';
 
-/** How often the clock is read. A minute is finer than any schedule we take. */
-const TICK_MS = 60_000;
+/**
+ * How often the clock is read. Schedules are in minutes, but the calendar is
+ * also read here, and a room that appears a minute after it should reads as
+ * slow: twenty seconds is what a person waiting notices nothing about.
+ */
+const TICK_MS = 20_000;
 
 export function startScheduler(client: Client): () => void {
   const timer = setInterval(() => {
