@@ -11,7 +11,13 @@ import { embed, generateJson, Type } from './gemini';
 import { serviceClient } from './supabase';
 
 /** Two statements in the knowledge that cannot both be true. */
-export type Conflict = { first: string; second: string };
+export type Conflict = {
+  first: string;
+  second: string;
+  /** The two chunks that disagree, so a reply can be told to rest on them. */
+  chunkA: string;
+  chunkB: string;
+};
 
 /** How close two chunks must be before it is worth asking whether they clash. */
 const NEIGHBOUR_SIMILARITY = 0.6;
@@ -79,9 +85,18 @@ export async function conflictsFor(guildId: string, chunkIds: string[]): Promise
     .select('first, second, chunk_a, chunk_b')
     .eq('guild_id', guildId)
     .eq('resolved', false);
+  // Both sides have to be in front of the member for the disagreement to be
+  // about what they asked. Whether it bears on the answer is decided later, by
+  // whether the reply actually rests on one of them: in a small server every
+  // question retrieves everything, so being retrieved proves nothing.
   return (data ?? [])
-    .filter((row) => chunkIds.includes(row.chunk_a) || chunkIds.includes(row.chunk_b))
-    .map((row) => ({ first: row.first, second: row.second }));
+    .filter((row) => chunkIds.includes(row.chunk_a) && chunkIds.includes(row.chunk_b))
+    .map((row) => ({
+      first: row.first,
+      second: row.second,
+      chunkA: row.chunk_a,
+      chunkB: row.chunk_b,
+    }));
 }
 
 /** Whether these two pieces of knowledge state different values for one fact. */
@@ -108,7 +123,8 @@ async function judge(a: string, b: string): Promise<Conflict | null> {
       temperature: 0,
     });
     if (!out.conflict || !out.first.trim() || !out.second.trim()) return null;
-    return { first: out.first.trim(), second: out.second.trim() };
+    // The judge only says whether and what; the caller knows which chunks.
+    return { first: out.first.trim(), second: out.second.trim(), chunkA: '', chunkB: '' };
   } catch {
     return null;
   }

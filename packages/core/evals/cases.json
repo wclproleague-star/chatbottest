@@ -289,5 +289,13 @@
       "Fast Forward"
     ],
     "note": "a third language in the same server is answered in that language"
+  },
+  {
+    "message": "what is this league's trophy called?",
+    "guild": "900000000000000002",
+    "kind": "server",
+    "tier": "answer",
+    "mods": false,
+    "note": "the check-in documents disagree with each other, and that must not hedge an answer about the trophy"
   }
 ]

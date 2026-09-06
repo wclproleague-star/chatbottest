@@ -461,12 +461,19 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
   }
   // The knowledge disagrees with itself, so nothing here is a settled fact,
   // however confidently the reply was written.
-  if (conflict) {
+  // Only when the reply actually rests on one of the two statements. A server
+  // whose knowledge disagrees about check-in times must still answer plainly
+  // about its trophy, and in a small server every question retrieves every
+  // chunk, so what was retrieved says nothing about what was used.
+  const disagreement = conflict;
+  const restsOnConflict =
+    disagreement !== null &&
+    claims.some(
+      (c) => c.chunkIds.includes(disagreement.chunkA) || c.chunkIds.includes(disagreement.chunkB),
+    );
+  if (restsOnConflict) {
     for (const claim of claims) {
       if (claim.grounding === 'grounded') claim.grounding = 'partial';
-    }
-    if (claims.length === 0) {
-      claims.push({ text: conflict.first, grounding: 'partial', chunkIds: topChunkIds });
     }
   }
   const usedChunkIds = [...new Set(claims.flatMap((c) => c.chunkIds))];
@@ -895,7 +902,7 @@ function systemPrompt(
     ...actionRules(s, meta),
     '',
     conflict
-      ? `The knowledge holds two different versions of this: "${conflict.first}" and "${conflict.second}". Do not pick one, do not average them, and do not ask the member which document they mean, which they cannot know. Give both in your reply, say they disagree, and ask the moderators to settle it with ${MODS}. Every claim that rests on either version is partial.`
+      ? `The knowledge holds two different versions of one thing: "${conflict.first}" and "${conflict.second}". If your answer rests on either of them, do not pick one, do not average them, and do not ask the member which document they mean, which they cannot know: give both, say they disagree, and ask the moderators to settle it with ${MODS}. If your answer has nothing to do with them, ignore this entirely and answer normally.`
       : '',
     matches.length > 0 ? 'Knowledge:' : 'Knowledge: none was found for this message.',
     ...matches.map((m) => `[id: ${m.id}]\n${m.content}`),
