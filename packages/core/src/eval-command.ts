@@ -314,6 +314,28 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
     );
   }
 
+  // A moderator asking for a role for themselves is a member asking for a
+  // role. Live, "give me ff role" from a staff member came back as the whole
+  // role list read out, because the planner took it for an order about
+  // somebody else. It goes down the funnel like anybody's request.
+  for (const own of [
+    'give me ff role',
+    'donne moi le rôle Joueur',
+    'can I have the Caster role?',
+  ]) {
+    const out = await planCommand({
+      guildId: '900000000000000001',
+      request: own,
+      by: MOD,
+      shape: SHAPE,
+    });
+    check(
+      `"${own}" is for themselves, so it is not a command`,
+      out.kind === 'not_a_command',
+      `${out.kind}: ${'because' in out ? out.because : 'question' in out ? out.question : ''}`,
+    );
+  }
+
   // A real request that this server has switched off is still a refusal: the
   // two must not be told apart by reading the model's English.
   const off = await planCommand({

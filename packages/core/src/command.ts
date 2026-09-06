@@ -107,6 +107,14 @@ export async function planCommand(input: {
     };
   }
 
+  // A moderator is a member too. "give me the X role" is them asking for a
+  // role, not ordering one for somebody else, and it takes the same path as
+  // anybody's request: the proof, the role, or the moderators. Decided before
+  // the model is asked, because the model reads "give me" as an instruction.
+  if (forThemselves(input.request)) {
+    return { kind: 'not_a_command', because: 'They are asking for themselves.' };
+  }
+
   const raw = await propose(input.request, input.shape);
   // The model's own signal that nothing here is an action at all.
   if (raw.impossible.trim()) return { kind: 'not_a_command', because: raw.impossible.trim() };
@@ -547,6 +555,52 @@ const NAMED: Record<string, string> = {
   ucirc: 'û',
   uuml: 'ü',
 };
+
+/**
+ * Whether the request is about the asker rather than about somebody else.
+ *
+ * First person, and no third party named: "give me", "donne moi", "can I
+ * have", "je veux". A request that says "me" and also names another member
+ * ("give me and Craig the role") is left to the planner.
+ */
+function forThemselves(request: string): boolean {
+  const text = request
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(
+      new RegExp('[' + String.fromCharCode(0x300) + '-' + String.fromCharCode(0x36f) + ']', 'g'),
+      '',
+    );
+  // Words, not a pattern: a word boundary in a pattern is exactly what a
+  // shell mangles on the way in, and it fails silently.
+  const words = text.split(/[^a-z0-9']+/).filter(Boolean);
+  const has = new Set(words);
+  const self =
+    has.has('me') ||
+    has.has('moi') ||
+    has.has('myself') ||
+    [
+      'can i',
+      'could i',
+      'may i',
+      'i want',
+      'i need',
+      "i'd like",
+      'je veux',
+      'je voudrais',
+      'je peux',
+      "j'aimerais",
+    ].some((opening) => text.includes(opening));
+  if (!self) return false;
+  // "me and X", "moi et X", "me, X": somebody else is in it.
+  for (let i = 0; i + 1 < words.length; i++) {
+    const word = words[i]!;
+    const next = words[i + 1]!;
+    if ((word === 'me' || word === 'moi') && (next === 'and' || next === 'et')) return false;
+    if ((word === 'me' || word === 'moi') && text.includes(`${word},`)) return false;
+  }
+  return true;
+}
 
 function clean(name: string): string {
   // Models hand back "Comp&#233;tition" and "Comp&eacute;tition" for
