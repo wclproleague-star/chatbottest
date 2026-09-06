@@ -16,6 +16,7 @@ import {
   parseLimits,
 } from './limits';
 import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
+import { applyAnswer, missing } from './onboard';
 import { findPersonal, personalSummary } from './personal';
 import { clockIn, inZone, pastRetention } from './times';
 
@@ -161,6 +162,43 @@ console.log(['', 'what a guild may spend'].join(String.fromCharCode(10)));
     'the first of the month is its own start',
     january.toISOString() === '2026-01-01T00:00:00.000Z',
   );
+}
+
+console.log(['', 'setting a bot up'].join(String.fromCharCode(10)));
+{
+  // The loop a real owner hit: clicking a tone sample was read as pasting a
+  // schedule, so the field never filled and the same question came back.
+  const asked = missing({});
+  check('it asks for the name first', asked[0] === 'botName');
+
+  const named = applyAnswer({}, 'botName', 'bogoss');
+  check('a typed name is taken as the name', named.botName === 'bogoss');
+  check('the name is no longer missing', !missing(named).includes('botName'));
+
+  const toned = applyAnswer(named, 'toneSample', 'Next match is Saturday at 1500.');
+  check(
+    'a picked tone is taken as the tone',
+    toned.toneSample === 'Next match is Saturday at 1500.',
+  );
+  check('the tone is no longer asked for', !missing(toned).includes('toneSample'));
+
+  const language = applyAnswer(toned, 'language', 'The language each member writes in');
+  check('a picked language counts as answered', !missing(language).includes('language'));
+
+  const none = applyAnswer(language, 'forbiddenTopics', 'Nothing, it can answer anything it knows');
+  check('choosing nothing forbidden still answers it', !missing(none).includes('forbiddenTopics'));
+  check('and forbids nothing', (none.forbiddenTopics ?? []).length === 0);
+
+  const one = applyAnswer(language, 'forbiddenTopics', 'bans and appeals');
+  check('a picked topic is kept', (one.forbiddenTopics ?? []).includes('bans and appeals'));
+
+  const full = applyAnswer(
+    applyAnswer(none, 'personaPrompt', 'Funny but short. Esports server.'),
+    'botName',
+    'ignored',
+  );
+  check('the name is not overwritten once given', full.botName === 'bogoss');
+  check('nothing is left to ask', missing(full).length === 0);
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);

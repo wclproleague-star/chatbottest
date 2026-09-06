@@ -23,6 +23,12 @@ export type DraftConfig = {
   forbiddenTopics?: string[];
   /** Knowledge pasted during the conversation, kept until the session is saved. */
   knowledge?: { title: string; text: string }[];
+  /**
+   * The questions the owner has actually answered. Kept because an answer can
+   * be "nothing at all", which is a decision and not a gap: without this,
+   * choosing no forbidden topics would be asked again for ever.
+   */
+  answered?: string[];
 };
 
 export type OnboardMessage = { role: 'user' | 'model'; text: string };
@@ -55,11 +61,67 @@ const REQUIRED: (keyof DraftConfig)[] = [
 
 /** What is still missing, in the order it is asked for. */
 export function missing(config: DraftConfig): (keyof DraftConfig)[] {
+  const answered = new Set(config.answered ?? []);
   return REQUIRED.filter((key) => {
+    if (answered.has(key)) return false;
     const value = config[key];
     if (Array.isArray(value)) return value.length === 0;
     return !value || String(value).trim() === '';
   });
+}
+
+/**
+ * The owner's message, read as the answer to the question they were asked.
+ *
+ * This is the part that must not be left to the model. Asked which of three
+ * sentences sounds like their server, an owner clicks one, and a model reading
+ * that sentence on its own sees a match time and files it as knowledge about
+ * the server: the tone is never filled, the same question comes back, and the
+ * conversation loops. What a message means depends on what was asked, and that
+ * is known here exactly.
+ */
+export function applyAnswer(
+  config: DraftConfig,
+  field: keyof DraftConfig,
+  said: string,
+): DraftConfig {
+  const text = said.trim();
+  const answered = [...new Set([...(config.answered ?? []), field])];
+  if (!text) return { ...config, answered };
+
+  switch (field) {
+    case 'botName':
+      // Already named: a later message does not rename the bot.
+      return config.botName?.trim()
+        ? { ...config, answered }
+        : { ...config, botName: text.slice(0, 60), answered };
+    case 'language':
+      return { ...config, language: text, answered };
+    case 'toneSample':
+      return { ...config, toneSample: text, answered };
+    case 'forbiddenTopics': {
+      // "Nothing" is an answer, and it is the one that used to loop.
+      const first =
+        text
+          .toLowerCase()
+          .split(/[^a-zà-ÿ]+/)
+          .filter(Boolean)[0] ?? '';
+      if (['nothing', 'none', 'no', 'rien', 'aucun'].includes(first)) {
+        return { ...config, forbiddenTopics: [], answered };
+      }
+      const topics = text
+        .split(/[,;]/)
+        .map((t) => t.trim())
+        .filter(Boolean);
+      return {
+        ...config,
+        forbiddenTopics: [...new Set([...(config.forbiddenTopics ?? []), ...topics])],
+        answered,
+      };
+    }
+    default:
+      return { ...config, answered };
+  }
 }
 
 /**
@@ -81,7 +143,12 @@ export async function onboard(input: { sessionId: string; said?: string }): Prom
   const said = input.said?.trim() ?? '';
 
   const guildName = await nameOf(session.guild_id);
-  const heard = said ? await understand(said, config, guildName) : { config: {}, note: '' };
+  // What was asked last time is what this message answers.
+  const asked = missing(config)[0];
+  // The one open question is free text, so it is read; the rest are answers to
+  // a question whose meaning is already known, and are taken as written.
+  const reading = said && asked === 'personaPrompt';
+  const heard = reading ? await understand(said, config, guildName) : { config: {}, note: '' };
 
   // A persona is held to the same line here as anywhere else: tone only.
   if (heard.config.personaPrompt) {
@@ -92,7 +159,11 @@ export async function onboard(input: { sessionId: string; said?: string }): Prom
     }
   }
 
-  const merged = { ...config, ...heard.config };
+  const answeredDirectly = said && asked && !reading ? applyAnswer(config, asked, said) : config;
+  const merged = { ...answeredDirectly, ...heard.config };
+  if (said && asked && reading) {
+    merged.answered = [...new Set([...(merged.answered ?? []), asked])];
+  }
   const left = missing(merged);
   const next = await ask(left[0], merged, guildName, heard.note, messages.length === 0);
 
@@ -141,7 +212,7 @@ async function understand(
         `An owner is setting up an assistant for their Discord server, ${guildName}.`,
         'Read what they just said and fill in only what it actually tells you. Leave the rest empty: never invent a name, a tone or a rule they did not give.',
         'botName: what the bot should be called.',
-        'personaPrompt: what the server is for and how the bot should talk in it, in one or two sentences, in their words.',
+        'personaPrompt: what the server is for and how the bot should talk in it, in one or two sentences, in their own words. Keep what they said about tone, exactly as they put it: funny, short, formal, blunt. Never drop it and never smooth it out; the tone is the half that matters to them.',
         'language: the language it should reply in, as an English name, or "the language each member writes in".',
         'toneSample: one sentence in the bot voice, when they gave one or picked one.',
         'forbiddenTopics: subjects they said it must not touch.',
