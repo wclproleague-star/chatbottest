@@ -47,8 +47,10 @@ export async function handleCommand(
   const by = { id: message.author.id, name: message.author.displayName, isStaff, isOwner };
   const plan = await planCommand({ guildId: guild.id, request, by, shape });
 
-  // Nothing in it is an action, so it was a question: let the answer loop have it.
-  if (plan.kind === 'refused' && /nothing in that/i.test(plan.because)) return false;
+  // Not a request to change anything, so it was a question or a greeting: the
+  // answer loop has it, and nothing is written down. A moderator is a member
+  // who can also give orders, not a member who has stopped being one.
+  if (plan.kind === 'not_a_command') return false;
 
   const commandId = await recordCommand({ guildId: guild.id, by, request, plan });
   await logEvent(guild.id, 'action', {

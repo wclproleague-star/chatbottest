@@ -40,7 +40,14 @@ export type Plan =
   | { kind: 'plan'; steps: PlannedStep[]; touches: number }
   /** Something needed is missing, and one question settles it. */
   | { kind: 'question'; question: string; because: string }
-  /** Nothing here is something Kalvard does. */
+  /**
+   * Not a request to change anything: a greeting, a question, a conversation.
+   * The caller lets the answer loop have it. This is decided here rather than
+   * by reading the model's English, which is written afresh every time and in
+   * whichever language the member used.
+   */
+  | { kind: 'not_a_command'; because: string }
+  /** A change Kalvard will not make: not allowed, not permitted, not ever. */
   | { kind: 'refused'; because: string };
 
 /** What the guild actually has, so a plan can be checked against it. */
@@ -97,7 +104,8 @@ export async function planCommand(input: {
   }
 
   const raw = await propose(input.request, input.shape);
-  if (raw.impossible.trim()) return { kind: 'refused', because: raw.impossible.trim() };
+  // The model's own signal that nothing here is an action at all.
+  if (raw.impossible.trim()) return { kind: 'not_a_command', because: raw.impossible.trim() };
 
   const steps: PlannedStep[] = [];
   for (const step of raw.steps) {
@@ -166,7 +174,7 @@ export async function planCommand(input: {
   settleVisibility(steps, input.request, input.shape.modRole?.name);
 
   if (steps.length === 0) {
-    return { kind: 'refused', because: 'Nothing in that is something Kalvard can do.' };
+    return { kind: 'not_a_command', because: 'Nothing in that asks for a change.' };
   }
   return { kind: 'plan', steps, touches: steps.length };
 }

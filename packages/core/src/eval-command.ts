@@ -298,5 +298,32 @@ console.log(['', 'the moderators are never shut out'].join(String.fromCharCode(1
   );
 }
 
+console.log(['', 'a moderator who is not asking for anything'].join(String.fromCharCode(10)));
+{
+  for (const greeting of ['hi bro', 'salut bg', 'ça va ?']) {
+    const out = await planCommand({
+      guildId: '900000000000000001',
+      request: greeting,
+      by: MOD,
+      shape: SHAPE,
+    });
+    check(
+      `"${greeting}" is not a command at all`,
+      out.kind === 'not_a_command',
+      `${out.kind}: ${'because' in out ? out.because : ''}`,
+    );
+  }
+
+  // A real request that this server has switched off is still a refusal: the
+  // two must not be told apart by reading the model's English.
+  const off = await planCommand({
+    guildId: '900000000000000001',
+    request: 'archive #annonces',
+    by: MOD,
+    shape: { ...SHAPE, allowedActions: ['create_channel'] },
+  });
+  check('a switched-off action is still refused', off.kind === 'refused', off.kind);
+}
+
 console.log(failed === 0 ? '\ncommand mode plans as written.' : `\n${failed} check(s) failed.`);
 if (failed > 0) process.exitCode = 1;

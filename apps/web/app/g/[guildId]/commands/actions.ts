@@ -50,6 +50,17 @@ export async function planIt(_prev: CommandState, form: FormData): Promise<Comma
   } catch {
     return { kind: 'error', error: 'Could not work that out just now. Try again.', id: Date.now() };
   }
+  // A greeting typed into the box is not a command, and not something to write
+  // down either. On this page it is worth saying so plainly: the box is for
+  // changes, and a question belongs in the test chat.
+  if (plan.kind === 'not_a_command') {
+    return {
+      kind: 'refused',
+      because: `${plan.because} This box is for changing the server; ask it questions on the test page.`,
+      id: Date.now(),
+    };
+  }
+
   const commandId = await recordCommand({ guildId, by, request, plan });
 
   if (plan.kind === 'refused') return { kind: 'refused', because: plan.because, id: Date.now() };
