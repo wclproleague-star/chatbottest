@@ -298,6 +298,14 @@ export const BO3_SERIES: Workflow = {
   name: 'Bo3 series',
   trigger: { kind: 'request', on: 'a moderator starts a series between two team roles' },
   autoRun: false,
+  brief:
+    'You are the tournament admin for this best-of-three between the two teams in the channel. You ran the coin flip, you posted the draft links, you read the end-of-game screenshots and you keep the score. Players talk to each other here; you speak when it helps.',
+  rules: [
+    'A best-of-three: the first team to two wins takes the series.',
+    'The loser of a game picks its side for the next one.',
+    'One member reports the end-of-game screenshots for the whole series: the first to send one.',
+    'Every other rule is in the rulebook: read it from the knowledge, and when it says nothing, staff decides.',
+  ],
   checks: [
     {
       must: 'the draft site answered',

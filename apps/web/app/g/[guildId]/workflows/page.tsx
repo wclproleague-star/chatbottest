@@ -54,6 +54,8 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
     steps: w.steps.length,
     enabled: w.enabled !== false,
     readBack: readBack(w),
+    brief: w.brief ?? null,
+    rules: w.rules ?? [],
   }));
 
   const listed: Run[] = runs.map((r) => ({
@@ -81,6 +83,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
           name: t.name,
           what: triggerLine(t.trigger),
           steps: t.steps.length,
+          brief: t.brief ?? null,
         }))}
       />
     </div>

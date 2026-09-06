@@ -21,6 +21,7 @@
     "purge": "tsx src/purge.ts",
     "eval:db": "tsx src/eval-db.ts",
     "eval:workflow": "tsx src/eval-workflow.ts",
+    "eval:keeper": "tsx src/eval-keeper.ts",
     "eval:command": "tsx src/eval-command.ts"
   },
   "devDependencies": {

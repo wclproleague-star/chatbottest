@@ -156,6 +156,8 @@ function WorkflowsPreview() {
             trigger: 'Runs every Thursday at 18:00',
             steps: 6,
             enabled: true,
+            brief: null,
+            rules: [],
             readBack: [
               'Post (channel #match-info, text Two matches tonight)',
               'Ask either captain: "Ready?" — Ready or Not yet',
@@ -171,6 +173,8 @@ function WorkflowsPreview() {
             trigger: 'Runs every Monday at 09:00',
             steps: 2,
             enabled: false,
+            brief: null,
+            rules: [],
             readBack: ['Post (channel #announcements, text This week)'],
           },
         ]}

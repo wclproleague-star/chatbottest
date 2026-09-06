@@ -289,6 +289,8 @@ export type Database = {
           trigger: Json;
           steps: Json;
           checks: Json;
+          brief: string | null;
+          rules: Json;
           enabled: boolean;
           auto_run: boolean;
           created_by: string | null;
@@ -302,6 +304,8 @@ export type Database = {
           trigger?: Json;
           steps?: Json;
           checks?: Json;
+          brief?: string | null;
+          rules?: Json;
           enabled?: boolean;
           auto_run?: boolean;
           created_by?: string | null;
@@ -313,6 +317,8 @@ export type Database = {
           trigger?: Json;
           steps?: Json;
           checks?: Json;
+          brief?: string | null;
+          rules?: Json;
           enabled?: boolean;
           auto_run?: boolean;
           last_run?: string | null;

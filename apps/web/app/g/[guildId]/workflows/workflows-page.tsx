@@ -20,6 +20,10 @@ export type Listed = {
   steps: number;
   enabled: boolean;
   readBack: string[];
+  /** What Kalvard is in the channel this runs in. */
+  brief: string | null;
+  /** The rules the run enforces. */
+  rules: string[];
 };
 
 export type Run = {
@@ -45,7 +49,7 @@ export function Workflows({
   /** A routine this server already keeps by hand, when there is one. */
   noticed?: string | null;
   /** The shipped routines this server has not taken yet. */
-  templates: { name: string; what: string; steps: number }[];
+  templates: { name: string; what: string; steps: number; brief?: string | null }[];
 }) {
   return (
     <div className="mt-10">
@@ -185,6 +189,14 @@ function Kept({ guildId, workflows }: { guildId: string; workflows: Listed[] }) 
                   ariaLabel={w.name}
                 />
               </div>
+              {w.brief && <p className="text-ink-soft mt-3 text-[13px]">{w.brief}</p>}
+              {w.rules.length > 0 && (
+                <ul className="text-ink-soft mt-2 space-y-1 text-[13px]">
+                  {w.rules.map((rule, i) => (
+                    <li key={i}>Rule: {rule}</li>
+                  ))}
+                </ul>
+              )}
               <ol className="text-ink-soft mt-3 space-y-1 text-[13px]">
                 {w.readBack.slice(0, 4).map((line, i) => (
                   <li key={i} className="truncate whitespace-pre">
@@ -221,7 +233,7 @@ function Adopt({
   templates,
 }: {
   guildId: string;
-  templates: { name: string; what: string; steps: number }[];
+  templates: { name: string; what: string; steps: number; brief?: string | null }[];
 }) {
   const [taken, adopt, adopting] = useActionState<DraftState, FormData>(adoptTemplate, null);
   return (

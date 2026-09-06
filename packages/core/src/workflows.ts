@@ -93,6 +93,10 @@ export type Workflow = {
   trigger: { kind: 'schedule' | 'request' | 'event'; when?: string; on?: string };
   steps: Step[];
   checks?: { must: string; otherwise: string }[];
+  /** What Kalvard is in the channel this runs in, for the keeper. */
+  brief?: string;
+  /** The rules this run enforces, one per line, for the keeper. */
+  rules?: string[];
   autoRun?: boolean;
   /** Switched off rather than deleted. */
   enabled?: boolean;
@@ -1004,7 +1008,7 @@ export async function pausedRuns(
 export async function listWorkflows(guildId: string): Promise<Workflow[]> {
   const { data, error } = await serviceClient()
     .from('workflows')
-    .select('id, name, trigger, steps, checks, enabled, auto_run')
+    .select('id, name, trigger, steps, checks, enabled, auto_run, brief, rules')
     .eq('guild_id', guildId)
     .order('created_at', { ascending: false });
   if (error) {
@@ -1017,7 +1021,7 @@ export async function listWorkflows(guildId: string): Promise<Workflow[]> {
 export async function getWorkflow(guildId: string, id: string): Promise<Workflow | null> {
   const { data } = await serviceClient()
     .from('workflows')
-    .select('id, name, trigger, steps, checks, enabled, auto_run')
+    .select('id, name, trigger, steps, checks, enabled, auto_run, brief, rules')
     .eq('guild_id', guildId)
     .eq('id', id)
     .maybeSingle();
@@ -1039,6 +1043,8 @@ export async function saveWorkflow(input: {
     trigger: input.workflow.trigger as unknown as Json,
     steps: input.workflow.steps as unknown as Json,
     checks: (input.workflow.checks ?? []) as unknown as Json,
+    brief: input.workflow.brief ?? null,
+    rules: (input.workflow.rules ?? []) as unknown as Json,
     auto_run: input.workflow.autoRun ?? false,
     created_by: input.createdBy ?? null,
   };
@@ -1114,6 +1120,8 @@ function fromRow(row: {
   checks: unknown;
   enabled?: boolean;
   auto_run?: boolean;
+  brief?: string | null;
+  rules?: unknown;
 }): Workflow {
   return {
     id: row.id,
@@ -1121,6 +1129,8 @@ function fromRow(row: {
     trigger: (row.trigger ?? { kind: 'request' }) as Workflow['trigger'],
     steps: (row.steps ?? []) as Step[],
     checks: (row.checks ?? []) as Workflow['checks'],
+    brief: row.brief ?? undefined,
+    rules: Array.isArray(row.rules) ? (row.rules as unknown[]).map(String) : [],
     autoRun: Boolean(row.auto_run),
     enabled: row.enabled !== false,
   };

@@ -21,6 +21,9 @@ import {
 import type { ButtonInteraction, Client, Guild, Message, TextChannel } from 'discord.js';
 import {
   BO3_SERIES,
+  getWorkflow,
+  keep,
+  memoryOf,
   parseSources,
   pausedRuns,
   readEndScreen,
@@ -179,9 +182,119 @@ export async function deliverMessage(message: Message): Promise<boolean> {
       .map((a) => a.url),
     messageId: message.id,
   };
-  return deliver(guild, runs, event, async (say) => {
+  const taken = await deliver(guild, runs, event, async (say) => {
     await message.reply(say).catch(() => undefined);
   });
+  if (taken) return true;
+
+  // Not what the run was waiting for, but said in its channel: the keeper
+  // reads it as the admin at the table would, and mostly says nothing.
+  return keepChannel(message, runs[0]!);
+}
+
+/**
+ * Kalvard as the admin of a channel where a run is alive: every message is
+ * read, few are answered, and only a moderator's word moves the run.
+ */
+async function keepChannel(
+  message: Message,
+  run: { id: string; state: RunState },
+): Promise<boolean> {
+  const guild = message.guild;
+  if (!guild || !message.client.user) return false;
+  const workflow = run.state.workflowId
+    ? await getWorkflow(guild.id, run.state.workflowId).catch(() => null)
+    : null;
+  const brief = workflow?.brief ?? BO3_SERIES.brief ?? '';
+  const rules = workflow?.rules?.length ? workflow.rules : (BO3_SERIES.rules ?? []);
+
+  const { data: settingsRow } = await serviceClient()
+    .from('guild_settings')
+    .select('bot_name, mod_role_id, language')
+    .eq('guild_id', guild.id)
+    .maybeSingle();
+  const modRoleId = settingsRow?.mod_role_id ?? null;
+  const isStaff =
+    guild.ownerId === message.author.id ||
+    (modRoleId ? (message.member?.roles.cache.has(modRoleId) ?? false) : false);
+  const mentionsBot = message.mentions.users.has(message.client.user.id);
+
+  // The rulebook, when the message could be about it.
+  const knowledge = await searchKnowledge(guild.id, message.content, 0.45)
+    .then((found) => found.slice(0, 3).map((c) => c.content.slice(0, 400)))
+    .catch(() => []);
+
+  const recentMessages = await message.channel.messages
+    .fetch({ limit: 7, before: message.id })
+    .catch(() => null);
+  const recent = [...(recentMessages?.values() ?? [])]
+    .reverse()
+    .map((m) => ({
+      who: m.author.displayName,
+      text: m.content.slice(0, 300),
+      isBot: m.author.bot,
+    }));
+
+  const keeperState = (run.state.variables._keeper ?? {}) as {
+    lastSaid?: { text: string; at: string } | null;
+  };
+  const wait = run.state.wait;
+  const decision = await keep({
+    botName: settingsRow?.bot_name || 'Kalvard',
+    brief,
+    rules,
+    memory: memoryOf(run.state.variables),
+    waiting: wait
+      ? `${wait.what} (until ${new Date(wait.deadline).toISOString().slice(11, 16)} UTC)`
+      : null,
+    knowledge,
+    recent,
+    message: { who: message.author.displayName, text: message.content, isStaff, mentionsBot },
+    lastSaid: keeperState.lastSaid ?? null,
+    language: settingsRow?.language ?? undefined,
+  });
+
+  if (decision.decision === 'ignore') return false;
+
+  let reply = decision.reply;
+  if (decision.decision === 'escalate') {
+    const mods = modRoleId ? `<@&${modRoleId}>` : 'the moderators';
+    reply = reply.includes(mods) ? reply : `${reply} ${mods}`;
+  }
+  if (decision.decision === 'act') {
+    // Only a moderator gets here (the guard saw to that): time granted moves
+    // the deadline, a fact is kept for the rest of the run.
+    if (decision.extendDeadlineMinutes > 0 && run.state.wait) {
+      const deadline = new Date(run.state.wait.deadline);
+      run.state.wait.deadline = new Date(
+        deadline.getTime() + decision.extendDeadlineMinutes * 60_000,
+      ).toISOString();
+    }
+    if (decision.remember) {
+      const notes = Array.isArray(run.state.variables._notes)
+        ? (run.state.variables._notes as unknown[])
+        : [];
+      run.state.variables._notes = [...notes, decision.remember].slice(-10);
+    }
+  }
+  if (reply) {
+    await message
+      .reply({
+        content: reply.slice(0, 2000),
+        allowedMentions: { parse: [], roles: modRoleId ? [modRoleId] : [], repliedUser: false },
+      })
+      .catch(() => undefined);
+    run.state.variables._keeper = { lastSaid: { text: reply, at: new Date().toISOString() } };
+  }
+  await saveRun(run.id, run.state);
+  await logEvent(guild.id, 'action', {
+    action: { type: 'keeper', decision: decision.decision },
+    runId: run.id,
+    userId: message.author.id,
+    why: decision.why,
+    extendedMinutes: decision.extendDeadlineMinutes || undefined,
+  });
+  return Boolean(reply);
 }
 
 /** Somebody clicked a workflow's button. */
