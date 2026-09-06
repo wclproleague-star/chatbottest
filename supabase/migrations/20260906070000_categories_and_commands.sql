@@ -1,5 +1,5 @@
 -- Command mode: an owner or moderator says what they want in plain language,
--- Kalvard turns it into a plan, and nothing happens until they confirm it.
+-- Sentry turns it into a plan, and nothing happens until they confirm it.
 --
 -- The plan is stored with the person who asked and what actually ran, because
 -- a command that changes a server has to be answerable for afterwards.

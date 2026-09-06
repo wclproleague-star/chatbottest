@@ -1,4 +1,4 @@
--- Members ask Kalvard for things it does not do (creating channels, moderating,
+-- Members ask Sentry for things it does not do (creating channels, moderating,
 -- looking something up live). The owner should be able to see what is being
 -- asked for, so each one is recorded rather than only refused in the channel.
 
