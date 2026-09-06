@@ -1,5 +1,5 @@
 import { serviceClient } from '@sentrybot/core';
-import { Panel } from '@sentrybot/ui';
+import { Section } from '@sentrybot/ui';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { formatDate } from '@/lib/format';
 import { requireMember } from '@/lib/guild';
@@ -9,15 +9,44 @@ import { Commands } from './commands-form';
 // has been asked for before and what came of it, because a command that
 // changed the server has to be answerable for afterwards.
 
+/** One example per action a server has switched on, so nobody starts at a blank box. */
+const EXAMPLES: Record<string, string> = {
+  create_channel: 'crée un channel #finale-wcl dans la catégorie Matchs',
+  allow_roles: 'donne accès à #finale-wcl aux rôles Joueur et Caster',
+  set_private: 'passe #finale-wcl en privé',
+  post_message: 'poste dans #annonces que le check-in ouvre à 17h',
+  pin_message: 'épingle le dernier message de #annonces',
+  assign_role: 'donne le rôle Joueur à tous ceux du roster Fast Forward',
+  archive_channel: 'archive #finale-wcl',
+};
+
+const FALLBACK = [
+  'crée un channel #finale-wcl et mets les rôles Joueur et Caster dedans',
+  'poste dans #annonces que le check-in ouvre à 17h',
+  'archive #vieux-matchs',
+  'épingle le règlement dans #général',
+];
+
 export default async function Page({ params }: { params: Promise<{ guildId: string }> }) {
   const { guildId } = await params;
   await requireMember(guildId);
-  const { data: history } = await serviceClient()
-    .from('commands')
-    .select('id, request, asked_by_name, status, plan, ran, created_at')
-    .eq('guild_id', guildId)
-    .order('created_at', { ascending: false })
-    .limit(20);
+  const db = serviceClient();
+
+  const [{ data: history }, { data: settings }] = await Promise.all([
+    db
+      .from('commands')
+      .select('id, request, asked_by_name, status, plan, ran, created_at')
+      .eq('guild_id', guildId)
+      .order('created_at', { ascending: false })
+      .limit(20),
+    db.from('guild_settings').select('allowed_actions').eq('guild_id', guildId).maybeSingle(),
+  ]);
+
+  const allowed = (settings?.allowed_actions ?? []) as string[];
+  const examples = allowed
+    .map((action) => EXAMPLES[action])
+    .filter((line): line is string => Boolean(line));
+  const shown = [...examples, ...FALLBACK].slice(0, 4);
 
   return (
     <div>
@@ -25,43 +54,48 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
         title="Commands"
         lede="Tell Sentry what to change. It shows you the plan first, and nothing happens until you confirm."
       />
-      <Commands guildId={guildId} />
+      <Commands guildId={guildId} examples={shown} />
 
       {(history ?? []).length > 0 && (
-        <section className="mt-16 max-w-[60ch]">
-          <h2 className="text-ui-sm text-ink-soft">What has been asked for</h2>
-          <Panel className="divide-hairline mt-3 divide-y p-0">
-            {(history ?? []).map((row) => {
-              const ran = (row.ran ?? []) as { sentence: string; ok: boolean; detail: string }[];
-              const planned = (row.plan ?? []) as { sentence: string }[];
-              return (
-                <div key={row.id} className="p-5">
-                  <p className="text-thread text-ink">{row.request}</p>
-                  <p className="text-ui-sm text-ink-soft mt-1">
-                    {row.asked_by_name ?? 'somebody'} · {formatDate(row.created_at)} · {row.status}
-                  </p>
-                  {ran.length > 0 ? (
+        <div className="mt-8">
+          <Section heading="What has been asked for">
+            <ul className="divide-hairline -my-4 divide-y">
+              {(history ?? []).map((row) => {
+                const ran = (row.ran ?? []) as { ok: boolean; detail: string }[];
+                const planned = (row.plan ?? []) as { sentence: string }[];
+                const lines: string[] =
+                  ran.length > 0
+                    ? ran.map((step) => (step.ok ? step.detail : `stopped: ${step.detail}`))
+                    : planned.map((step) => step.sentence);
+                const steps = lines.length;
+                return (
+                  <li key={row.id} className="py-4">
+                    <p className="text-thread text-ink">{row.request}</p>
+                    <p className="text-ui-sm text-ink-soft mt-1">
+                      {outcome(row.status, ran.length > 0)} · {steps}{' '}
+                      {steps === 1 ? 'step' : 'steps'} · {row.asked_by_name ?? 'somebody'} ·{' '}
+                      {formatDate(row.created_at)}
+                    </p>
                     <ul className="text-ui-sm text-ink-soft mt-2 space-y-1">
-                      {ran.map((step, i) => (
-                        <li key={i}>
-                          {step.ok ? '' : 'stopped: '}
-                          {step.detail}
-                        </li>
+                      {lines.map((line, i) => (
+                        <li key={i}>{line}</li>
                       ))}
                     </ul>
-                  ) : (
-                    <ul className="text-ui-sm text-ink-soft mt-2 space-y-1">
-                      {planned.map((step, i) => (
-                        <li key={i}>{step.sentence}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
-          </Panel>
-        </section>
+                  </li>
+                );
+              })}
+            </ul>
+          </Section>
+        </div>
       )}
     </div>
   );
+}
+
+/** What became of it, in one word rather than a status name. */
+function outcome(status: string, hasRun: boolean): string {
+  if (hasRun) return 'Ran';
+  if (status === 'cancelled') return 'Cancelled';
+  if (status === 'planned') return 'Waiting on the bot';
+  return 'Not run';
 }

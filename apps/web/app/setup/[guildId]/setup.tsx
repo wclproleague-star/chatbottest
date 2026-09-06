@@ -139,13 +139,11 @@ export function Setup({
       {(step === 'chat' || step === 'form') && (
         <div className="mx-auto grid max-w-[1120px] gap-16 px-6 py-16 lg:grid-cols-[1fr_320px] lg:px-12">
           <div className="min-w-0">
-            <h1 className="display text-ink" style={{ ['--display-size' as string]: '32px' }}>
-              {AREAS[Math.min(done, AREAS.length - 1)]?.label}
-            </h1>
-            <p className="text-body text-ink-soft mt-2 max-w-[52ch]">
-              {done} of {AREAS.length} decided. Nothing reaches your server until you say so.
+            <p className="text-ui-sm text-ink-soft">
+              {AREAS[Math.min(done, AREAS.length - 1)]?.label} · {done} of {AREAS.length} decided ·
+              nothing reaches your server until you say so
             </p>
-            <div className="mt-10">
+            <div className="mt-6">
               {step === 'chat' ? (
                 <Chat
                   guildId={guildId}
@@ -188,7 +186,7 @@ export function Setup({
                     <dt className="text-ui-sm text-ink-soft">{area.label}</dt>
                     <dd
                       className={cx(
-                        'text-ui mt-0.5 truncate',
+                        'text-ui mt-0.5 [overflow-wrap:anywhere]',
                         filled(config, area.key) ? 'text-ink' : 'border-hairline border-b',
                       )}
                     >
@@ -388,7 +386,14 @@ function Chat({
           turn.role === 'model' ? (
             <p
               key={i}
-              className="text-thread text-ink border-green max-w-full border-l-2 pl-4 lg:max-w-[60ch]"
+              className={cx(
+                'text-ink border-green max-w-full border-l-2 pl-4 lg:max-w-[60ch]',
+                // The last thing Sentry said is the question you are answering,
+                // so it is the biggest thing on the screen.
+                i === turns.length - 1 && !pending
+                  ? 'display [--display-size:26px]'
+                  : 'text-thread',
+              )}
             >
               {turn.text}
             </p>

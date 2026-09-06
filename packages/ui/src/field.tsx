@@ -5,17 +5,52 @@ import { cx } from './cx';
  * Form pieces for the dashboard. Labels above in ink soft 14px; fields 44px
  * tall, radius 8px, hairline border, green focus ring; help text only when
  * needed, ink soft. Errors are inline, ink, one sentence.
+ *
+ * A field is as wide as what goes in it, never as wide as the column. A name
+ * is three words, a number is three digits, and a box stretched to the full
+ * width of the page is a lie about how much you are expected to type.
  */
 
-const fieldClass =
-  'text-ui text-ink placeholder:text-ink-soft/70 border-hairline focus-visible:outline-green w-full rounded-lg border bg-panel px-3 outline-offset-2 focus-visible:outline-2 disabled:opacity-40';
+/** How wide a field is, by what it holds. */
+export type FieldWidth = 'short' | 'number' | 'select' | 'full';
 
-export function Input({ className, ...props }: ComponentProps<'input'>) {
-  return <input className={cx(fieldClass, 'h-11', className)} {...props} />;
+const WIDTH: Record<FieldWidth, string> = {
+  short: 'w-full max-w-[320px]',
+  number: 'w-full max-w-[120px]',
+  select: 'w-full max-w-[420px]',
+  full: 'w-full',
+};
+
+const fieldClass =
+  'text-ui text-ink placeholder:text-ink-soft/70 border-hairline focus-visible:outline-green rounded-lg border bg-panel px-3 outline-offset-2 focus-visible:outline-2 disabled:opacity-40';
+
+export function Input({
+  className,
+  width = 'short',
+  ...props
+}: ComponentProps<'input'> & { width?: FieldWidth }) {
+  return <input className={cx(fieldClass, WIDTH[width], 'h-11', className)} {...props} />;
 }
 
-export function Textarea({ className, ...props }: ComponentProps<'textarea'>) {
-  return <textarea className={cx(fieldClass, 'min-h-44 resize-y py-3', className)} {...props} />;
+export function Select({
+  className,
+  width = 'select',
+  ...props
+}: ComponentProps<'select'> & { width?: FieldWidth }) {
+  return <select className={cx(fieldClass, WIDTH[width], 'h-11', className)} {...props} />;
+}
+
+export function Textarea({
+  className,
+  width = 'full',
+  ...props
+}: ComponentProps<'textarea'> & { width?: FieldWidth }) {
+  return (
+    <textarea
+      className={cx(fieldClass, WIDTH[width], 'min-h-24 resize-y py-3', className)}
+      {...props}
+    />
+  );
 }
 
 export function Field({

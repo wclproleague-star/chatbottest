@@ -1,14 +1,19 @@
 'use client';
 
-// The inbox row, which is the core component of the dashboard: the question,
-// who asked and where, what Sentry almost knew, and the box you answer in.
+// The inbox row, which is the core component of the dashboard.
 //
-// What it almost knew is collapsed by default and opens to the actual chunks
-// it retrieved. A moderator who can see that can tell the difference between
-// "we never wrote this down" and "we wrote it down badly", which is the
-// difference between adding knowledge and fixing it.
+// Closed, a row is what you need to triage: the question, who asked and where,
+// and one line of what Sentry said. A moderator with twenty of these wants to
+// see twenty of them, not scroll past twenty reply boxes. Clicking one opens
+// it in place, and only one is open at a time, so the list stays a list.
+//
+// Open, it shows the chunks Sentry actually retrieved as a block of its own,
+// not a grey link. A moderator who can see that can tell the difference
+// between "we never wrote this down" and "we wrote it down badly", which is
+// the difference between adding knowledge and fixing it. The reply box is one
+// line that grows, because most answers are one sentence.
 
-import { Button, Panel, Textarea, cx } from '@sentrybot/ui';
+import { Button, ExpandingRow, GrowingInput, Panel, RowBlock, cx } from '@sentrybot/ui';
 import { useActionState, useState } from 'react';
 import { answerQuestion, dismissQuestion } from './actions';
 import type { InboxState } from './actions';
@@ -21,6 +26,7 @@ export type Waiting = {
   draft: string;
   almostKnew: string[];
   askedAt: string;
+  link: string | null;
 };
 
 export type Answered = {
@@ -30,23 +36,29 @@ export type Answered = {
   answer: string;
   answeredBy: string;
   answeredAt: string;
+  link: string | null;
 };
 
 export function Inbox({
   guildId,
   waiting,
   answered,
+  openAt,
 }: {
   guildId: string;
   waiting: Waiting[];
   answered: Answered[];
+  /** Which row starts open. Only the preview page sets it. */
+  openAt?: string;
 }) {
   const [tab, setTab] = useState<'waiting' | 'answered'>(
     waiting.length === 0 && answered.length > 0 ? 'answered' : 'waiting',
   );
+  // One at a time: opening a second closes the first.
+  const [openId, setOpenId] = useState<string | null>(openAt ?? null);
 
   return (
-    <div className="mt-10 max-w-[820px]">
+    <div className="mt-10">
       <div className="mb-6 flex gap-6">
         {(['waiting', 'answered'] as const).map((name) => (
           <button
@@ -68,30 +80,43 @@ export function Inbox({
 
       {tab === 'waiting' ? (
         waiting.length === 0 ? (
-          <p className="text-body text-ink-soft max-w-[60ch]">
+          <p className="text-body text-ink-soft">
             Nothing waiting on you. Sentry answered everything this week.
           </p>
         ) : (
           <Panel className="divide-hairline divide-y p-0">
             {waiting.map((row) => (
-              <WaitingRow key={row.id} guildId={guildId} row={row} />
+              <WaitingRow
+                key={row.id}
+                guildId={guildId}
+                row={row}
+                open={openId === row.id}
+                onToggle={() => setOpenId((id) => (id === row.id ? null : row.id))}
+              />
             ))}
           </Panel>
         )
       ) : answered.length === 0 ? (
-        <p className="text-body text-ink-soft max-w-[60ch]">
+        <p className="text-body text-ink-soft">
           Nothing answered yet. What you answer here becomes what Sentry knows.
         </p>
       ) : (
         <Panel className="divide-hairline divide-y p-0">
           {answered.map((row) => (
-            <div key={row.id} className="p-5">
-              <p className="text-thread text-ink">{row.question}</p>
-              <p className="text-ui-sm text-ink-soft mt-1">
-                {row.asker} · answered by {row.answeredBy} · {row.answeredAt}
-              </p>
-              <p className="text-thread text-ink border-green mt-3 border-l-2 pl-3">{row.answer}</p>
-            </div>
+            <ExpandingRow
+              key={row.id}
+              title={row.question}
+              meta={`${row.asker} · answered by ${row.answeredBy} · ${row.answeredAt}`}
+              preview={row.answer}
+              state="answered"
+              open={openId === row.id}
+              onToggle={() => setOpenId((id) => (id === row.id ? null : row.id))}
+              aside={<InDiscord link={row.link} />}
+            >
+              <RowBlock label="What was sent back">
+                <p className="text-thread text-ink">{row.answer}</p>
+              </RowBlock>
+            </ExpandingRow>
           ))}
         </Panel>
       )}
@@ -99,83 +124,104 @@ export function Inbox({
   );
 }
 
-function WaitingRow({ guildId, row }: { guildId: string; row: Waiting }) {
+function WaitingRow({
+  guildId,
+  row,
+  open,
+  onToggle,
+}: {
+  guildId: string;
+  row: Waiting;
+  open: boolean;
+  onToggle: () => void;
+}) {
   const [state, act, pending] = useActionState<InboxState, FormData>(answerQuestion, null);
   const [dismissState, dismiss, dismissing] = useActionState<InboxState, FormData>(
     dismissQuestion,
     null,
   );
-  const [open, setOpen] = useState(false);
   const done = state?.ok || dismissState?.ok;
 
   if (done) {
     return (
-      <div className="p-5">
+      <div className="border-green border-l-2 p-5">
         <p className="text-thread text-ink-soft">{row.question}</p>
-        <p className="text-ui-sm text-ink border-green mt-2 border-l-2 pl-3">{done}</p>
+        <p className="text-ui-sm text-ink mt-2">{done}</p>
       </div>
     );
   }
 
   return (
-    <div className="border-amber border-l-2 p-5">
-      <p className="text-thread text-ink">{row.question}</p>
-      <p className="text-ui-sm text-ink-soft mt-1">
-        {row.asker} · {row.channel} · {row.askedAt}
-      </p>
+    <ExpandingRow
+      title={row.question}
+      meta={`${row.asker} · ${row.channel} · ${row.askedAt}`}
+      preview={row.draft ? `Sentry said: ${row.draft}` : undefined}
+      state="waiting"
+      open={open}
+      onToggle={onToggle}
+      aside={<InDiscord link={row.link} />}
+    >
+      <div className="space-y-4">
+        {row.draft && (
+          <RowBlock label="What Sentry said">
+            <p className="text-thread text-ink">{row.draft}</p>
+          </RowBlock>
+        )}
 
-      {row.draft && (
-        <p className="text-thread text-ink-soft mt-3">
-          <span className="text-ui-sm text-ink-soft block">What Sentry said</span>
-          {row.draft}
-        </p>
-      )}
+        <RowBlock label={`What it almost knew (${row.almostKnew.length})`}>
+          {row.almostKnew.length === 0 ? (
+            <p className="text-ui-sm text-ink-soft">Nothing in the knowledge came close to this.</p>
+          ) : (
+            <ul className="text-ui-sm text-ink-soft space-y-2">
+              {row.almostKnew.map((chunk, i) => (
+                <li key={i} className="border-hairline border-l pl-3">
+                  {chunk}
+                </li>
+              ))}
+            </ul>
+          )}
+        </RowBlock>
 
-      <button
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-expanded={open}
-        className="text-ui-sm text-ink-soft hover:text-ink mt-3 block underline underline-offset-[3px]"
-      >
-        {open ? 'Hide what it almost knew' : `What it almost knew (${row.almostKnew.length})`}
-      </button>
-      {open && (
-        <ul className="text-ui-sm text-ink-soft mt-2 space-y-2">
-          {row.almostKnew.length === 0 && <li>Nothing in the knowledge came close to this.</li>}
-          {row.almostKnew.map((chunk, i) => (
-            <li key={i} className="border-hairline border-l pl-3">
-              {chunk}
-            </li>
-          ))}
-        </ul>
-      )}
+        <form action={act}>
+          <input type="hidden" name="guild_id" value={guildId} />
+          <input type="hidden" name="question_id" value={row.id} />
+          <GrowingInput
+            name="answer"
+            maxLength={900}
+            placeholder="Answer them, in a sentence. Sentry posts it and keeps it."
+            aria-label={`Answer: ${row.question}`}
+          />
+          {state?.error && <p className="text-ui-sm text-ink mt-2">{state.error}</p>}
+          <div className="mt-3 flex items-center gap-4">
+            <Button type="submit" disabled={pending || dismissing}>
+              {pending ? 'Sending' : 'Answer'}
+            </Button>
+            <button
+              type="submit"
+              formAction={dismiss}
+              disabled={pending || dismissing}
+              className="text-ui text-ink-soft hover:text-ink underline underline-offset-[3px]"
+            >
+              {dismissing ? 'Dismissing' : 'Dismiss'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </ExpandingRow>
+  );
+}
 
-      <form action={act} className="mt-4">
-        <input type="hidden" name="guild_id" value={guildId} />
-        <input type="hidden" name="question_id" value={row.id} />
-        <Textarea
-          name="answer"
-          rows={3}
-          maxLength={900}
-          placeholder="Answer them, in a sentence. Sentry posts it and keeps it."
-          aria-label={`Answer: ${row.question}`}
-          className="min-h-24"
-        />
-        {state?.error && <p className="text-ui-sm text-ink mt-2">{state.error}</p>}
-        <div className="mt-3 flex items-center gap-4">
-          <Button type="submit" disabled={pending || dismissing}>
-            {pending ? 'Sending' : 'Answer'}
-          </Button>
-          <button
-            type="submit"
-            formAction={dismiss}
-            disabled={pending || dismissing}
-            className="text-ui text-ink-soft hover:text-ink underline underline-offset-[3px]"
-          >
-            {dismissing ? 'Dismissing' : 'Dismiss'}
-          </button>
-        </div>
-      </form>
-    </div>
+/** The way back to where it was actually said. */
+function InDiscord({ link }: { link: string | null }) {
+  if (!link) return null;
+  return (
+    <a
+      href={link}
+      target="_blank"
+      rel="noreferrer"
+      className="hover:text-ink underline underline-offset-[3px]"
+    >
+      In Discord
+    </a>
   );
 }

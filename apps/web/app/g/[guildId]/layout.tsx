@@ -1,4 +1,4 @@
-import { Surface } from '@sentrybot/ui';
+import { Column, Surface } from '@sentrybot/ui';
 import type { ReactNode } from 'react';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { requireMember } from '@/lib/guild';
@@ -18,7 +18,9 @@ export default async function GuildLayout({
   return (
     <Surface surface="paper" className="min-h-screen lg:flex">
       <Sidebar guildId={guildId} guildName={guild.name ?? guildId} />
-      <main className="min-w-0 flex-1 px-6 pb-24 pt-10 lg:px-12">{children}</main>
+      <main className="min-w-0 flex-1 px-6 pb-24 pt-10 lg:px-12">
+        <Column>{children}</Column>
+      </main>
     </Surface>
   );
 }

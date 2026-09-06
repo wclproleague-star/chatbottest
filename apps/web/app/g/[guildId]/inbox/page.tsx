@@ -19,14 +19,16 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
   const [{ data: pending }, { data: answered }, { data: meta }] = await Promise.all([
     db
       .from('questions')
-      .select('id, question, asker_name, channel_id, bot_draft, top_chunk_ids, created_at')
+      .select(
+        'id, question, asker_name, channel_id, message_id, bot_draft, top_chunk_ids, created_at',
+      )
       .eq('guild_id', guildId)
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(MAX_ROWS),
     db
       .from('questions')
-      .select('id, question, asker_name, answer, answered_by, answered_at')
+      .select('id, question, asker_name, channel_id, message_id, answer, answered_by, answered_at')
       .eq('guild_id', guildId)
       .eq('status', 'answered')
       .order('answered_at', { ascending: false })
@@ -51,6 +53,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
     question: q.question,
     asker: q.asker_name ?? 'a member',
     channel: q.channel_id ? `#${channels.get(q.channel_id) ?? 'a channel'}` : 'a channel',
+    link: link(guildId, q.channel_id, q.message_id),
     draft: q.bot_draft ?? '',
     almostKnew: (q.top_chunk_ids ?? [])
       .map((id) => byId.get(id))
@@ -66,6 +69,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
     answer: q.answer ?? '',
     answeredBy: q.answered_by ?? 'a moderator',
     answeredAt: q.answered_at ? formatDate(q.answered_at) : '',
+    link: link(guildId, q.channel_id, q.message_id),
   }));
 
   return (
@@ -77,4 +81,10 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
       <Inbox guildId={guildId} waiting={waiting} answered={done} />
     </div>
   );
+}
+
+/** Where the member actually asked it, so a moderator can go and look. */
+function link(guildId: string, channelId: string | null, messageId: string | null): string | null {
+  if (!channelId || !messageId) return null;
+  return `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
 }

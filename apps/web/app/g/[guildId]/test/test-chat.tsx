@@ -33,6 +33,9 @@ export function TestChat({ guildId, botName }: { guildId: string; botName: strin
   const rehearsal = useRef(`${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
 
   useEffect(() => {
+    // Only once there is a conversation. On an empty chat this would drag the
+    // page down to a box nobody has typed in yet.
+    if (turns.length === 0) return;
     end.current?.scrollIntoView({ block: 'nearest' });
   }, [turns.length, pending]);
 

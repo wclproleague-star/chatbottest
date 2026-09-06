@@ -1,7 +1,7 @@
 'use client';
 
 import { Surface } from '@sentrybot/ui';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Beacon } from '@/components/beacon/beacon';
 import type { Light } from '@/components/sky/beacon';
 
@@ -10,6 +10,14 @@ import type { Light } from '@/components/sky/beacon';
 export default function Page() {
   const [light, setLight] = useState<Light>('off');
   const [progress, setProgress] = useState(1);
+  // The state can also come from the address, so a screenshot taken by a
+  // headless browser can be in any of them without a click.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const asked = params.get('light');
+    if (asked) setLight(asked as Light);
+    if (params.get('p')) setProgress(Number(params.get('p')));
+  }, []);
   const draws = useRef<((now: number) => void)[]>([]);
   const [bench, setBench] = useState('');
 

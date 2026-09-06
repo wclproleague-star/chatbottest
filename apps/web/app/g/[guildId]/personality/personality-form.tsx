@@ -1,13 +1,18 @@
 'use client';
 
-// How the bot talks, and how careful it is.
+// How the bot talks, and how careful it is: two subjects, two panels.
+//
+// The line in its voice is not a field. Nobody sits down to write one, and a
+// box asking for one gets an empty box; what it is for is to hear the persona
+// you just wrote, so it is shown as a quoted line Sentry wrote, with the way
+// to ask for three more underneath it.
 //
 // The form carries the version it was opened with, so two people editing at
 // once find out rather than overwriting each other. Below it, the same dry-run
 // test chat as the Test page: a change of voice is something you hear, not
 // something you imagine.
 
-import { Button, Field, Input, Panel, Textarea, cx } from '@sentrybot/ui';
+import { Field, FormSection, Input, Panel, Section, Textarea, cx } from '@sentrybot/ui';
 import { useActionState, useState } from 'react';
 import { TestChat } from '../test/test-chat';
 import { regenerateTones, savePersonality } from './actions';
@@ -56,11 +61,39 @@ export function PersonalityForm({
     setSamples('samples' in outcome ? outcome.samples : []);
   }
 
+  const note = state?.error ? (
+    <p className="text-ui text-ink mr-auto">{state.error}</p>
+  ) : state?.ok ? (
+    <p className="text-ui text-ink-soft mr-auto">{state.ok}</p>
+  ) : null;
+
+  const hidden = (
+    <>
+      <input type="hidden" name="guild_id" value={guildId} />
+      <input type="hidden" name="based_on" value={basedOn ?? ''} />
+    </>
+  );
+
   return (
-    <div className="mt-10 max-w-[880px]">
-      <form action={act} className="max-w-[60ch] space-y-6">
-        <input type="hidden" name="guild_id" value={guildId} />
-        <input type="hidden" name="based_on" value={basedOn ?? ''} />
+    <div className="mt-10 space-y-8">
+      <FormSection
+        heading="Its voice"
+        action={act}
+        pending={pending}
+        note={note}
+        changed={tone !== values.toneSample}
+      >
+        {hidden}
+        {/* What the other panel holds, so a save here writes the whole row. */}
+        <input type="hidden" name="forbidden_topics" value={values.forbidden.join('\n')} />
+        <input type="hidden" name="max_reply_chars" value={values.maxReplyChars} />
+        <input type="hidden" name="confidence_threshold" value={values.threshold} />
+        {values.allowedActions.map((a) => (
+          <input key={a} type="hidden" name="allowed_actions" value={a} />
+        ))}
+        {values.selfServeRoleIds.map((r) => (
+          <input key={r} type="hidden" name="self_serve_role_ids" value={r} />
+        ))}
 
         <Field label="What is it called?">
           <Input name="bot_name" defaultValue={values.botName} maxLength={60} />
@@ -78,15 +111,27 @@ export function PersonalityForm({
           />
         </Field>
 
-        <Field label="One line in its voice">
-          <Input name="tone_sample" value={tone} onChange={(e) => setTone(e.target.value)} />
+        <Field label="What language should it reply in?" help="Leave empty to follow each member.">
+          <Input name="language" defaultValue={values.language} />
         </Field>
+
+        <input type="hidden" name="tone_sample" value={tone} />
         <div>
+          <span className="text-ui-sm text-ink-soft block">How that sounds</span>
+          {tone ? (
+            <blockquote className="text-thread text-ink border-green mt-2 border-l-2 pl-3">
+              {tone}
+            </blockquote>
+          ) : (
+            <p className="text-ui-sm text-ink-soft mt-2">
+              Nothing yet. Ask for three and pick the one that sounds like your server.
+            </p>
+          )}
           <button
             type="button"
             onClick={() => void newSamples()}
             disabled={thinking}
-            className="text-ui-sm text-ink-soft hover:text-ink underline underline-offset-[3px] disabled:opacity-40"
+            className="text-ui-sm text-ink-soft hover:text-ink mt-3 underline underline-offset-[3px] disabled:opacity-40"
           >
             {thinking ? 'Writing three' : 'Write me three'}
           </button>
@@ -94,14 +139,14 @@ export function PersonalityForm({
             <p className="text-ui-sm text-ink-soft mt-2">Could not think of any just now.</p>
           )}
           {samples && samples.length > 0 && (
-            <ul className="mt-3 flex flex-wrap gap-2">
+            <ul className="mt-3 space-y-2">
               {samples.map((s) => (
                 <li key={s}>
                   <button
                     type="button"
                     onClick={() => setTone(s)}
                     className={cx(
-                      'text-ui-sm h-9 rounded-full border px-4',
+                      'text-ui-sm block w-full rounded-lg border px-4 py-2 text-left',
                       s === tone ? 'border-ink bg-ink text-paper' : 'border-hairline text-ink',
                     )}
                   >
@@ -112,10 +157,14 @@ export function PersonalityForm({
             </ul>
           )}
         </div>
+      </FormSection>
 
-        <Field label="What language should it reply in?" help="Leave empty to follow each member.">
-          <Input name="language" defaultValue={values.language} />
-        </Field>
+      <FormSection heading="Its limits" action={act} pending={pending} note={note}>
+        {hidden}
+        <input type="hidden" name="bot_name" value={values.botName} />
+        <input type="hidden" name="persona_prompt" value={persona} />
+        <input type="hidden" name="language" value={values.language} />
+        <input type="hidden" name="tone_sample" value={tone} />
 
         <Field label="What should it leave to people?" help="One per line.">
           <Textarea name="forbidden_topics" rows={4} defaultValue={values.forbidden.join('\n')} />
@@ -125,6 +174,7 @@ export function PersonalityForm({
           <Input
             name="max_reply_chars"
             type="number"
+            width="number"
             min={200}
             max={2000}
             step={50}
@@ -142,10 +192,10 @@ export function PersonalityForm({
             step={0.05}
             value={threshold}
             onChange={(e) => setThreshold(Number(e.target.value))}
-            className="accent-ink w-full"
+            className="accent-ink w-full max-w-[420px]"
             aria-label="How sure must it be"
           />
-          <div className="text-ui-sm text-ink-soft mt-1 flex justify-between">
+          <div className="text-ui-sm text-ink-soft mt-1 flex max-w-[420px] justify-between">
             <span>Cautious</span>
             <span>Confident</span>
           </div>
@@ -192,24 +242,17 @@ export function PersonalityForm({
             </div>
           )}
         </Field>
+      </FormSection>
 
-        {state?.error && <p className="text-ui text-ink">{state.error}</p>}
-        {state?.warning && (
-          <Panel className="border-amber border-l-2 shadow-none">
-            <p className="text-ui text-ink">{state.warning}</p>
-          </Panel>
-        )}
-        {state?.ok && !state.error && <p className="text-ui text-ink-soft">{state.ok}</p>}
+      {state?.warning && (
+        <Panel className="border-amber border-l-2 shadow-none">
+          <p className="text-ui text-ink">{state.warning}</p>
+        </Panel>
+      )}
 
-        <Button type="submit" disabled={pending}>
-          {pending ? 'Saving' : 'Save changes'}
-        </Button>
-      </form>
-
-      <section className="mt-16">
-        <h2 className="text-ui-sm text-ink-soft">Hear it</h2>
+      <Section heading="Hear it" lede="The same dry run as the test page, in the voice above.">
         <TestChat guildId={guildId} botName={values.botName || 'Sentry'} />
-      </section>
+      </Section>
     </div>
   );
 }

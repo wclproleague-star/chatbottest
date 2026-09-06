@@ -7,7 +7,7 @@
 // not saved: a broken one is worse than none, since Sentry would stop saying it
 // cannot look things up and start saying nothing useful instead.
 
-import { Button, Field, Input, Panel } from '@sentrybot/ui';
+import { Button, Field, Input, Panel, Section, Select } from '@sentrybot/ui';
 import { useActionState, useState } from 'react';
 import { addSource, removeSource, trySource } from './sources';
 import type { SourceState } from './sources';
@@ -36,35 +36,28 @@ export function SourcesPanel({ guildId, sources }: { guildId: string; sources: L
   const chosen = KINDS.find((k) => k.kind === kind) ?? KINDS[0]!;
 
   return (
-    <section className="mt-16 max-w-[60ch]">
-      <h2 className="text-ui-sm text-ink-soft">What it can look up</h2>
-      <p className="text-body text-ink-soft mt-2">
-        Anything no source covers, Sentry says it cannot look up rather than guessing.
-      </p>
-
+    <Section
+      heading="What it may look up"
+      lede="Anything no source covers, Sentry says it cannot look up rather than guessing."
+    >
       {sources.length > 0 && (
-        <Panel className="divide-hairline mt-4 divide-y p-0">
+        <Panel className="divide-hairline divide-y p-0 shadow-none">
           {sources.map((source) => (
             <SourceRow key={source.id} guildId={guildId} source={source} />
           ))}
         </Panel>
       )}
 
-      <form action={add} className="mt-8 space-y-4">
+      <form action={add} className="border-hairline space-y-4 border-t pt-5">
         <input type="hidden" name="guild_id" value={guildId} />
         <Field label="What kind is it?">
-          <select
-            name="kind"
-            value={kind}
-            onChange={(e) => setKind(e.target.value)}
-            className="border-hairline text-ui text-ink bg-panel h-11 w-full rounded-lg border px-3"
-          >
+          <Select name="kind" value={kind} onChange={(e) => setKind(e.target.value)}>
             {KINDS.map((k) => (
               <option key={k.kind} value={k.kind}>
                 {k.label}
               </option>
             ))}
-          </select>
+          </Select>
         </Field>
         <Field label="What do you call it?" help="Sentry uses your words when it explains itself.">
           <Input name="name" placeholder="the league schedule" maxLength={60} />
@@ -97,11 +90,13 @@ export function SourcesPanel({ guildId, sources }: { guildId: string; sources: L
             )}
           </div>
         )}
-        <Button type="submit" disabled={adding}>
-          {adding ? 'Testing it' : 'Add and test'}
-        </Button>
+        <div className="flex justify-end">
+          <Button type="submit" disabled={adding}>
+            {adding ? 'Testing it' : 'Add and test'}
+          </Button>
+        </div>
       </form>
-    </section>
+    </Section>
   );
 }
 
@@ -152,7 +147,12 @@ function SourceRow({ guildId, source }: { guildId: string; source: Listed }) {
           <input type="hidden" name="guild_id" value={guildId} />
           <input type="hidden" name="source_id" value={source.id} />
           <div className="flex gap-3">
-            <Input name="question" placeholder="when do we play next?" aria-label="Ask it" />
+            <Input
+              name="question"
+              width="full"
+              placeholder="when do we play next?"
+              aria-label="Ask it"
+            />
             <Button type="submit" disabled={trying}>
               {trying ? 'Asking' : 'Ask it'}
             </Button>

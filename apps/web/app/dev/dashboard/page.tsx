@@ -1,4 +1,4 @@
-import { Surface } from '@sentrybot/ui';
+import { Column, Surface } from '@sentrybot/ui';
 import { Sidebar } from '@/components/dashboard/sidebar';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { Inbox } from '@/app/g/[guildId]/inbox/inbox-rows';
@@ -21,22 +21,28 @@ const ROLES = [
   { id: '12', name: 'EU' },
 ];
 
-export default async function Page({ searchParams }: { searchParams: Promise<{ p?: string }> }) {
-  const { p = 'inbox' } = await searchParams;
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ p?: string; open?: string }>;
+}) {
+  const { p = 'inbox', open } = await searchParams;
   return (
     <Surface surface="paper" className="min-h-screen lg:flex">
       <Sidebar guildId="900000000000000001" guildName="Wild Champions League" />
       <main className="min-w-0 flex-1 px-6 pb-24 pt-10 lg:px-12">
-        {p === 'inbox' && <InboxPreview />}
-        {p === 'personality' && <PersonalityPreview />}
-        {p === 'settings' && <SettingsPreview />}
-        {p === 'commands' && <CommandsPreview />}
+        <Column>
+          {p === 'inbox' && <InboxPreview openAt={open} />}
+          {p === 'personality' && <PersonalityPreview />}
+          {p === 'settings' && <SettingsPreview />}
+          {p === 'commands' && <CommandsPreview />}
+        </Column>
       </main>
     </Surface>
   );
 }
 
-function InboxPreview() {
+function InboxPreview({ openAt }: { openAt?: string }) {
   return (
     <div>
       <PageTitle
@@ -44,6 +50,7 @@ function InboxPreview() {
         lede="What Sentry could not answer. Your answer goes back to the member and becomes something it knows."
       />
       <Inbox
+        openAt={openAt}
         guildId="900000000000000001"
         waiting={[
           {
@@ -58,6 +65,7 @@ function InboxPreview() {
               'Both team captains must check in from #check-in.',
             ],
             askedAt: 'Sat 5 Sep',
+            link: 'https://discord.com/channels/1/2/3',
           },
           {
             id: 'b',
@@ -67,6 +75,7 @@ function InboxPreview() {
             draft: "I've got nothing on substitutes. @Mods, can one of you take this?",
             almostKnew: [],
             askedAt: 'Fri 4 Sep',
+            link: null,
           },
         ]}
         answered={[
@@ -77,6 +86,7 @@ function InboxPreview() {
             answer: 'Sign-ups are in #announcements, and they close on the Friday before week one.',
             answeredBy: 'Petru',
             answeredAt: 'Thu 3 Sep',
+            link: 'https://discord.com/channels/1/2/4',
           },
         ]}
       />
@@ -118,7 +128,15 @@ function CommandsPreview() {
         title="Commands"
         lede="Tell Sentry what to change. It shows you the plan first, and nothing happens until you confirm."
       />
-      <Commands guildId="900000000000000001" />
+      <Commands
+        guildId="900000000000000001"
+        examples={[
+          'crée un channel #finale-wcl dans la catégorie Matchs',
+          'donne accès à #finale-wcl aux rôles Joueur et Caster',
+          'poste dans #annonces que le check-in ouvre à 17h',
+          'archive #vieux-matchs',
+        ]}
+      />
     </div>
   );
 }

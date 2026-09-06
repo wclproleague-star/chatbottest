@@ -69,7 +69,7 @@ export function BotCard({
           return (
             <div key={field.key}>
               <dt className="text-ui-sm text-ink-soft">{field.label}</dt>
-              <dd className="text-ui mt-1 min-h-[1.4em]">
+              <dd className="text-ui mt-1 min-h-[1.4em] [overflow-wrap:anywhere]">
                 {shown ? (
                   <span className="fade-in block">{value}</span>
                 ) : (
