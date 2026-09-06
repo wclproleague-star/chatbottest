@@ -199,6 +199,7 @@ function WorkflowsPreview() {
             stoppedBecause: 'There is no channel called #resultats.',
           },
         ]}
+        noticed="You have done this on 2 separate days and always on a Thursday: create a channel, then let roles into it. Want that as a workflow?"
         templates={[
           { name: 'Tournament week', what: 'Runs every Monday at 10:00', steps: 4 },
           { name: 'Member onboarding', what: 'When a member joins', steps: 3 },

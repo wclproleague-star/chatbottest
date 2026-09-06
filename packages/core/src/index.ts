@@ -42,6 +42,8 @@ export {
 
 export { authorWorkflow, checkStep, readBack, whatChanged } from './workflow-author';
 export { isDue, lastDue, readSchedule } from './schedule';
+export { findRepeat, offer } from './repeats';
+export type { CommandRecord, Repeat } from './repeats';
 export type { Schedule } from './schedule';
 export type { Checked, Draft, RawStep, WorkflowShape } from './workflow-author';
 

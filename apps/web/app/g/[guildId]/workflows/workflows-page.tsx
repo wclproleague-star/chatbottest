@@ -8,7 +8,7 @@
 // structured form exists behind a toggle for anyone who wants it; it is never
 // what an owner is asked to check.
 
-import { Button, GrowingInput, Section, Split, Switch } from '@kalvard/ui';
+import { Button, GrowingInput, Panel, Section, Split, Switch } from '@kalvard/ui';
 import { useActionState, useState } from 'react';
 import { adoptTemplate, describeWorkflow, keepWorkflow, rehearse, toggleWorkflow } from './actions';
 import type { DraftState } from './actions';
@@ -37,10 +37,13 @@ export function Workflows({
   workflows,
   runs,
   templates,
+  noticed,
 }: {
   guildId: string;
   workflows: Listed[];
   runs: Run[];
+  /** A routine this server already keeps by hand, when there is one. */
+  noticed?: string | null;
   /** The shipped routines this server has not taken yet. */
   templates: { name: string; what: string; steps: number }[];
 }) {
@@ -49,6 +52,15 @@ export function Workflows({
       <Split
         left={
           <>
+            {noticed && (
+              <Panel className="border-amber border-l-2 shadow-none">
+                <p className="text-thread text-ink">{noticed}</p>
+                <p className="text-ink-faint mt-2 text-[13px]">
+                  Describe it below in your own words and Kalvard will read it back. Nothing is
+                  created until you say so.
+                </p>
+              </Panel>
+            )}
             <Write guildId={guildId} />
             <Kept guildId={guildId} workflows={workflows} />
           </>

@@ -19,6 +19,7 @@ import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
 import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
+import { findRepeat, offer } from './repeats';
 import { isDue, lastDue, readSchedule } from './schedule';
 import { checkStep, readBack, whatChanged } from './workflow-author';
 import type { RawStep } from './workflow-author';
@@ -467,6 +468,57 @@ console.log(['', 'when a scheduled workflow is due'].join(String.fromCharCode(10
     lastRun: '2026-08-27T16:00:05.000Z',
   });
   check('but last week does not count as this week', notYet.due === true);
+}
+
+console.log(['', 'noticing a routine somebody already keeps'].join(String.fromCharCode(10)));
+{
+  const paris = 'Europe/Paris';
+  const thursdays = [
+    { at: '2026-08-27T17:00:00Z', actions: ['create_channel', 'allow_roles'] },
+    { at: '2026-09-03T17:00:00Z', actions: ['create_channel', 'allow_roles'] },
+  ];
+  const found = findRepeat(thursdays, paris);
+  check(
+    'two days with the same pair is a routine',
+    found?.actions.length === 2,
+    JSON.stringify(found),
+  );
+  check('and it says which day it lands on', found?.weekday === 'Thursday', String(found?.weekday));
+  check(
+    'the offer is in words, not actions',
+    offer(found!).includes('create a channel, then let roles into it'),
+  );
+
+  // Twice in ten minutes is fixing a mistake, not keeping a routine.
+  const sameDay = [
+    { at: '2026-09-03T17:00:00Z', actions: ['create_channel', 'allow_roles'] },
+    { at: '2026-09-03T17:10:00Z', actions: ['create_channel', 'allow_roles'] },
+  ];
+  check('the same day twice is not a routine', findRepeat(sameDay, paris) === null);
+
+  // One action is not a sequence.
+  const single = [
+    { at: '2026-08-27T17:00:00Z', actions: ['post_message'] },
+    { at: '2026-09-03T17:00:00Z', actions: ['post_message'] },
+  ];
+  check('one action on its own is not a routine', findRepeat(single, paris) === null);
+
+  // The longest run wins, so the pair inside a triple is not offered as well.
+  const triples = [
+    { at: '2026-08-27T17:00:00Z', actions: ['create_channel', 'allow_roles', 'post_message'] },
+    { at: '2026-09-03T17:00:00Z', actions: ['create_channel', 'allow_roles', 'post_message'] },
+  ];
+  check('the longest run is the one offered', findRepeat(triples, paris)?.actions.length === 3);
+
+  // Different days of the week: still a routine, just not a weekly one.
+  const scattered = [
+    { at: '2026-08-25T17:00:00Z', actions: ['create_channel', 'allow_roles'] },
+    { at: '2026-09-03T17:00:00Z', actions: ['create_channel', 'allow_roles'] },
+  ];
+  check(
+    'a routine on different weekdays names no day',
+    findRepeat(scattered, paris)?.weekday === undefined,
+  );
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);

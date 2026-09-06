@@ -1,4 +1,12 @@
-import { listRuns, listWorkflows, readBack, TEMPLATES } from '@kalvard/core';
+import {
+  findRepeat,
+  listRuns,
+  listWorkflows,
+  offer,
+  readBack,
+  serviceClient,
+  TEMPLATES,
+} from '@kalvard/core';
 import { PageTitle } from '@/components/dashboard/page-title';
 import { formatDate } from '@/lib/format';
 import { requireMember } from '@/lib/guild';
@@ -13,7 +21,30 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
   const { guildId } = await params;
   await requireMember(guildId);
 
-  const [flows, runs] = await Promise.all([listWorkflows(guildId), listRuns(guildId)]);
+  const db = serviceClient();
+  const [flows, runs, { data: history }, { data: settings }] = await Promise.all([
+    listWorkflows(guildId),
+    listRuns(guildId),
+    db
+      .from('commands')
+      .select('ran, created_at')
+      .eq('guild_id', guildId)
+      .not('ran', 'is', null)
+      .order('created_at', { ascending: false })
+      .limit(60),
+    db.from('guild_settings').select('timezone').eq('guild_id', guildId).maybeSingle(),
+  ]);
+
+  // What this server already does by hand, twice or more, on separate days.
+  const repeat = findRepeat(
+    (history ?? []).map((row) => ({
+      at: row.created_at,
+      actions: ((row.ran ?? []) as { action?: string; ok?: boolean }[])
+        .filter((step) => step.ok !== false && step.action)
+        .map((step) => String(step.action)),
+    })),
+    settings?.timezone ?? null,
+  );
   const byId = new Map(flows.map((w) => [w.id ?? '', w.name]));
 
   const workflows: Listed[] = flows.map((w) => ({
@@ -45,6 +76,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
         guildId={guildId}
         workflows={workflows}
         runs={listed}
+        noticed={repeat ? offer(repeat) : null}
         templates={TEMPLATES.filter((t) => !flows.some((w) => w.name === t.name)).map((t) => ({
           name: t.name,
           what: triggerLine(t.trigger),
