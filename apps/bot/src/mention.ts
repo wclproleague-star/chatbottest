@@ -460,7 +460,9 @@ async function startSeriesIfAsked(
     words.has('serie') ||
     /best of (3|three)/i.test(question);
   if (!wanted) return false;
-  const roles = [...message.mentions.roles.values()].filter((r) => r.id !== settings.modRoleId);
+  // Exactly two roles, whatever they are: on a small server the moderators'
+  // own role can be one of the teams.
+  const roles = [...message.mentions.roles.values()];
   if (roles.length !== 2) return false;
   const [a, b] = roles as [(typeof roles)[number], (typeof roles)[number]];
   const started = await startSeries({
