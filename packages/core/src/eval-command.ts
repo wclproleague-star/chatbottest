@@ -557,7 +557,7 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
       'and the choice is written down with what it made',
       saved.mode === 'tickets' &&
         saved.setup?.created.length === 2 &&
-        saved.setup.humanRoleId === 'r3',
+        saved.setup.humanRoleIds?.[0] === 'r3',
       JSON.stringify(saved),
     );
   }

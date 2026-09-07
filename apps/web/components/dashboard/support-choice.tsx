@@ -142,6 +142,78 @@ function Combobox({
   );
 }
 
+/**
+ * One or more of what the server has. A ticket that needs a human may need
+ * two kinds of them — the staff and the moderators — and choosing between
+ * them is not a decision anybody should be made to take.
+ */
+function MultiPick({
+  name,
+  initial,
+  options,
+}: {
+  name: string;
+  initial: string;
+  options: { value: string; label: string }[];
+}) {
+  const [picked, setPicked] = useState<string[]>(
+    initial
+      .split(',')
+      .map((v) => v.trim())
+      .filter(Boolean),
+  );
+  return (
+    <div>
+      <input type="hidden" name={name} value={picked.join(', ')} />
+      <div className="border-star/20 max-h-[184px] overflow-y-auto rounded-lg border py-1">
+        {options.map((option) => {
+          const on = picked.includes(option.value);
+          return (
+            <button
+              key={option.value}
+              type="button"
+              aria-pressed={on}
+              onClick={() =>
+                setPicked((all) =>
+                  on ? all.filter((v) => v !== option.value) : [...all, option.value],
+                )
+              }
+              className={cx(
+                'text-ui hover:bg-star/5 flex w-full items-center gap-2.5 px-3 py-2 text-left transition-colors',
+                on ? 'text-star' : 'text-star/70',
+              )}
+            >
+              <span
+                aria-hidden
+                className={cx(
+                  'flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] border',
+                  on ? 'border-amber bg-amber text-night' : 'border-star/35',
+                )}
+              >
+                {on && (
+                  <svg viewBox="0 0 12 12" width="10" height="10" fill="none">
+                    <path
+                      d="M2.5 6.2 5 8.6l4.5-5"
+                      stroke="currentColor"
+                      strokeWidth="1.8"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
+              </span>
+              {option.label}
+            </button>
+          );
+        })}
+      </div>
+      <p className="text-ui-sm text-star/55 mt-2">
+        {picked.length === 0 ? 'Pick at least one.' : `${picked.join(', ')} will be brought in.`}
+      </p>
+    </div>
+  );
+}
+
 export function SupportChoice({
   guildId,
   current,
@@ -272,8 +344,21 @@ export function SupportChoice({
             label={showing.question.question}
             help="Kalvard proposes; change it if it is not how you do it."
           >
-            {showing.question.options && !showing.question.freeText ? (
-              <Select name="answer" defaultValue={showing.question.suggested}>
+            {showing.question.many ? (
+              <MultiPick
+                key={showing.question.key}
+                name="answer"
+                initial={showing.question.suggested}
+                options={showing.question.options ?? []}
+              />
+            ) : showing.question.options && !showing.question.freeText ? (
+              // Keyed by the question: without it the field keeps the answer
+              // to the last one, which matches nothing here and shows blank.
+              <Select
+                key={showing.question.key}
+                name="answer"
+                defaultValue={showing.question.suggested}
+              >
                 {showing.question.options.map((opt) => (
                   <Option key={opt.value} value={opt.value}>
                     {opt.label}

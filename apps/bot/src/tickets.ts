@@ -63,10 +63,16 @@ export async function onTicketButton(interaction: ButtonInteraction): Promise<bo
     PermissionFlagsBits.ReadMessageHistory,
     PermissionFlagsBits.AttachFiles,
   ];
+  // Every role the owner named, and the one a setup made before the list.
+  const humans = support.setup.humanRoleIds?.length
+    ? support.setup.humanRoleIds
+    : support.setup.humanRoleId
+      ? [support.setup.humanRoleId]
+      : [];
   const overwrites = [
     { id: guild.roles.everyone.id, deny: [PermissionFlagsBits.ViewChannel] },
     { id: interaction.user.id, allow },
-    ...(support.setup.humanRoleId ? [{ id: support.setup.humanRoleId, allow }] : []),
+    ...humans.map((id) => ({ id, allow })),
     ...(guild.members.me ? [{ id: guild.members.me.id, allow }] : []),
   ];
   const room = await guild.channels.create({
@@ -86,7 +92,7 @@ export async function onTicketButton(interaction: ButtonInteraction): Promise<bo
   await room.send({
     content: [
       `<@${interaction.user.id}> this room is yours${kind ? ` — ${kind}` : ''}. Say what you need and I will help if I know; if it takes a person, I bring in ${
-        support.setup.humanRoleId ? `<@&${support.setup.humanRoleId}>` : 'the staff'
+        humans.length > 0 ? humans.map((id) => `<@&${id}>`).join(' ') : 'the staff'
       }.`,
       'Close it with the button when you are done.',
     ].join('\n'),

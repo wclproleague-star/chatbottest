@@ -48,10 +48,17 @@ export default async function Page({
         { id: 'k3', name: 'WCL | Community' },
       ]}
       roles={[
-        { id: 'r1', name: 'Moderator' },
-        { id: 'r2', name: 'Captain' },
-        { id: 'r3', name: 'Fast Forward' },
-      ]}
+        'Moderator',
+        'Head of Staff',
+        'Tournaments Staff',
+        'Captain',
+        'Caster',
+        'Fast Forward',
+        'Chromanova',
+        'Train to kill',
+        'Server Booster',
+        'VIP',
+      ].map((name, i) => ({ id: `r${i + 1}`, name }))}
       preview
       startAt={startAt}
       previewProgress={progress === undefined ? undefined : Number(progress)}

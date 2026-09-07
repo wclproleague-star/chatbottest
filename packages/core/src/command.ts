@@ -570,7 +570,10 @@ async function carryOut(
         ? (made.get(`category:${clean(categoryName)}`) ??
           find(input.shape.categories, categoryName)?.id)
         : undefined;
-      const human = step.args.humanRole ? find(input.shape.roles, step.args.humanRole) : undefined;
+      const humans = (step.args.humanRole ?? '')
+        .split(',')
+        .map((name) => find(input.shape.roles, name.trim()))
+        .filter((r): r is { id: string; name: string } => Boolean(r));
       await saveSupport(
         input.guildId,
         {
@@ -582,7 +585,7 @@ async function carryOut(
             .split(',')
             .map((k) => k.trim())
             .filter(Boolean),
-          humanRoleId: human?.id,
+          humanRoleIds: humans.map((r) => r.id),
         },
         channel,
       );

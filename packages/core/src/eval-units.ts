@@ -909,6 +909,32 @@ console.log(
     answers.category,
   );
   check('and the moderators as the human', answers.humanRole === 'Modérateur', answers.humanRole);
+  // More than one role may be called into a ticket.
+  const two = supportPlan({
+    mode: 'tickets',
+    answers: { ...answers, humanRole: 'Modérateur, Joueur' },
+    shape,
+  });
+  check(
+    'two roles are both called in',
+    two.steps.at(-1)?.args.humanRole === 'Modérateur, Joueur',
+    JSON.stringify(two.steps.at(-1)?.args),
+  );
+  check(
+    'and the sentence names them both',
+    two.steps.at(-1)?.sentence.includes('Modérateur and Joueur') ?? false,
+    two.steps.at(-1)?.sentence,
+  );
+  check(
+    'a role that is not there is refused rather than dropped',
+    Boolean(
+      supportPlan({
+        mode: 'tickets',
+        answers: { ...answers, humanRole: 'Modérateur, Ghost' },
+        shape,
+      }).missing,
+    ),
+  );
   const tickets = supportPlan({ mode: 'tickets', answers, shape });
   check(
     'the ticket plan creates the category, the channel, the buttons, then writes the choice',

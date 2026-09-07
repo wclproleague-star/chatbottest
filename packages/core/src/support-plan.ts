@@ -21,7 +21,7 @@ export type SupportAnswers = {
   offerCategories?: 'yes' | 'no';
   /** Tickets: the kinds offered, comma-separated. */
   ticketKinds?: string;
-  /** Tickets: the role called when a human is needed. */
+  /** Tickets: the roles called when a human is needed, comma-separated. */
   humanRole?: string;
   /** Help channel: its name, and the category it goes in ("" for none). */
   helpName?: string;
@@ -40,6 +40,8 @@ export type SupportQuestion = {
   options?: { value: string; label: string }[];
   /** Free text allowed alongside the options. */
   freeText?: boolean;
+  /** More than one option may be chosen; the answer is comma-separated. */
+  many?: boolean;
 };
 
 /** What a server has set up, as stored in guild_settings.support_setup. */
@@ -50,6 +52,9 @@ export type SupportSetup = {
   categoryId?: string;
   buttonChannelId?: string;
   ticketKinds?: string[];
+  /** The roles added to a ticket when a human is needed. */
+  humanRoleIds?: string[];
+  /** What one role used to be called. Read for setups made before the list. */
   humanRoleId?: string;
   /** The last ticket number, so rooms are numbered. */
   lastTicket?: number;
@@ -122,9 +127,12 @@ export function nextSupportQuestion(
       const mods = shape.modRole?.name;
       return {
         key: 'humanRole',
-        question: 'Which role is added to a ticket when a human is needed?',
+        question: 'Which roles are added to a ticket when a human is needed?',
         suggested: mods ?? shape.roles[0]?.name ?? '',
         options: shape.roles.map((r) => ({ value: r.name, label: r.name })),
+        // Several: a server that wants its staff and its moderators in a
+        // ticket should not have to choose between them.
+        many: true,
       };
     }
     return null;
@@ -209,13 +217,23 @@ export function supportPlan(input: {
             .filter(Boolean)
             .slice(0, 5)
         : [];
-    const human = shape.roles.find((r) => r.name === answers.humanRole);
-    if (!human)
+    const wanted = (answers.humanRole ?? '')
+      .split(',')
+      .map((name) => name.trim())
+      .filter(Boolean);
+    const humans = wanted
+      .map((name) => shape.roles.find((r) => r.name === name))
+      .filter((r): r is { id: string; name: string } => Boolean(r));
+    if (humans.length === 0 || humans.length !== wanted.length) {
+      const missing = wanted.filter((name) => !shape.roles.some((r) => r.name === name));
       return {
         steps: [],
         archived,
-        missing: `There is no role called "${answers.humanRole ?? ''}".`,
+        missing: missing.length
+          ? `There is no role called "${missing.join('", "')}".`
+          : 'Say which role is called when a human is needed.',
       };
+    }
     const categoryName = category.create ?? category.existing ?? 'Tickets';
     if (category.existing && !shape.categories.some((c) => c.name === category.existing)) {
       return {
@@ -265,7 +283,7 @@ export function supportPlan(input: {
         category: categoryName,
         buttonChannel: buttonName,
         kinds: kinds.join(','),
-        humanRole: human.name,
+        humanRole: humans.map((r) => r.name).join(', '),
         created: [
           category.create ? `category:${category.create}` : '',
           button.create ? `channel:${button.create}` : '',
@@ -273,7 +291,7 @@ export function supportPlan(input: {
           .filter(Boolean)
           .join(','),
       },
-      sentence: `Members get help through tickets. Each ticket is a private room for the member, ${human.name} when a human is needed, and Kalvard.`,
+      sentence: `Members get help through tickets. Each ticket is a private room for the member, ${list(humans.map((r) => r.name))} when a human is needed, and Kalvard.`,
     });
     return { steps, archived };
   }
@@ -321,4 +339,10 @@ export function supportPlan(input: {
     sentence: `Members get help in #${existing.name}, which already exists. Nothing is created.`,
   });
   return { steps, archived };
+}
+
+/** "a, b and c", which is how a person reads a list. */
+function list(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? '';
+  return `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 }
