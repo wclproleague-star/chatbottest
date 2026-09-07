@@ -196,6 +196,8 @@ export { learnFrom, keepsOnlyWhatWasSaid, numbersIn } from './learn';
 export { markHeadings, headingLevel, prepare } from './outline';
 export { describeDocument, sourceLine, usable } from './describe';
 export { withStaleness } from './stale';
+export { alreadyWaiting, pressing, saidAlready, SAME_QUESTION, SAME_EXCHANGE } from './pending';
+export type { Waiting } from './pending';
 export type { Outline } from './outline';
 export type { Learned } from './learn';
 export type { Dated } from './when';

@@ -23,6 +23,7 @@ import { logEvent, mayPingMods } from './guild';
 import { handleCommand } from './command';
 import { startSeries } from './workflow';
 import { findPending } from './knowledge';
+import { saidAlready } from '@kalvard/core';
 
 /** Discord's own limit on a message. */
 const MAX_MESSAGE = 2000;
@@ -44,11 +45,25 @@ export async function handleMention(message: Message, settings: GuildSettings): 
     return;
   }
 
-  // The same question, already waiting on a moderator: point at it rather
-  // than waking them twice.
-  const pending = await findPending(guild.id, question);
-  if (pending?.link) {
-    await message.reply(`Someone just asked this and the moderators have it: ${pending.link}`);
+  // The same question, already waiting on a moderator. Somebody asking again
+  // in the channel where it is already pending can see the message above
+  // theirs, so the whole answer is to say nothing: another line there is just
+  // the bot repeating itself while the moderators are being waited on. Asked
+  // somewhere else, the link is worth having.
+  const pending = await findPending(guild.id, question, {
+    channelId: message.channelId,
+    askerId: message.author.id,
+  });
+  if (pending) {
+    if (!pending.sameChannel && pending.link) {
+      await message.reply(`Someone just asked this and the moderators have it: ${pending.link}`);
+    }
+    await logEvent(guild.id, 'answered', {
+      question,
+      askedAgain: true,
+      pendingId: pending.id,
+      pointed: !pending.sameChannel,
+    });
     return;
   }
 
@@ -228,7 +243,14 @@ async function postEscalation(
   const mayPing =
     settings.fallbackMode === 'ping_role' &&
     (await mayPingMods(guildId, settings.limits.modPingsPerHour));
-  const posted = await message.reply(withMention(text, settings, mayPing).slice(0, MAX_MESSAGE));
+  const line = withMention(text, settings, mayPing).slice(0, MAX_MESSAGE);
+  // It said this a moment ago. Saying it again wakes nobody new and reads as a
+  // bot with a stuck key, so the question stays with the one already pending.
+  if (await justSaid(message, line)) {
+    await logEvent(guildId, 'mod_pinged', { question, tier: 'escalate', summary, repeated: true });
+    return;
+  }
+  const posted = await message.reply(line);
   const { error } = await serviceClient().from('questions').insert({
     guild_id: guildId,
     asker_discord_id: message.author.id,
@@ -248,6 +270,23 @@ async function postEscalation(
     messageId: posted.id,
     quiet_queue: !mayPing,
   });
+}
+
+/**
+ * Whether Kalvard has just said this line in this channel.
+ *
+ * Its own last few messages are read from Discord rather than remembered in
+ * the worker, so a restart does not make it repeat itself once more.
+ */
+async function justSaid(message: Message, line: string): Promise<boolean> {
+  if (!message.channel.isTextBased()) return false;
+  const recent = await message.channel.messages.fetch({ limit: 10 }).catch(() => null);
+  if (!recent) return false;
+  const mine = [...recent.values()]
+    .filter((m) => m.author.id === message.client.user?.id)
+    .slice(0, 3)
+    .map((m) => m.content);
+  return saidAlready(line, mine);
 }
 
 /** A graded reply, acted on by its tier. */

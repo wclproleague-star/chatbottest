@@ -28,6 +28,7 @@ import { clarifiable } from './resolve';
 import { withStaleness } from './stale';
 import { relativeDays, calendarLines } from './when';
 import { oneMention } from './tokens';
+import { alreadyWaiting, pressing, saidAlready } from './pending';
 import { chunkText } from './chunk';
 import { aboutARole, asksForRole, namedRoles, nearest, whichRole } from './roles';
 import { appendVouch, onRoster, vouchDocument } from './vouch';
@@ -1525,6 +1526,74 @@ console.log(['', 'one question wakes the moderators once'].join(String.fromCharC
   check('and only one of them', once.split('<@&99>').length === 2, once);
   check('nothing left of the second', !once.includes('{mods}'), once);
   check('a reply with no tag is untouched', oneMention('All good.', '<@&99>') === 'All good.');
+}
+
+console.log(['', 'one question waits on the moderators once'].join(String.fromCharCode(10)));
+{
+  // Live, measured against the first message of the exchange: the paraphrases
+  // came back at 0.907 and 0.874, under the 0.92 that made them one question,
+  // so the moderators were woken three times for one claim.
+  const live = { sameChannel: true, sameAsker: true, minutesAgo: 1 };
+  check(
+    'a paraphrase a minute later is the same question',
+    alreadyWaiting(
+      { ...live, similarity: 0.907 },
+      'oh yes i confirm another tournament is in november',
+    ),
+  );
+  check(
+    'and so is the next one',
+    alreadyWaiting({ ...live, similarity: 0.874 }, 'yes but there is a tournament on november'),
+  );
+  check('a bare yes is somebody pressing', alreadyWaiting({ ...live, similarity: 0.525 }, 'yes'));
+  check('so is oui', pressing('oui mais quand ?'));
+  check('a fresh question is not', !pressing('when does check-in close?'));
+
+  // The strict bar is what makes two people in two channels one question, and
+  // it is unchanged: nothing loose crosses a channel or a person.
+  check(
+    'a different channel keeps the strict bar',
+    !alreadyWaiting(
+      { similarity: 0.874, sameChannel: false, sameAsker: true, minutesAgo: 1 },
+      'yes but there is a tournament on november',
+    ),
+  );
+  check(
+    'and so does a different person',
+    !alreadyWaiting(
+      { similarity: 0.874, sameChannel: true, sameAsker: false, minutesAgo: 1 },
+      'yes but there is a tournament on november',
+    ),
+  );
+  check(
+    'near-identical wording is the same question anywhere',
+    alreadyWaiting(
+      { similarity: 0.95, sameChannel: false, sameAsker: false, minutesAgo: 4000 },
+      'when is the final?',
+    ),
+  );
+  check(
+    'an exchange goes cold after half an hour',
+    !alreadyWaiting({ similarity: 0.8, sameChannel: true, sameAsker: true, minutesAgo: 45 }, 'yes'),
+  );
+  check(
+    'a genuinely different question in the same exchange still gets through',
+    !alreadyWaiting({ ...live, similarity: 0.4 }, 'where do i find the rulebook?'),
+  );
+}
+
+console.log(['', 'it never says the same thing twice'].join(String.fromCharCode(10)));
+{
+  const line = 'I have nothing on a November tournament in what I hold. <@&12>, can you confirm?';
+  check('the same line is not said again', saidAlready(line, ['gg', line]));
+  check(
+    'however the mention was rendered',
+    saidAlready(line, [
+      'I have nothing on a November tournament in what I hold. the moderators, can you confirm?',
+    ]),
+  );
+  check('something else is said', !saidAlready(line, ['I have nothing on the prize pool.']));
+  check('nothing said yet is nothing to repeat', !saidAlready(line, []));
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);
