@@ -899,8 +899,8 @@ console.log(
     (answers as Record<string, string>)[q.key] = q.suggested;
   }
   check(
-    'tickets asks category, button channel, kinds, which kinds, human role, in that order',
-    asked.join(',') === 'category,buttonChannel,offerCategories,ticketKinds,humanRole',
+    'tickets asks the channel, then the category, then the kinds and who is called',
+    asked.join(',') === 'buttonChannel,category,offerCategories,ticketKinds,humanRole',
     asked.join(','),
   );
   check(

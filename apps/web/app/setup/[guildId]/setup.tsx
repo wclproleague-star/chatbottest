@@ -72,6 +72,7 @@ export function Setup({
   inviteUrl,
   channels,
   roles,
+  categories = [],
   preview = false,
   startAt,
   previewProgress,
@@ -83,6 +84,8 @@ export function Setup({
   inviteUrl: string;
   channels: Named[];
   roles: Named[];
+  /** The categories of the server, for the ticket questions. */
+  categories?: Named[];
   /** The design preview: no session, a stub conversation. */
   preview?: boolean;
   startAt?: Step;
@@ -115,11 +118,15 @@ export function Setup({
     ? 'loading'
     : green
       ? 'green'
-      : (step === 'chat' || step === 'form') && done === 0
-        ? 'off'
-        : step === 'entry'
-          ? 'off'
-          : 'amber';
+      : step === 'live'
+        ? 'going'
+        : busy
+          ? 'working'
+          : (step === 'chat' || step === 'form') && done === 0
+            ? 'off'
+            : step === 'entry'
+              ? 'off'
+              : 'amber';
   const progress = !ready
     ? 1
     : (previewProgress ??
@@ -144,7 +151,7 @@ export function Setup({
 
   async function finishDraft(draft: DraftConfig) {
     if (preview) {
-      setStep('try');
+      setStep(installed ? 'finish' : 'bring');
       return;
     }
     const outcome = await applyDraft(guildId, sessionId, draft);
@@ -153,7 +160,9 @@ export function Setup({
       return;
     }
     setWarning(outcome.warning ?? null);
-    setStep('try');
+    // The test chat comes last, right before it is pushed live: by then it is
+    // configured, it is in the server, and what you are trying is the real thing.
+    setStep(installed ? 'finish' : 'bring');
   }
 
   /** A file dropped anywhere on the panel, at any step. */
@@ -253,7 +262,7 @@ export function Setup({
                     <h1 className="text-star text-[26px] leading-snug">Try it</h1>
                     <p className="text-body text-star/70 mt-2 max-w-[52ch]">
                       This is your bot, answering from what it knows. Nothing it says here touches
-                      your server.
+                      your server. Try it, then put it live.
                     </p>
                     {warning && <p className="text-ui text-star/70 mt-3 max-w-[52ch]">{warning}</p>}
                     <div className="mt-8">
@@ -261,16 +270,10 @@ export function Setup({
                     </div>
                   </div>
                   <div className="mt-6 flex flex-wrap items-center gap-6">
-                    <button
-                      className={SCENE_BUTTON}
-                      onClick={() => setStep(installed ? 'finish' : 'bring')}
-                    >
-                      {installed ? 'Continue' : 'Bring it to Discord'}
+                    <button className={SCENE_BUTTON} onClick={() => setStep('live')}>
+                      Put it live
                     </button>
-                    <button
-                      className={SCENE_LINK}
-                      onClick={() => setStep(installed ? 'finish' : 'bring')}
-                    >
+                    <button className={SCENE_LINK} onClick={() => setStep('live')}>
                       Skip this
                     </button>
                   </div>
@@ -298,7 +301,9 @@ export function Setup({
                     guildId={guildId}
                     channels={channels}
                     roles={roles}
-                    onDone={() => setStep('live')}
+                    categories={categories}
+                    preview={preview}
+                    onDone={() => setStep('try')}
                   />
                 </div>
               )}
@@ -369,9 +374,10 @@ function Card({
   const beside = anchors.rightEdge + CARD_GAP;
   const fits = beside + CARD_W + CARD_EDGE <= anchors.width;
   const left = fits ? beside : Math.min(anchors.x - CARD_W / 2, anchors.width - CARD_W - CARD_EDGE);
-  const middle = (anchors.top + anchors.foot) / 2;
+  // Level with the object: what has been decided begins where the beacon
+  // begins, so the two read as one thing standing on the headland.
   const top = fits
-    ? Math.max(40, Math.min(middle - tall / 2, anchors.height - tall - 40))
+    ? Math.max(40, Math.min(anchors.top, anchors.height - tall - 40))
     : Math.min(anchors.foot + 16, anchors.height - tall - 40);
 
   return (
@@ -472,23 +478,51 @@ const PREVIEW_CONFIG: DraftConfig = {
   language: 'The language each member writes in',
 };
 
-const PREVIEW_TURNS: { role: 'user' | 'model'; text: string }[] = [
+/**
+ * The walk-through: the five questions setup asks, in order, each with what
+ * the answer decides. Nothing here talks to anything — it is the flow, so an
+ * owner can see the whole of it before it ever touches their server.
+ */
+const PREVIEW_SCRIPT: {
+  question: string;
+  replies?: string[];
+  /** What the answer to this question fills in. */
+  fill: (said: string) => Partial<DraftConfig>;
+}[] = [
   {
-    role: 'model',
-    text: 'Let us set up your bot for Wild Champions League. What should it be called?',
+    question: 'Let us set up your bot for Wild Champions League. What should it be called?',
+    replies: ['Kalvard'],
+    fill: (said) => ({ botName: said }),
   },
-  { role: 'user', text: 'Kalvard' },
   {
-    role: 'model',
-    text: 'In a sentence or two: what is this server for, and how should the bot talk in it?',
+    question: 'In a sentence or two: what is this server for, and how should it talk in it?',
+    replies: ['A competitive Wild Rift league, sixteen teams. Short and exact.'],
+    fill: (said) => ({ personaPrompt: said }),
   },
-  { role: 'user', text: 'A competitive Wild Rift league, sixteen teams. Short and exact.' },
   {
-    role: 'model',
-    text: 'Paste something it should know: your rules, your schedule, anything members ask about.',
+    question: 'What language should it reply in?',
+    replies: ['The language each member writes in', 'French'],
+    fill: (said) => ({ language: said }),
+  },
+  {
+    question:
+      'Paste something it should know: your rules, your schedule, anything members ask about. A file works too.',
+    replies: ['Not yet, I will add it later'],
+    fill: (said) =>
+      /^not yet|^later|^skip/i.test(said)
+        ? {}
+        : {
+            knowledge: [
+              { title: said.split('\n')[0]?.slice(0, 60) || 'What the server knows', text: said },
+            ],
+          },
+  },
+  {
+    question: 'Last one: should it answer questions that are not about this server?',
+    replies: ['Yes, general questions too', 'This server only'],
+    fill: (said) => ({ scope: /this server/i.test(said) ? 'server_only' : 'open' }),
   },
 ];
-const PREVIEW_REPLIES = ['Not yet, I will add it later'];
 
 /** The 52px input inside the glass: transparent, a hairline that turns amber on focus, Send inside it. */
 function GlassInput({
@@ -612,7 +646,12 @@ function Chat({
   aside?: ReactNode;
 }) {
   const [state, action, pending] = useActionState<ChatState | null, FormData>(say, null);
-  const [turns, setTurns] = useState(preview ? PREVIEW_TURNS : []);
+  const [turns, setTurns] = useState<{ role: 'user' | 'model'; text: string }[]>(
+    preview ? [{ role: 'model', text: PREVIEW_SCRIPT[0]!.question }] : [],
+  );
+  // Where the walk-through has got to, and whether it has run out of questions.
+  const [at, setAt] = useState(0);
+  const [walked, setWalked] = useState(false);
   const [draft, setDraft] = useState('');
   const [uploads, setUploads] = useState<Upload[]>([]);
   // How much of the last thing Kalvard said has been typed out.
@@ -662,8 +701,31 @@ function Chat({
   /** Reads one thing the owner handed over, and says what it found. */
   const take = useCallback(
     async (input: { file?: File; text?: string }) => {
-      if (preview) return;
       const id = Date.now() + Math.random();
+      // The walk-through reads nothing: it shows what reading looks like.
+      if (preview) {
+        const name = input.file?.name ?? 'what you pasted';
+        setUploads((all) => [...all, { id, name, state: 'reading' }]);
+        window.setTimeout(() => {
+          setUploads((all) => all.map((u) => (u.id === id ? { ...u, state: 'ready' } : u)));
+          onConfig({
+            ...configRef.current,
+            knowledge: [
+              ...(configRef.current.knowledge ?? []),
+              { title: name, text: '', documentId: 'simulated', pieces: 18 },
+            ],
+          });
+          setTurns((all) => [
+            ...all,
+            {
+              role: 'model' as const,
+              text: `Read ${name}, 18 pieces. Nothing in it says when matches are played.`,
+            },
+          ]);
+          setTyped(0);
+        }, 1100);
+        return;
+      }
       const name = input.file?.name ?? 'what you pasted';
       setUploads((all) => [...all, { id, name, state: 'reading' }]);
       const data = new FormData();
@@ -721,7 +783,33 @@ function Chat({
 
   function send(text: string) {
     const said = text.trim();
-    if (!said || pending || preview) return;
+    if (!said || pending) return;
+
+    // The walk-through: the answer lands, the fifth lights, the next question
+    // comes. No session, no model, nothing written down.
+    if (preview) {
+      const step = PREVIEW_SCRIPT[at];
+      if (!step || walked) return;
+      setTurns((all) => [...all, { role: 'user' as const, text: said }]);
+      setDraft('');
+      onConfig({ ...configRef.current, ...step.fill(said) });
+      const next = PREVIEW_SCRIPT[at + 1];
+      setAt(at + 1);
+      window.setTimeout(() => {
+        if (next) {
+          setTurns((all) => [...all, { role: 'model' as const, text: next.question }]);
+          setTyped(0);
+        } else {
+          setWalked(true);
+          setTurns((all) => [
+            ...all,
+            { role: 'model' as const, text: 'That is everything I need. Have a go with it.' },
+          ]);
+          setTyped(0);
+        }
+      }, 260);
+      return;
+    }
     // A long paste is knowledge, not an answer to the question on screen.
     if (said.length >= PASTE_IS_KNOWLEDGE) {
       setTurns((all) => [...all, { role: 'user' as const, text: said.slice(0, 140) + '…' }]);
@@ -739,8 +827,13 @@ function Chat({
     action(data);
   }
 
-  const replies = preview ? PREVIEW_REPLIES : (state?.quickReplies ?? []);
+  const replies = preview
+    ? walked
+      ? []
+      : (PREVIEW_SCRIPT[at]?.replies ?? [])
+    : (state?.quickReplies ?? []);
   const last = turns.length - 1;
+  const finished = preview ? walked : Boolean(state?.done);
 
   return (
     <>
@@ -837,8 +930,11 @@ function Chat({
       </div>
 
       <div className="mt-5">
-        {state?.done ? (
-          <button className={SCENE_BUTTON} onClick={() => onDone(state.config ?? {})}>
+        {finished ? (
+          <button
+            className={SCENE_BUTTON}
+            onClick={() => onDone(state?.config ?? configRef.current)}
+          >
             Save and try it
           </button>
         ) : (
@@ -964,6 +1060,59 @@ function Form({
   );
 }
 
+/**
+ * The channels, without the wall. A server has forty of them and a list of
+ * forty tick boxes is not a question anybody answers: this one is filtered as
+ * you type, scrolls inside its own box, and says how many are ticked.
+ */
+function ChannelPicker({ channels }: { channels: Named[] }) {
+  const [filter, setFilter] = useState('');
+  const [picked, setPicked] = useState<string[]>([]);
+  const shown = channels.filter((c) => c.name.toLowerCase().includes(filter.trim().toLowerCase()));
+  return (
+    <div className="space-y-2">
+      <input
+        value={filter}
+        onChange={(event) => setFilter(event.target.value)}
+        placeholder="Find a channel"
+        aria-label="Find a channel"
+        className="border-star/25 text-star placeholder:text-star/40 focus:border-amber h-11 w-full rounded-lg border bg-transparent px-3 text-[15px] outline-none transition-colors"
+      />
+      <div className="border-star/15 max-h-[220px] overflow-y-auto rounded-lg border">
+        {shown.length === 0 && (
+          <p className="text-ui-sm text-star/55 px-3 py-3">Nothing by that name.</p>
+        )}
+        {shown.map((channel) => (
+          <label
+            key={channel.id}
+            className="text-ui text-star hover:bg-star/5 flex cursor-pointer items-center gap-2.5 px-3 py-2 transition-colors"
+          >
+            <input
+              type="checkbox"
+              name="answer_in"
+              value={channel.id}
+              checked={picked.includes(channel.id)}
+              onChange={(event) =>
+                setPicked((all) =>
+                  event.target.checked
+                    ? [...all, channel.id]
+                    : all.filter((id) => id !== channel.id),
+                )
+              }
+            />
+            #{channel.name}
+          </label>
+        ))}
+      </div>
+      <p className="text-ui-sm text-star/55">
+        {picked.length === 0
+          ? 'None ticked: it answers wherever it is mentioned.'
+          : `${picked.length} channel${picked.length === 1 ? '' : 's'} ticked.`}
+      </p>
+    </div>
+  );
+}
+
 function BringIt({
   guildId,
   inviteUrl,
@@ -1036,14 +1185,19 @@ function Finish({
   guildId,
   channels,
   roles,
+  categories,
+  preview,
   onDone,
 }: {
   guildId: string;
   channels: Named[];
   roles: Named[];
+  categories: Named[];
+  preview?: boolean;
   onDone: () => void;
 }) {
   const [state, action, pending] = useActionState(finishSetup, null);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     if (state?.ok) onDone();
@@ -1062,19 +1216,13 @@ function Finish({
 
   return (
     <>
-      <form action={action} className="mt-8 space-y-6">
+      <form action={preview ? () => setSaved(true) : action} className="mt-8 space-y-6">
         <input type="hidden" name="guild_id" value={guildId} />
         <Field
           label="Where may it answer?"
           help="Leave all unticked and it answers wherever it is mentioned."
         >
-          <div className="space-y-2">
-            {channels.map((channel) => (
-              <label key={channel.id} className="text-ui text-star flex items-center gap-2">
-                <input type="checkbox" name="answer_in" value={channel.id} />#{channel.name}
-              </label>
-            ))}
-          </div>
+          <ChannelPicker channels={channels} />
         </Field>
         <Field label="Who does it wake when it is not sure?">
           <select name="mod_role" defaultValue="" className={select}>
@@ -1100,6 +1248,7 @@ function Finish({
           </select>
         </Field>
         {state?.error && <p className="text-ui text-star">{state.error}</p>}
+        {preview && saved && <p className="text-ui text-star/60">Saved, in the walk-through.</p>}
         <button type="submit" className={SCENE_BUTTON} disabled={pending}>
           {pending ? 'Saving' : 'Save changes'}
         </button>
@@ -1111,7 +1260,29 @@ function Finish({
           nothing until you say yes. You can change it later in Settings.
         </p>
         <div className="mt-6">
-          <SupportChoice guildId={guildId} current={null} currentChannel={null} />
+          <SupportChoice
+            guildId={guildId}
+            current={null}
+            currentChannel={null}
+            onDone={preview ? onDone : undefined}
+            simulate={
+              preview
+                ? {
+                    channels,
+                    categories,
+                    roles,
+                    allowedActions: [
+                      'create_channel',
+                      'allow_roles',
+                      'set_private',
+                      'archive_channel',
+                      'post_message',
+                    ],
+                    modRole: roles[0],
+                  }
+                : undefined
+            }
+          />
         </div>
       </div>
     </>

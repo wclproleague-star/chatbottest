@@ -8,6 +8,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./supabase": "./src/supabase.ts",
+    "./support-plan": "./src/support-plan.ts",
     "./tokens": "./src/tokens.ts"
   },
   "scripts": {

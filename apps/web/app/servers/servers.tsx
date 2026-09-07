@@ -127,6 +127,7 @@ const LABEL: Record<Light, string> = {
   amber: 'Watching',
   working: 'Working now',
   loading: 'Getting ready',
+  going: 'Going live',
   green: 'Answered recently',
 };
 

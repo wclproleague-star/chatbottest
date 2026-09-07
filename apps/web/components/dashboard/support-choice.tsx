@@ -8,7 +8,8 @@ import { Button, Field, Input, Select, Option } from '@kalvard/ui';
 import { useActionState, useState } from 'react';
 import { supportConfirm, supportStep } from '@/app/g/[guildId]/settings/support-actions';
 import type { SupportState } from '@/app/g/[guildId]/settings/support-actions';
-import type { SupportMode } from '@kalvard/core';
+import { nextSupportQuestion, supportPlan } from '@kalvard/core/support-plan';
+import type { GuildShape, SupportAnswers, SupportMode } from '@kalvard/core/support-plan';
 
 const OPTIONS: { value: SupportMode; label: string; what: string }[] = [
   {
@@ -33,6 +34,7 @@ export function SupportChoice({
   current,
   currentChannel,
   onDone,
+  simulate,
 }: {
   guildId: string;
   /** What the server chose before, if anything. */
@@ -41,14 +43,63 @@ export function SupportChoice({
   currentChannel: string | null;
   /** Onboarding moves on when the plan is confirmed; settings stays. */
   onDone?: () => void;
+  /**
+   * A walk-through: the same questions and the same plan, worked out here
+   * from a server that is not real, touching nothing. It is the whole flow,
+   * and it is the one thing about it that is fake.
+   */
+  simulate?: GuildShape;
 }) {
-  const [mode, setMode] = useState<SupportMode | null>(null);
   const [state, step, stepping] = useActionState<SupportState, FormData>(supportStep, null);
   const [confirmed, confirm, confirming] = useActionState<SupportState, FormData>(
     supportConfirm,
     null,
   );
-  const showing = confirmed ?? state;
+  const [fake, setFake] = useState<SupportState>(null);
+  // Starting over cannot un-run an action, so anything older than the moment
+  // it was pressed is ignored instead.
+  const [from, setFrom] = useState(0);
+  const raw = simulate ? fake : (confirmed ?? state);
+  const showing = raw && raw.id > from ? raw : null;
+
+  /** The same walk, in the browser: ask, ask, then show the plan. */
+  function pretend(form: FormData) {
+    if (!simulate) return;
+    const picked = String(form.get('mode') ?? '') as SupportMode;
+    const answers = JSON.parse(String(form.get('answers') ?? '{}')) as SupportAnswers;
+    const key = String(form.get('key') ?? '');
+    const answer = String(form.get('answer') ?? '').trim();
+    if (key) (answers as Record<string, string>)[key] = answer;
+    const question = nextSupportQuestion(picked, answers, simulate);
+    if (question) {
+      setFake({ kind: 'question', mode: picked, answers, question, id: Date.now() });
+      return;
+    }
+    const plan = supportPlan({ mode: picked, answers, shape: simulate });
+    setFake(
+      plan.missing
+        ? { kind: 'error', error: plan.missing, mode: picked, answers, id: Date.now() }
+        : {
+            kind: 'plan',
+            mode: picked,
+            answers,
+            commandId: 'simulated',
+            sentences: plan.steps.map((s) => s.sentence),
+            archived: plan.archived,
+            id: Date.now(),
+          },
+    );
+  }
+  const ask = simulate ? pretend : step;
+  const say = simulate
+    ? () => {
+        setFake({
+          kind: 'sent',
+          note: 'That is where it would stop and wait for Discord. Nothing was created.',
+          id: Date.now(),
+        });
+      }
+    : confirm;
 
   if (showing?.kind === 'sent') {
     if (onDone) onDone();
@@ -66,7 +117,7 @@ export function SupportChoice({
       )}
 
       {/* The choice. One at a time; picking starts the questions. */}
-      {(showing === null || showing.kind === 'error') && !mode && (
+      {(showing === null || showing.kind === 'error') && (
         <ul className="divide-hairline divide-y">
           {OPTIONS.map((o) => (
             <li key={o.value} className="flex items-start justify-between gap-6 py-4">
@@ -74,16 +125,13 @@ export function SupportChoice({
                 <p className="text-body text-ink">{o.label}</p>
                 <p className="text-ui-sm text-ink-soft mt-1 max-w-[56ch]">{o.what}</p>
               </div>
-              <form action={step}>
+              <form action={ask}>
                 <input type="hidden" name="guild_id" value={guildId} />
                 <input type="hidden" name="mode" value={o.value} />
                 <input type="hidden" name="answers" value="{}" />
-                <Button
-                  type="submit"
-                  variant="secondary"
-                  onClick={() => setMode(o.value)}
-                  disabled={stepping}
-                >
+                {/* No state is set here: setting it would re-render and take
+                    this form away before it had submitted. */}
+                <Button type="submit" variant="secondary" disabled={stepping}>
                   {current === o.value ? 'Set it up again' : 'Choose'}
                 </Button>
               </form>
@@ -96,7 +144,7 @@ export function SupportChoice({
 
       {/* One question, with its default filled in. */}
       {showing?.kind === 'question' && (
-        <form action={step} className="space-y-4">
+        <form action={ask} className="space-y-4">
           <input type="hidden" name="guild_id" value={guildId} />
           <input type="hidden" name="mode" value={showing.mode} />
           <input type="hidden" name="answers" value={JSON.stringify(showing.answers)} />
@@ -134,7 +182,7 @@ export function SupportChoice({
             <Button type="submit" disabled={stepping}>
               Next
             </Button>
-            <Button type="button" variant="secondary" onClick={() => setMode(null)}>
+            <Button type="button" variant="secondary" onClick={() => setFrom(Date.now())}>
               Start over
             </Button>
           </div>
@@ -160,14 +208,14 @@ export function SupportChoice({
             </p>
           )}
           <div className="flex gap-3">
-            <form action={confirm}>
+            <form action={say}>
               <input type="hidden" name="guild_id" value={guildId} />
               <input type="hidden" name="command_id" value={showing.commandId} />
               <Button type="submit" disabled={confirming}>
                 Confirm
               </Button>
             </form>
-            <Button type="button" variant="secondary" onClick={() => setMode(null)}>
+            <Button type="button" variant="secondary" onClick={() => setFrom(Date.now())}>
               Cancel
             </Button>
           </div>

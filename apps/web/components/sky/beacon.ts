@@ -33,7 +33,7 @@ import ground from '../../../../assets/beacon/ground.png';
  * pulse for the seconds while something is carried out, and `loading` is the
  * faint breath a page shows while it is getting ready to be looked at.
  */
-export type Light = 'amber' | 'green' | 'off' | 'working' | 'loading';
+export type Light = 'amber' | 'green' | 'off' | 'working' | 'loading' | 'going';
 
 /** Where the beacon stands: the photograph's rect over the canvas, and the beacon's centre across it. */
 export type BeaconPlacement = {
@@ -104,6 +104,8 @@ const SEGMENTS = 5;
 const PULSE: Partial<Record<Light, { ms: number; depth: number }>> = {
   working: { ms: 1400, depth: 0.22 },
   loading: { ms: 1600, depth: 0.55 },
+  // Going live: a fast, deep flicker, for the seconds it takes.
+  going: { ms: 420, depth: 0.45 },
 };
 
 /**
@@ -120,6 +122,8 @@ const GRAIN = 0.05;
 
 const AMBER = '#d9a21b';
 const GREEN = '#23a55a';
+/** The seconds it is arriving in a server: not a state it rests in. */
+const VIOLET = '#7b5cff';
 const ALBEDO = '#0b0d10';
 
 /** sRGB hex to a linear colour, whatever ColorManagement is set to. */
@@ -328,6 +332,7 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     amber: linear(AMBER),
     working: linear(AMBER),
     loading: linear(AMBER),
+    going: linear(VIOLET),
     green: linear(GREEN),
     off: new THREE.Color(0, 0, 0),
   };
@@ -336,6 +341,7 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     amber: throughAces(AMBER),
     working: throughAces(AMBER),
     loading: throughAces(AMBER),
+    going: throughAces(VIOLET),
     green: throughAces(GREEN),
     off: new THREE.Color(0, 0, 0),
   };
@@ -346,6 +352,7 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     amber: 1,
     working: 1,
     loading: 0.15,
+    going: 1,
     green: 1,
     off: 0,
   };
