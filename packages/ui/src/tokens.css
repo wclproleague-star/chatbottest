@@ -126,6 +126,8 @@
   --surface-fg: var(--color-ink);
   --surface-fg-soft: var(--color-ink-soft);
   --surface-hairline: var(--color-hairline);
+  --scroll-thumb: rgb(17 20 24 / 0.22);
+  --scroll-thumb-hover: rgb(17 20 24 / 0.34);
   --surface-panel-shadow: var(--shadow-panel-paper);
   --button-bg: var(--color-ink);
   --button-fg: var(--color-paper);
@@ -136,6 +138,8 @@
   --surface-fg: var(--color-star);
   --surface-fg-soft: rgb(242 238 230 / 0.62);
   --surface-hairline: rgb(242 238 230 / 0.16);
+  --scroll-thumb: rgb(242 238 230 / 0.18);
+  --scroll-thumb-hover: rgb(242 238 230 / 0.32);
   --surface-panel-shadow: var(--shadow-panel-night);
   --button-bg: var(--color-star);
   --button-fg: var(--color-night);
@@ -241,4 +245,43 @@
   .reading-bar {
     animation: none;
   }
+}
+
+/* Scrollbars. The browser's own is a light grey bar with arrows on it, which
+   on a night page is the loudest thing on screen: this is a thin thumb in the
+   surface's own ink, no track, no arrows, and nothing at all until there is
+   something to scroll. The colour comes from the surface, so a paper page
+   gets ink and a night page gets star white. */
+:root {
+  --scroll-thumb: rgb(242 238 230 / 0.18);
+  --scroll-thumb-hover: rgb(242 238 230 / 0.32);
+}
+[data-theme='light'] {
+  --scroll-thumb: rgb(17 20 24 / 0.22);
+  --scroll-thumb-hover: rgb(17 20 24 / 0.34);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scroll-thumb) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-track,
+*::-webkit-scrollbar-corner {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background-color: var(--scroll-thumb);
+  border-radius: 999px;
+  /* The border is the gap: a thumb that touches the edge reads as a bar. */
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scroll-thumb-hover);
+}
+*::-webkit-scrollbar-button {
+  display: none;
 }
