@@ -20,6 +20,7 @@ const arg = (name, fallback) => {
 const widths = arg('width', '1440,2560').split(',').map(Number);
 const out = arg('out', 'shots');
 const url = arg('url', 'http://localhost:3000/');
+const only = arg('only', '');
 /**
  * Each section is found by name and scrolled to, rather than by a multiple of
  * the viewport: the moment a section's padding changes, fixed offsets are
@@ -48,7 +49,7 @@ for (const width of widths) {
   // The page reveals in one fade when everything is ready; give it that.
   await page.waitForTimeout(3000);
 
-  for (const section of SECTIONS) {
+  for (const section of SECTIONS.filter((s) => !only || s.name === only)) {
     const goTo = (name) =>
       page.evaluate((n) => {
         const el = document.querySelector(`[data-scene="${n}"]`);

@@ -24,7 +24,16 @@ const COLUMN = 0.42;
 /** Below this, the object docks at the top instead of standing beside the page. */
 export const NARROW = 900;
 /** Docked height on a narrow screen. */
-const DOCK_H = 120;
+const DOCK_H = 140;
+/**
+ * What the dock shows.
+ *
+ * The scene is anchored to the bottom of its frame, so a short window on to
+ * it shows the ground the beacon stands on and none of the light. The scene
+ * is drawn at its full height inside the dock and lifted, so the band people
+ * see is the one with the slit in it.
+ */
+const DOCK_LOOKS_AT = 0.42;
 
 export type StageAt = {
   /** 0 in the hero, 1 once it has settled into its column. */
@@ -46,13 +55,7 @@ export type StageAt = {
  */
 function frame(settled: number, w: number, h: number, narrow: boolean) {
   if (narrow) {
-    const top = 0;
-    return {
-      left: 0,
-      top,
-      width: w,
-      height: h - (h - DOCK_H) * settled,
-    };
+    return { left: 0, top: 0, width: w, height: h - (h - DOCK_H) * settled };
   }
   const columnW = w * COLUMN;
   return {
@@ -99,17 +102,35 @@ export function Stage({
       className="pointer-events-none fixed z-0"
       style={{ left: box.left, top: box.top, width: box.width, height: box.height }}
     >
-      <div className="pointer-events-auto absolute inset-0">
-        <Scene
-          light={at.light}
-          dark={at.dark ?? 0}
-          dawn={at.dawn}
-          changeMs={at.changeMs}
-          onReady={onReady}
-          behind={behind}
+      <div
+        className="pointer-events-auto absolute inset-x-0 overflow-hidden"
+        style={
+          narrow && at.settled > 0
+            ? {
+                top: 0,
+                bottom: 0,
+              }
+            : { top: 0, bottom: 0 }
+        }
+      >
+        <div
+          className="absolute inset-x-0"
+          style={{
+            height: narrow ? size.h : '100%',
+            top: narrow ? -(size.h - box.height) * DOCK_LOOKS_AT : 0,
+          }}
         >
-          {children}
-        </Scene>
+          <Scene
+            light={at.light}
+            dark={at.dark ?? 0}
+            dawn={at.dawn}
+            changeMs={at.changeMs}
+            onReady={onReady}
+            behind={behind}
+          >
+            {children}
+          </Scene>
+        </div>
       </div>
     </div>
   );

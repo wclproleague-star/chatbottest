@@ -34,6 +34,8 @@ THREE.ColorManagement.enabled = false;
  * star white; scale is how fine the cloud's structure is.
  */
 const SKY = { stars: 15000, contrast: 0.09, scale: 2.0 } as const;
+/** What a phone draws instead, per the mobile pass. */
+const MOBILE_STARS = 5000;
 
 /** How much denser the cloud is behind the boost rect, in units of n (0 to 1). */
 const BOOST_DENSITY = 0.5;
@@ -241,7 +243,13 @@ function mount(
 
   // Stars.
   const camera = new THREE.PerspectiveCamera(FOV, 1, 1, FAR + 100);
-  const stars = buildStars(Math.round(SKY.stars * options.density));
+  // A phone draws the same sky with a third of the points. Fifteen thousand
+  // is what makes the desktop sky have depth; on a two-year-old phone it is
+  // what makes the first frames miss, and a starfield nobody can see the
+  // depth of at 375px costs the whole page its smoothness.
+  const forPhone = window.matchMedia('(pointer: coarse)').matches || window.innerWidth < 768;
+  const wanted = Math.round(SKY.stars * options.density);
+  const stars = buildStars(forPhone ? Math.min(MOBILE_STARS, wanted) : wanted);
   const starMaterial = new THREE.ShaderMaterial({
     uniforms: {
       uParallax: { value: parallax },

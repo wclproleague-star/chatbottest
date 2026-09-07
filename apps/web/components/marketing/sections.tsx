@@ -68,7 +68,6 @@ export const CARDS: Card[] = [
       { who: 'kestrel', text: 'crée le salon #finale et mets Joueur et Caster dedans' },
       { who: 'Kalvard', kalvard: true, text: 'Made #finale, visible to Joueur and Caster.' },
     ],
-    ends: 'Nothing was deleted',
   },
 ];
 
@@ -235,5 +234,4 @@ export const PRICES = [
 export const SETUP_STILL = [
   { q: 'What is your server for?', a: 'A Wild Rift league, eight teams, weekly matches.' },
   { q: 'How should it speak?', a: 'Short and direct. French with the members.' },
-  { q: 'What should it never touch?', a: 'Bans and appeals, payments.' },
 ];
