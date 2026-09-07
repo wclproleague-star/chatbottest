@@ -231,6 +231,119 @@ export function useWideScreen(): boolean {
   return wide;
 }
 
+/**
+ * The chevron every field that opens something wears, so it is plain that it
+ * opens. One stroke, in the surface's own ink, turned when it is open.
+ */
+export function Chevron({ open }: { open?: boolean }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="16"
+      height="16"
+      fill="none"
+      aria-hidden
+      className={cx(
+        'text-star/50 duration-(--duration-hover) shrink-0 transition-transform',
+        open && 'rotate-180',
+      )}
+    >
+      <path
+        d="m4 6.5 4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+/** The list a field opens: the panel's glass, a hairline, one row highlighted. */
+export const PICKER_LIST =
+  'border-star/20 absolute inset-x-0 top-[calc(100%+6px)] z-30 max-h-[184px] overflow-y-auto rounded-lg border py-1';
+
+export const PICKER_LIST_STYLE: CSSProperties = {
+  backgroundColor: 'rgba(10, 14, 20, 0.96)',
+  backdropFilter: 'blur(8px)',
+  WebkitBackdropFilter: 'blur(8px)',
+  boxShadow: '0 16px 40px rgba(0, 0, 0, 0.5)',
+};
+
+/**
+ * One of what the server has, chosen on the scene's own materials rather than
+ * in the browser's white box. A button that says what is chosen, a chevron
+ * that says it opens, and the same list the other fields use.
+ */
+export function ScenePicker({
+  name,
+  options,
+  placeholder,
+  initial = '',
+}: {
+  name: string;
+  options: { value: string; label: string }[];
+  placeholder: string;
+  initial?: string;
+}) {
+  const [value, setValue] = useState(initial);
+  const [open, setOpen] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+  const chosen = options.find((o) => o.value === value);
+
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: MouseEvent) => {
+      if (!wrap.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', away);
+    return () => document.removeEventListener('mousedown', away);
+  }, [open]);
+
+  return (
+    <div ref={wrap} className="relative scroll-mt-4">
+      <input type="hidden" name={name} value={value} />
+      <button
+        type="button"
+        onClick={() => {
+          setOpen((was) => !was);
+          window.setTimeout(
+            () => wrap.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+            0,
+          );
+        }}
+        className="border-star/25 text-star focus:border-amber flex h-11 w-full items-center justify-between gap-3 rounded-lg border bg-transparent px-3 text-[15px] outline-none transition-colors"
+      >
+        <span className={cx('truncate', !chosen && 'text-star/45')}>
+          {chosen ? chosen.label : placeholder}
+        </span>
+        <Chevron open={open} />
+      </button>
+      {open && (
+        <ul className={PICKER_LIST} style={PICKER_LIST_STYLE}>
+          {options.map((option) => (
+            <li key={option.value}>
+              <button
+                type="button"
+                onClick={() => {
+                  setValue(option.value);
+                  setOpen(false);
+                }}
+                className={cx(
+                  'text-ui hover:bg-star/10 block w-full px-3 py-2 text-left transition-colors',
+                  option.value === value ? 'text-star' : 'text-star/75',
+                )}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 /** How long the line takes to type itself out, ms per character. */
 const TYPE_MS = 34;
 /** The slit's crossfade to green: the event this screen is about. */

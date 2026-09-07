@@ -27,6 +27,7 @@ import {
   LiveLine,
   Reveal,
   SCENE_BUTTON,
+  ScenePicker,
   SCENE_LINK,
   SetupScene,
   TO_GREEN_MS,
@@ -1167,9 +1168,6 @@ function Finish({
     );
   }
 
-  const select =
-    'border-star/25 text-star h-11 w-full rounded-lg border bg-transparent px-3 text-ui focus:border-amber outline-none';
-
   if (phase === 'help') {
     return (
       <div className="mt-8">
@@ -1213,27 +1211,24 @@ function Finish({
     <form action={preview ? onDone : action} className="mt-8 space-y-6">
       <input type="hidden" name="guild_id" value={guildId} />
       <Field label="Who does it wake when it is not sure?">
-        <select name="mod_role" defaultValue="" className={select}>
-          <option value="">Choose a role</option>
-          {roles.map((role) => (
-            <option key={role.id} value={role.id}>
-              {role.name}
-            </option>
-          ))}
-        </select>
+        <ScenePicker
+          name="mod_role"
+          placeholder="Choose a role"
+          options={roles.map((role) => ({ value: role.id, label: role.name }))}
+        />
       </Field>
       <Field
         label="Where should it report quietly?"
         help="Harassment, slurs and scams are never answered in public. They go here instead."
       >
-        <select name="mod_channel" defaultValue="" className={select}>
-          <option value="">Nowhere, just record it</option>
-          {channels.map((channel) => (
-            <option key={channel.id} value={channel.id}>
-              #{channel.name}
-            </option>
-          ))}
-        </select>
+        <ScenePicker
+          name="mod_channel"
+          placeholder="Nowhere, just record it"
+          options={[
+            { value: '', label: 'Nowhere, just record it' },
+            ...channels.map((channel) => ({ value: channel.id, label: `#${channel.name}` })),
+          ]}
+        />
       </Field>
       {state?.error && <p className="text-ui text-star">{state.error}</p>}
       <button type="submit" className={SCENE_BUTTON} disabled={pending}>

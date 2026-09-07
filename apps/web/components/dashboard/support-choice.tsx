@@ -77,6 +77,38 @@ function Combobox({
 
   return (
     <div ref={wrap} className="relative scroll-mt-4">
+      {/* The chevron says the field opens; pressing it opens it. */}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-label="Show the list"
+        onMouseDown={(event) => {
+          event.preventDefault();
+          setOpen((was) => !was);
+          makeRoom();
+        }}
+        className="absolute inset-y-0 right-0 flex w-10 items-center justify-center"
+      >
+        <svg
+          viewBox="0 0 16 16"
+          width="16"
+          height="16"
+          fill="none"
+          aria-hidden
+          className={cx(
+            'text-star/50 duration-(--duration-hover) transition-transform',
+            open && 'rotate-180',
+          )}
+        >
+          <path
+            d="m4 6.5 4 4 4-4"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </button>
       <input
         name={name}
         value={value}
@@ -107,7 +139,7 @@ function Combobox({
             setOpen(false);
           }
         }}
-        className="border-star/25 text-star placeholder:text-star/40 focus:border-amber h-11 w-full rounded-lg border bg-transparent px-3 text-[15px] outline-none transition-colors"
+        className="border-star/25 text-star placeholder:text-star/40 focus:border-amber h-11 w-full rounded-lg border bg-transparent pl-3 pr-10 text-[15px] outline-none transition-colors"
       />
       {shown && (
         <ul
