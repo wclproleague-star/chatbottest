@@ -1,3 +1,4 @@
+import process from 'node:process';
 import { GoogleGenAI, Type } from '@google/genai';
 import { withRetry } from './resilience';
 import type { Content, FunctionDeclaration, Schema } from '@google/genai';
@@ -12,6 +13,20 @@ export const EMBEDDING_DIMENSIONS = 768;
 /** Gemini accepts many contents per embedContent call; keep requests modest. */
 const EMBED_BATCH = 50;
 
+/**
+ * Every call to the model, counted where they are actually made.
+ *
+ * Switched on with KALVARD_TRACE_CALLS. A day's bill said fourteen thousand
+ * requests where a day's work should have been one or two thousand, and no
+ * amount of reading the code settles that: the only honest way to find a loop
+ * is to count the calls one by one, with a timestamp and what asked for them.
+ */
+function trace(kind: string): void {
+  if (!process.env.KALVARD_TRACE_CALLS) return;
+  const at = new Date().toISOString().slice(11, 23);
+  console.error(`[gemini] ${at} ${kind}`);
+}
+
 let client: GoogleGenAI | undefined;
 
 function ai(): GoogleGenAI {
@@ -23,6 +38,7 @@ export type EmbedTask = 'RETRIEVAL_DOCUMENT' | 'RETRIEVAL_QUERY';
 
 /** Embeds texts at 768 dims, unit-normalised, in input order. */
 export async function embed(texts: string[], taskType: EmbedTask): Promise<number[][]> {
+  trace(`embed ${texts.length} text(s) as ${taskType}`);
   const out: number[][] = [];
   for (let start = 0; start < texts.length; start += EMBED_BATCH) {
     const batch = texts.slice(start, start + EMBED_BATCH);
@@ -69,6 +85,7 @@ export async function generateJson<T>(input: {
   /** A ceiling on the answer. A model that runs away writes junk, not JSON. */
   maxOutputTokens?: number;
 }): Promise<T> {
+  trace('generateJson');
   const response = await withRetry(() =>
     ai().models.generateContent({
       model: env().geminiModel,
@@ -119,6 +136,7 @@ export async function generateWithTools(input: {
   tools: FunctionDeclaration[];
   temperature?: number;
 }): Promise<ToolStep> {
+  trace('generateWithTools');
   const response = await withRetry(() =>
     ai().models.generateContent({
       model: env().geminiModel,
@@ -162,6 +180,7 @@ export async function generateJsonFromImage<T>(input: {
   image: { data: Uint8Array; mimeType: string };
   schema: Schema;
 }): Promise<T> {
+  trace('generateJsonFromImage');
   const response = await withRetry(() =>
     ai().models.generateContent({
       model: env().geminiModel,
