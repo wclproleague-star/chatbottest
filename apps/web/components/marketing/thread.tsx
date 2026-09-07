@@ -16,7 +16,8 @@
 // the whole product, and it is why the two exchanges are never merged: the
 // reset in the middle is what makes the second one land.
 
-import { Panel, ThreadMessage } from '@kalvard/ui';
+import { ThreadMessage, cx } from '@kalvard/ui';
+import { PANEL_STYLE } from '@/components/hero/hero-thread';
 import { useEffect, useRef, useState } from 'react';
 import { LINES, HOLD_AT, TYPE_MS } from '@/components/hero/script';
 import type { Light } from '@/components/sky/beacon';
@@ -105,38 +106,55 @@ export function Thread({
 
   const clearing = phase === 'clearing';
   const lines = phase === 'second' ? BERRY : LINES;
+  const clock = phase === 'second' ? local : t;
 
+  // Every line is laid out at its full length from the start and hidden until
+  // its moment, so the panel never changes size while lines appear or type.
+  // The same glass as the hero: night at 60%, a 6px blur, one bright edge.
   return (
-    <Panel className="w-full max-w-[520px] p-6">
-      {phase === 'second' && <p className="text-ui-sm text-star/55 mb-4">Two days later.</p>}
-      <div className="space-y-4" style={{ minHeight: 232 }}>
-        {lines.map((line, i) => {
-          const shown = phase === 'second' ? local >= line.at : t >= line.at;
-          if (!shown) return null;
-          const typed = 'typed' in line && line.typed;
-          const elapsed = (phase === 'second' ? local : t) - line.at;
-          const text = typed
-            ? line.text.slice(0, Math.max(0, Math.floor(elapsed / TYPE_MS)))
-            : line.text;
-          return (
-            <div
-              key={line.text}
-              style={{
-                opacity: clearing ? 0 : 1,
-                transition: clearing ? `opacity ${CLEAR_MS}ms linear ${i * 60}ms` : undefined,
-              }}
+    <div className="text-star w-full max-w-[460px] space-y-5 rounded-2xl p-6" style={PANEL_STYLE}>
+      <p
+        className="text-ui-sm text-star/55"
+        style={{ opacity: phase === 'second' ? 1 : 0, transition: 'opacity 300ms linear' }}
+      >
+        Two days later.
+      </p>
+      {lines.map((line, i) => {
+        const started = clock >= line.at;
+        const typed = 'typed' in line && line.typed;
+        const chars = typed
+          ? Math.min(line.text.length, Math.floor((clock - line.at) / TYPE_MS))
+          : line.text.length;
+        const typing = Boolean(typed) && started && chars < line.text.length;
+        return (
+          <div
+            key={`${phase}-${i}`}
+            className={cx(
+              !started && 'invisible',
+              'lands' in line && line.lands && started && 'land',
+            )}
+            style={{
+              opacity: clearing ? 0 : 1,
+              transition: clearing ? `opacity ${CLEAR_MS}ms linear ${i * 60}ms` : undefined,
+            }}
+          >
+            <ThreadMessage
+              role={line.role}
+              name={line.name}
+              state={'state' in line ? line.state : undefined}
             >
-              <ThreadMessage
-                role={line.role}
-                name={line.name}
-                state={'state' in line ? line.state : undefined}
-              >
-                {text}
-              </ThreadMessage>
-            </div>
-          );
-        })}
-      </div>
-    </Panel>
+              <span className="relative block">
+                <span className="invisible" aria-hidden>
+                  {line.text}
+                </span>
+                <span className={cx('absolute inset-0', typing && 'cursor')}>
+                  {started ? line.text.slice(0, chars) : ''}
+                </span>
+              </span>
+            </ThreadMessage>
+          </div>
+        );
+      })}
+    </div>
   );
 }

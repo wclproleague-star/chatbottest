@@ -57,7 +57,20 @@ function skyAt(dawn: number, high: boolean): string {
 /** The land's own curve: an exposure lift, and the colour of night draining out. */
 function landAt(dawn: number): string {
   const k = Math.min(1, Math.max(0, dawn));
-  return `brightness(${1 + 0.75 * k}) contrast(${1 - 0.2 * k}) saturate(${1 - 0.25 * k})`;
+  return `brightness(${1 + 0.12 * k}) contrast(${1 - 0.12 * k}) saturate(${1 - 0.2 * k})`;
+}
+
+/**
+ * The haze that makes it morning rather than a night photograph turned up.
+ *
+ * A night exposure has nothing in its highlights to recover: lifting it far
+ * enough to read as day tears the grass into white and black. So the land is
+ * lifted a little and then veiled in the colour the sky is arriving at, which
+ * is what distance and early light actually look like, and what keeps the
+ * beacon the darkest thing in the frame.
+ */
+function hazeAt(dawn: number): number {
+  return Math.min(1, Math.max(0, dawn)) * 0.55;
 }
 
 type Rect = { left: number; top: number; width: number; height: number };
@@ -157,6 +170,22 @@ export function Scene({
         />
       )}
 
+      {/* The morning haze over the land, in the colour the sky became. */}
+      {rect && dawn > 0 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute"
+          style={{
+            left: rect.left,
+            top: (horizon ?? rect.top) - 1,
+            width: rect.width,
+            height: rect.top + rect.height - (horizon ?? rect.top) + 1,
+            backgroundColor: skyAt(dawn, false),
+            opacity: hazeAt(dawn),
+          }}
+        />
+      )}
+
       {/* The sky, graded on its own curve and stopping at the horizon, so the
           land keeps its own. The page's paper is what the sky arrives at, so
           the sections below continue the surface the sky became. */}
@@ -170,7 +199,7 @@ export function Scene({
             width: rect.width,
             height: (horizon ?? rect.top) - rect.top + 1,
             background: `linear-gradient(180deg, ${skyAt(dawn, true)} 0%, ${skyAt(dawn, false)} 100%)`,
-            opacity: Math.min(1, dawn * 1.15),
+            opacity: Math.min(1, dawn),
           }}
         />
       )}
@@ -186,7 +215,9 @@ export function Scene({
           parallax={parallax}
           fps={fps}
           horizon={horizon}
-          beacon={rect ? { frame: rect, x: meta.focusX, light, progress, fade, changeMs } : null}
+          // The light does not dissolve with the night. Dawn is a grade over the
+          // same place, and the object is still standing in it.
+          beacon={rect ? { frame: rect, x: meta.focusX, light, progress, fade: 1, changeMs } : null}
           onReady={onReady}
         />
       </div>
@@ -205,6 +236,10 @@ export function Scene({
             width: meta.grass.w * rect.width,
             height: meta.grass.h * rect.height,
             filter: treatment ? `${treatment.filter} ${graded}` : graded,
+            // The blades are a night cutout: lit far enough to read as morning
+            // they tear into black and white, so they recede into the hazed
+            // land instead, the way foreground detail does at first light.
+            opacity: Math.max(0, 1 - dawn / 0.7),
           }}
         />
       )}

@@ -56,15 +56,17 @@ export function Marketing() {
   // object does follows from that, so a new section cannot invent its own
   // behaviour without saying which of the eleven states it wants.
   useEffect(() => {
+    // A band across the middle of the screen decides, rather than a share of
+    // each section: sections are not the same height, and a page where a tall
+    // one keeps the light because it covers more of the screen reads as the
+    // object lagging behind the reader.
     const seen = new IntersectionObserver(
       (entries) => {
-        const showing = entries
-          .filter((e) => e.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        const showing = entries.find((e) => e.isIntersecting);
         const name = showing?.target.getAttribute('data-scene') as SceneName | null;
         if (name) setScene(name);
       },
-      { threshold: [0.35, 0.6] },
+      { rootMargin: '-45% 0px -45% 0px', threshold: 0 },
     );
     for (const el of sections.current.values()) seen.observe(el);
     return () => seen.disconnect();
@@ -80,7 +82,13 @@ export function Marketing() {
       setSettled(Math.min(1, Math.max(0, (y - h * 0.35) / (h * 0.5))));
       const bandStart = h * 1.6;
       const band = h * 0.6;
-      setDawn(Math.min(1, Math.max(0, (y - bandStart) / band)));
+      const morning = Math.min(1, Math.max(0, (y - bandStart) / band));
+      // And the night comes back for the close, on the same value, so the
+      // page ends in the place it started rather than in a different one.
+      const close = sections.current.get('close');
+      const closeTop = close ? close.getBoundingClientRect().top + y : Number.POSITIVE_INFINITY;
+      const returning = Math.min(1, Math.max(0, (y - (closeTop - h)) / (h * 0.7)));
+      setDawn(morning * (1 - returning));
     };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
@@ -101,9 +109,20 @@ export function Marketing() {
   // actually happening — the thread playing, a card being looked at, the run
   // summary still writing.
   const [inner, setInner] = useState<Light | null>(null);
-  useEffect(() => setInner(null), [scene]);
-  const onCard = useCallback((card: Card) => setInner(card.light), []);
-  const onThread = useCallback((l: Light) => setInner(l), []);
+  // Which section is showing, readable from a callback that was made once.
+  // Without it the carousel goes on driving the light from three sections
+  // away, and the page closes on amber when the close is meant to be green.
+  const showing = useRef<SceneName>('hero');
+  useEffect(() => {
+    showing.current = scene;
+    setInner(null);
+  }, [scene]);
+  const onCard = useCallback((card: Card) => {
+    if (showing.current === 'does') setInner(card.light);
+  }, []);
+  const onThread = useCallback((l: Light) => {
+    if (showing.current === 'thread') setInner(l);
+  }, []);
   useEffect(() => {
     if (scene === 'week' && weekDone) setInner('answered');
   }, [scene, weekDone]);
@@ -180,7 +199,7 @@ export function Marketing() {
         id="how"
         className="relative z-10 flex min-h-screen items-center px-6 md:px-12"
       >
-        <Surface surface="night" transparent className="w-full max-w-[560px]">
+        <Surface surface="night" transparent className="w-full max-w-[520px]">
           <p className="text-body text-star/80 mb-6 max-w-[44ch]">
             It answers from what your server knows. When it doesn&rsquo;t know, it asks. Then it
             knows.
@@ -199,26 +218,26 @@ export function Marketing() {
           <section
             ref={hold('does')}
             data-scene="does"
-            className="px-6 py-24 md:px-12"
+            className="px-6 py-40 md:px-12"
             aria-label="What it does"
           >
-            <Display className="text-ink max-w-[20ch] text-[44px]">
+            <Display className="text-ink max-w-[20ch] [--display-size:44px]">
               Four things it does every day.
             </Display>
             <Carousel onCard={onCard} />
           </section>
 
           {/* 4. It runs the week. */}
-          <section ref={hold('week')} data-scene="week" className="px-6 py-24 md:px-12">
-            <Display className="text-ink max-w-[20ch] text-[44px]">
+          <section ref={hold('week')} data-scene="week" className="px-6 py-40 md:px-12">
+            <Display className="text-ink max-w-[20ch] [--display-size:44px]">
               It does the week, not just the answers.
             </Display>
             <RunSummary started={scene === 'week'} onDone={() => setWeekDone(true)} />
           </section>
 
           {/* 5. Set up by talking. Short: this removes the fear of setup. */}
-          <section ref={hold('setup')} data-scene="setup" className="px-6 py-24 md:px-12">
-            <Display className="text-ink max-w-[20ch] text-[44px]">
+          <section ref={hold('setup')} data-scene="setup" className="px-6 py-40 md:px-12">
+            <Display className="text-ink max-w-[20ch] [--display-size:44px]">
               Set up by talking. Or not.
             </Display>
             <p className="text-body text-ink-soft mt-4 max-w-[60ch]">
@@ -249,8 +268,8 @@ export function Marketing() {
           </section>
 
           {/* 6. Where it fits. */}
-          <section ref={hold('fits')} data-scene="fits" className="px-6 py-24 md:px-12">
-            <Display className="text-ink max-w-[20ch] text-[44px]">Where it fits</Display>
+          <section ref={hold('fits')} data-scene="fits" className="px-6 py-40 md:px-12">
+            <Display className="text-ink max-w-[20ch] [--display-size:44px]">Where it fits</Display>
             <div className="mt-10 grid gap-10 md:grid-cols-3">
               {FITS.map((column) => (
                 <div key={column.name}>
@@ -271,8 +290,8 @@ export function Marketing() {
           </section>
 
           {/* 7. Pricing. */}
-          <section ref={hold('pricing')} data-scene="pricing" className="px-6 py-24 md:px-12">
-            <Display className="text-ink max-w-[20ch] text-[44px]">Pricing</Display>
+          <section ref={hold('pricing')} data-scene="pricing" className="px-6 py-40 md:px-12">
+            <Display className="text-ink max-w-[20ch] [--display-size:44px]">Pricing</Display>
             <div className="mt-10">
               <PricingList>
                 {PRICES.map((row) => (

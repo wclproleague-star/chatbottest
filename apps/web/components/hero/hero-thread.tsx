@@ -8,7 +8,7 @@ export const GLASS_OPACITY = 0.6;
 /** Backdrop blur in px. 6 keeps the stars behind as soft points; 4 is the fallback. */
 export const GLASS_BLUR = 6;
 
-const PANEL_STYLE = {
+export const PANEL_STYLE = {
   '--spring-ease': SPRING.ease,
   '--spring-duration': `${SPRING.durationMs}ms`,
   // Sender names: star white at 55%.
