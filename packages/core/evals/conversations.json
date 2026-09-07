@@ -747,5 +747,54 @@
         "why": "a question is never 'not something I do': the knowledge answers it or the moderators do"
       }
     ]
+  },
+  {
+    "name": "the weather, with no place named",
+    "roles": [
+      {
+        "id": "role_ff",
+        "name": "Fast Forward"
+      }
+    ],
+    "selfServe": ["role_ff"],
+    "membership": {
+      "role_ff": true
+    },
+    "turns": [
+      {
+        "message": "fine fine... what's the weather like",
+        "why": "live: this was looked up as a place and answered for Weather, Arkansas. Nobody named a place, so the loop asks which one before it looks anything up. The expectation says ask rather than reply because asking is the funnel's own step here, not a softer version of answering.",
+        "expect": {
+          "outcome": "ask",
+          "textNot": ["15", "Weather,", "Kestrel"]
+        }
+      },
+      {
+        "message": "oh in paris right ?",
+        "why": "now they have named one: it is fetched and the reading says where it is for",
+        "expect": {
+          "outcome": "reply",
+          "calls": ["fetch_data"],
+          "textHas": ["Paris"]
+        }
+      },
+      {
+        "message": "but where",
+        "why": "live: this came back as \"PPG is on Fast Forward\". A fragment is about the line before it, so this is either answered about the weather or asked about; it is never answered with a fact about the member.",
+        "expect": {
+          "outcomeOneOf": ["ask", "reply"],
+          "mentionsNone": ["Fast Forward"]
+        }
+      }
+    ],
+    "sources": [
+      {
+        "id": "weather",
+        "name": "the weather",
+        "answers": "the weather right now anywhere; ask it with the place name alone, such as Paris",
+        "kind": "open_meteo",
+        "config": {}
+      }
+    ]
   }
 ]

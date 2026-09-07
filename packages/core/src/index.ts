@@ -196,6 +196,7 @@ export { learnFrom, keepsOnlyWhatWasSaid, numbersIn, sentences, forTheMember } f
 export { markHeadings, headingLevel, prepare } from './outline';
 export { describeDocument, sourceLine, usable } from './describe';
 export { withStaleness } from './stale';
+export { isElliptical, carryOn } from './follow-up';
 export { alreadyWaiting, pressing, saidAlready, SAME_QUESTION, SAME_EXCHANGE } from './pending';
 export type { Waiting } from './pending';
 export type { Outline } from './outline';

@@ -30,6 +30,8 @@ export type DataSource = {
 export type Fetcher = (input: {
   source: DataSource;
   question: string;
+  /** The member's own words, when the caller has them. */
+  said?: string;
   guildId: string;
 }) => Promise<string>;
 
@@ -55,13 +57,23 @@ export async function fetchFrom(
   sourceId: string,
   question: string,
   guildId: string,
+  /**
+   * What the member actually wrote, when the caller knows it.
+   *
+   * The question is the model's paraphrase, and a paraphrase can quietly
+   * introduce something nobody said: asked for the weather with no place in
+   * the message, it filled the gap with the member's own name and was told it
+   * was 21 degrees in Kestrel. A fetcher that looks something up by name can
+   * check the name against this before it goes to the network.
+   */
+  said?: string,
 ): Promise<string | null> {
   const source = sources.find((s) => s.id === sourceId);
   const fetcher = source ? FETCHERS.get(source.kind) : undefined;
   if (!source || !fetcher) return null;
   try {
-    const said = await fetcher({ source, question, guildId });
-    return said.trim() || null;
+    const said_ = await fetcher({ source, question, guildId, said });
+    return said_.trim() || null;
   } catch {
     return null;
   }

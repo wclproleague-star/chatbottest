@@ -10,6 +10,7 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import type { Json } from './database.types';
 import { converse } from './agent';
+import type { HistoryTurn } from './answer';
 import type { ConversationResult, Effects } from './agent';
 import { Type, generateJson } from './gemini';
 
@@ -223,6 +224,12 @@ async function main(): Promise<void> {
     // The loop reads the guild's self-serve roles and proofs from the database,
     // so the script's roles are put there for the length of the run.
     await withSettings(guildId, script, async () => {
+      // What the channel would have shown. In Discord the loop is handed the
+      // last messages of the channel; the open conversation only survives a
+      // question it asked. Without this the script tested a bot with no short
+      // memory at all, and a turn that leans on the line before it — "but
+      // where" — could not be scripted here.
+      const channel: HistoryTurn[] = [];
       for (const turn of script.turns) {
         const trace: Trace = { calls: [], assigned: [] };
         const result = await converse({
@@ -231,10 +238,13 @@ async function main(): Promise<void> {
           userId: 'eval-member',
           askerName: 'kestrel',
           message: turn.message,
+          history: channel.slice(-6),
           effects: fakeEffects(script, trace),
         });
         const found = problems(turn, result, trace);
         const text = 'text' in result ? result.text : '';
+        channel.push({ role: 'user', text: turn.message });
+        if (text.trim()) channel.push({ role: 'model', text });
         const wants = turn.expect;
         if (
           wants.language ||

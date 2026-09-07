@@ -19,6 +19,9 @@ import { backoffMs, classify, outageReply, worthRetrying } from './resilience';
 import { AREAS, applyAnswer, decided, missing } from './onboard';
 import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends';
 import { isPrivateHost, safeUrl } from './fetchers/http';
+import { placeAsked } from './fetchers/weather';
+import { carryOn, isElliptical } from './follow-up';
+import { isTheAsker } from './agent';
 import { answersHere } from './answers-here';
 import { answersTheQuestion } from './conversation';
 import { fallback, keepsOnlyWhatWasSaid, numbersIn, sentences, forTheMember } from './learn';
@@ -1643,6 +1646,70 @@ console.log(
     'no answer at all is nothing to say',
     forTheMember(null, 'sunday 13/09') === 'sunday 13/09',
   );
+}
+
+console.log(['', 'a question with no place in it names no place'].join(String.fromCharCode(10)));
+{
+  // Live: this was sent to the geocoder whole, which found a town in Arkansas
+  // called Weather, and a member was told it was 15 degrees there.
+  check(
+    'what the weather is like is not a town',
+    placeAsked("fine fine... what's the weather like") === null,
+  );
+  check('nor is the french for it', placeAsked('il fait quel temps ?') === null);
+  check('nor is a bare follow-up', placeAsked('but where') === null);
+  check('nor is here', placeAsked('what is it like here') === null);
+
+  // A place that is named is used, however the question was wrapped round it.
+  check('a bare name is the place', placeAsked('Paris') === 'paris');
+  check(
+    'so is one inside a question',
+    placeAsked("what's the weather like in Paris ?") === 'paris',
+  );
+  check('and one written loosely', placeAsked('oh in paris right ?') === 'paris');
+  check('two words stay together', placeAsked('weather in new york today') === 'new york');
+
+  // The model paraphrases the question, and a paraphrase can bring in a place
+  // nobody said: live it reached for the member's own name and reported the
+  // weather in Kestrel. The name has to be in what they actually wrote.
+  check(
+    'a place nobody wrote is refused',
+    placeAsked('kestrel', "what's the weather like") === null,
+  );
+  check('a place they did write is kept', placeAsked('paris', 'oh in paris right ?') === 'paris');
+  check('accents are not the difference', placeAsked('orleans', 'et à Orléans ?') === 'orleans');
+}
+
+console.log(['', 'a fragment is about the line before it'].join(String.fromCharCode(10)));
+{
+  // Live: after two weather answers, "but where" came back as "PPG is on Fast
+  // Forward" — it went looking for a subject and found the member's roles.
+  check('but where is a fragment', isElliptical('but where'));
+  check('and so is ok but when', isElliptical('ok but when ?'));
+  check('and which one', isElliptical('which one'));
+  check('et où in the other language', isElliptical('et où ?'));
+
+  // A message that carries its own subject is not one, however short.
+  check('a question naming its subject is not', !isElliptical('where is the bracket posted'));
+  check('nor is a plain ask', !isElliptical('when is the next tournament'));
+  check('nor is an answer', !isElliptical('yes please'));
+  check('nor is a greeting', !isElliptical('yo bro wassup'));
+
+  // Live: handed a fragment, the loop searched the knowledge for the member's
+  // own name, twice, and answered about something they never asked.
+  check('the asker is not a subject', isTheAsker('kestrel', 'kestrel'));
+  check('nor is their name inside a short query', isTheAsker('kestrel channel', 'Kestrel'));
+  check('a real subject is one', !isTheAsker('prize pool for winners', 'kestrel'));
+  check(
+    'and a long query is never just a name',
+    !isTheAsker('kestrel next match against baguette', 'kestrel'),
+  );
+  check('no name, nothing to refuse', !isTheAsker('kestrel', ''));
+
+  const line = carryOn('Paris is 20°C and partly cloudy right now.');
+  check('the carried line quotes what was said', line.includes('Paris is 20'), line);
+  check('and rules out the member', line.includes('not about the member'), line);
+  check('nothing said before carries nothing', carryOn('  ') === '');
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);

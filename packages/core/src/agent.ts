@@ -17,6 +17,7 @@ import { answer, FLAG_CATEGORIES } from './answer';
 import type { Json } from './database.types';
 import type { AnswerResult, FlagCategory, HistoryTurn } from './answer';
 import { generateJson, generateWithTools } from './gemini';
+import { carryOn, isElliptical } from './follow-up';
 import type { FunctionDeclaration, ToolTurn } from './gemini';
 import { Type } from './gemini';
 // Importing the fetchers is what registers them; a kind nothing registers
@@ -200,7 +201,20 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   // treat it as though it did — which is what made "salut bg" come back as
   // "what tournament role do you want?".
   const continues = answersTheQuestion(input.message, stored.turns);
-  const earlier = stored.turns;
+  // An open conversation is one Kalvard is waiting on: it survives a question
+  // it asked, and ends the moment it answers. That left the loop seeing one
+  // message and nothing else, so "but where" arrived with no idea what had
+  // just been said and went looking for a subject — it found the member's own
+  // roles and answered about those. The channel's last messages stand in when
+  // there is no open conversation, which is what a person in the room has.
+  //
+  // Only for context. Whether the member is answering a question Kalvard put
+  // to them is still decided on the open conversation alone, so a fragment in
+  // the channel can never be read as consent to something.
+  const earlier: ToolTurn[] =
+    stored.turns.length > 0
+      ? stored.turns
+      : (input.history ?? []).slice(-4).map((turn) => ({ role: turn.role, text: turn.text }));
   const turns: ToolTurn[] = [
     ...earlier,
     {
@@ -484,10 +498,27 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     };
   }
 
+  // A message too short to carry its own subject takes the subject of the
+  // line before it. Without this, "but where" went looking for a subject and
+  // found the member's own roles.
+  // Its own last line comes from the open conversation when there is one,
+  // and from the channel otherwise: in a ticket the conversation is the
+  // whole history, and the channel's copy is empty.
+  const spoken = [...spokenTurns(earlier), ...(input.history ?? [])];
+  const saidLast = [...spoken].reverse().find((turn) => turn.role === 'model');
+  const follows = isElliptical(input.message) && saidLast ? carryOn(saidLast.text) : '';
+
   while (calls <= MAX_TOOL_CALLS) {
     const budget = MAX_TOOL_CALLS - calls;
     const step = await generateWithTools({
-      system: systemPrompt(settings, budget, language, stored.turns.length > 0 && !continues),
+      system: systemPrompt(
+        settings,
+        budget,
+        language,
+        stored.turns.length > 0 && !continues,
+        // "but where" is about the thing just said, never about the member.
+        follows,
+      ),
       turns,
       tools: TOOLS,
       // Deciding what to do is not where the variety belongs. The words can
@@ -665,6 +696,24 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           break;
         }
         if (halfRead) return askAmongReadings();
+        // A question that wakes the moderators is not a question to the
+        // member: they cannot answer it, and the turn would sit waiting for a
+        // reply that is not theirs to give. Seen live as "Admins handle the
+        // prizes. {mods}, can one of you answer this?" put to the member as
+        // though it were a choice. It is an escalation, and it is handled as
+        // one, with the conversation closed rather than left open.
+        if (question.includes(MODS)) {
+          await closeConversation(guildId, conversationId);
+          steps.push('escalated: the question was for the moderators');
+          return {
+            outcome: 'escalate',
+            text: await inLanguage(question, language),
+            summary: question,
+            steps,
+            calls: called,
+            wouldHave,
+          };
+        }
         // The question is kept, so a later turn can tell what was confirmed.
         turns.push({
           role: 'tool',
@@ -709,6 +758,24 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
 
       case 'search_knowledge': {
         const query = String(call.args.query ?? input.message);
+        // Handed a message with no subject of its own, the model reached for
+        // the only proper noun in front of it — the member's name — and
+        // searched the knowledge for that, twice, before answering about
+        // something they had never asked. A name is who is asking, not what
+        // they asked about.
+        if (isTheAsker(query, input.askerName)) {
+          turns.push({
+            role: 'tool',
+            name: call.name,
+            result: {
+              ok: false,
+              reason:
+                'That is the name of the member you are talking to, not a subject. What they mean is in the conversation above: answer that, or ask them for the one detail you are missing.',
+            },
+          });
+          steps.push("refused to search the knowledge for the member's own name");
+          break;
+        }
         const found = await searchKnowledge(guildId, query, settings.threshold);
         steps.push(`searched the knowledge for "${query}"`);
         turns.push({ role: 'tool', name: call.name, result: found });
@@ -783,7 +850,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       case 'fetch_data': {
         const sourceId = String(call.args.sourceId ?? '');
         const what = String(call.args.question ?? input.message);
-        const said = await fetchFrom(settings.dataSources, sourceId, what, guildId);
+        const said = await fetchFrom(settings.dataSources, sourceId, what, guildId, input.message);
         steps.push(said ? `looked it up in ${sourceId}` : `nothing could look up "${what}"`);
         turns.push({
           role: 'tool',
@@ -1122,6 +1189,25 @@ function spokenTurns(turns: unknown[]): HistoryTurn[] {
   return out;
 }
 
+/**
+ * Whether a knowledge query is just the asker's own name.
+ *
+ * Compared loosely, because the name arrives in the turn as "kestrel: what's
+ * the weather like" and comes back out of the model as "kestrel", "Kestrel's
+ * channel" or "kestrel team".
+ */
+export function isTheAsker(query: string, askerName?: string): boolean {
+  const name = (askerName ?? '').trim().toLowerCase();
+  if (name.length < 3) return false;
+  const asked = query
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+  if (!asked) return false;
+  const words = asked.split(' ').filter(Boolean);
+  return words.length <= 3 && words.includes(name);
+}
+
 /** Everything the member has said in this conversation, in order. */
 function saidByMember(turns: ToolTurn[]): string {
   return turns.map((t) => ('role' in t && t.role === 'user' ? t.text : '')).join(' ');
@@ -1296,6 +1382,8 @@ function systemPrompt(
   language: string,
   /** The member changed the subject, and the question last put to them is dropped. */
   newSubject = false,
+  /** They wrote a fragment, and this is the line it hangs off. */
+  followsOn = '',
 ): string {
   return [
     `You are ${s.botName}, the assistant for a Discord server. You are talking to a member in a channel, in character, in your own words.`,
@@ -1334,6 +1422,7 @@ function systemPrompt(
     newSubject
       ? '- Their latest message does not answer what you last asked. It is a new subject: drop that question, and do not steer them back to it.'
       : '',
+    followsOn,
     `- You have ${budget} tool call(s) left in this turn. When they run out you must escalate_to_mod.`,
     '',
     'When you have nothing left to do, reply to the member in one or two short sentences.',
