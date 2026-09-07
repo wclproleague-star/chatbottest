@@ -7,6 +7,8 @@
 //   pnpm --filter @kalvard/core eval:units
 
 import process from 'node:process';
+import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_LIMITS,
   allowMessage,
@@ -573,15 +575,16 @@ console.log(['', 'the allowlist holds for every kind of step'].join(String.fromC
   const posted: string[] = [];
   const asked: string[] = [];
   const effects = {
-    async postMessage(_channelId: string, text: string) {
+    async say({ text }: { roomId: string; text: string }) {
       posted.push(text);
+      return {};
     },
-    async askButtons(input: { question: string }) {
+    async ask(input: { question: string }) {
       asked.push(input.question);
     },
-    async addReaction() {},
-    async pinMessage() {},
-    async channelId(name: string) {
+    async react() {},
+    async keepAtTop() {},
+    async roomId(name: string) {
       return name;
     },
   };
@@ -1710,6 +1713,55 @@ console.log(['', 'a fragment is about the line before it'].join(String.fromCharC
   check('the carried line quotes what was said', line.includes('Paris is 20'), line);
   check('and rules out the member', line.includes('not about the member'), line);
   check('nothing said before carries nothing', carryOn('  ') === '');
+}
+
+console.log(['', 'the product does not know what platform it is on'].join(String.fromCharCode(10)));
+{
+  // The whole of packages/core is the product: the funnel, the grounding, the
+  // workflows, the keeper. The day a second platform arrives, the work has to
+  // be writing one adapter, not finding every place Discord was assumed. This
+  // check is what keeps that true, because a single convenient import is all
+  // it takes to lose it.
+  //
+  // The names below survive on purpose, and each one is a shape already
+  // written down somewhere rather than a promise to a platform. They are
+  // listed so the check still fails the moment a new one appears, and so the
+  // list can be worked down deliberately rather than discovered.
+  const known = new Set([
+    // Stored in guild_settings.role_proofs, per role, by servers already set
+    // up: renaming the keys means rewriting their configuration.
+    'agent.ts: channelId?:',
+    'agent.ts: roleId:',
+    // Written into bot_events payloads and read back to audit what Kalvard
+    // did, and named in the model's own JSON schema for point_to_channel.
+    'answer.ts: channelId?:',
+    'answers-here.ts: channelId:',
+  ]);
+  const here = fileURLToPath(new URL('.', import.meta.url));
+  const sources = readdirSync(here, { recursive: true, encoding: 'utf8' }).filter(
+    (name) => name.endsWith('.ts') && !name.startsWith('eval-'),
+  );
+  const offenders: string[] = [];
+  const platformWords: string[] = [];
+  for (const name of sources) {
+    if (name === 'platform.ts') continue;
+    const text = readFileSync(here + name, 'utf8');
+    if (/from 'discord[.-]/.test(text) || /require\('discord/.test(text)) offenders.push(name);
+    // The vocabulary, in what core promises rather than in what it stores: an
+    // interface member called channelId is a Discord word in a contract.
+    for (const [word] of text.matchAll(
+      /^\s{2}(?:async )?(channelId|roleId|memberId|guildName|postMessage|pinMessage|addReaction|askButtons|assignRole|listRoles|createChannel|archiveChannel|postButton)\??[(:]/gm,
+    )) {
+      const found = `${name}: ${word.trim()}`;
+      if (!known.has(found)) platformWords.push(found);
+    }
+  }
+  check('no file in core imports discord.js', offenders.length === 0, offenders.join(', '));
+  check(
+    'and no new Discord word appears in what core promises',
+    platformWords.length === 0,
+    platformWords.slice(0, 6).join(' | '),
+  );
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);

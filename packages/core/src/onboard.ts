@@ -196,13 +196,13 @@ export async function onboard(input: { sessionId: string; said?: string }): Prom
   const config = (session.draft_config ?? {}) as DraftConfig;
   const said = input.said?.trim() ?? '';
 
-  const guildName = await nameOf(session.guild_id);
+  const spaceName = await nameOf(session.guild_id);
   // What was asked last time is what this message answers.
   const asked = missing(config)[0];
   // The one open question is free text, so it is read; the rest are answers to
   // a question whose meaning is already known, and are taken as written.
   const reading = said && asked === 'personaPrompt';
-  const heard = reading ? await understand(said, config, guildName) : { config: {}, note: '' };
+  const heard = reading ? await understand(said, config, spaceName) : { config: {}, note: '' };
 
   // A persona is held to the same line here as anywhere else: tone only.
   if (heard.config.personaPrompt) {
@@ -219,7 +219,7 @@ export async function onboard(input: { sessionId: string; said?: string }): Prom
     merged.answered = [...new Set([...(merged.answered ?? []), asked])];
   }
   const left = missing(merged);
-  const next = await ask(left[0], merged, guildName, heard.note, messages.length === 0);
+  const next = await ask(left[0], merged, spaceName, heard.note, messages.length === 0);
 
   const history: OnboardMessage[] = [
     ...messages,
@@ -249,7 +249,7 @@ export async function onboard(input: { sessionId: string; said?: string }): Prom
 async function understand(
   said: string,
   config: DraftConfig,
-  guildName: string,
+  spaceName: string,
 ): Promise<{ config: DraftConfig; note: string }> {
   try {
     const out = await generateJson<{
@@ -263,7 +263,7 @@ async function understand(
       gap: string;
     }>({
       system: [
-        `An owner is setting up an assistant for their Discord server, ${guildName}.`,
+        `An owner is setting up an assistant for their Discord server, ${spaceName}.`,
         'Read what they just said and fill in only what it actually tells you. Leave the rest empty: never invent a name, a tone or a rule they did not give.',
         'botName: what the bot should be called.',
         'personaPrompt: what the server is for and how the bot should talk in it, in one or two sentences, in their own words. Keep what they said about tone, exactly as they put it: funny, short, formal, blunt. Never drop it and never smooth it out; the tone is the half that matters to them.',
@@ -341,7 +341,7 @@ async function understand(
 async function ask(
   field: keyof DraftConfig | undefined,
   config: DraftConfig,
-  guildName: string,
+  spaceName: string,
   note: string,
   first: boolean,
 ): Promise<{ message: string; quickReplies: string[] }> {
@@ -357,7 +357,7 @@ async function ask(
     return {
       message: say(
         first
-          ? `Let us set up your bot for ${guildName}. What should it be called?`
+          ? `Let us set up your bot for ${spaceName}. What should it be called?`
           : 'What should it be called?',
       ),
       quickReplies: ['Kalvard'],
@@ -372,7 +372,7 @@ async function ask(
   if (field === 'toneSample') {
     return {
       message: say('Which of these sounds most like your server?'),
-      quickReplies: await tones(config, guildName),
+      quickReplies: await tones(config, spaceName),
     };
   }
   if (field === 'knowledge') {
@@ -404,20 +404,20 @@ async function ask(
 }
 
 /** Three tone samples, written from what the owner has already said. */
-export async function toneSamples(config: DraftConfig, guildName: string): Promise<string[]> {
-  return tones(config, guildName);
+export async function toneSamples(config: DraftConfig, spaceName: string): Promise<string[]> {
+  return tones(config, spaceName);
 }
 
-async function tones(config: DraftConfig, guildName: string): Promise<string[]> {
+async function tones(config: DraftConfig, spaceName: string): Promise<string[]> {
   try {
     const out = await generateJson<{ samples: string[] }>({
       system: [
-        `Write three one-sentence samples of how an assistant could answer in the Discord server ${guildName}.`,
+        `Write three one-sentence samples of how an assistant could answer in the Discord server ${spaceName}.`,
         'All three answer the same question, "when is the next match?", and differ only in voice: one warm, one dry and short, one playful.',
         'Each is one sentence, under 100 characters, with no emoji and no exclamation mark.',
       ].join(' '),
       messages: [
-        { role: 'user', text: config.personaPrompt ?? `A Discord server called ${guildName}.` },
+        { role: 'user', text: config.personaPrompt ?? `A Discord server called ${spaceName}.` },
       ],
       schema: {
         type: Type.OBJECT,
@@ -464,12 +464,12 @@ async function nameOf(guildId: string): Promise<string> {
  * still in the mood to paste it. It names what is absent, never what is
  * there, and it never invents a gap to have something to say.
  */
-export async function gapIn(text: string, guildName: string): Promise<string> {
+export async function gapIn(text: string, spaceName: string): Promise<string> {
   const sample = text.slice(0, 6000);
   try {
     const out = await generateJson<{ gap: string }>({
       system: [
-        `An owner has just given their Discord server's assistant something to know, for ${guildName}.`,
+        `An owner has just given their Discord server's assistant something to know, for ${spaceName}.`,
         'Name in one short sentence the most obvious thing members will ask about that this does not cover, so they can add it now.',
         'Only what is genuinely absent. If it covers its subject well enough, leave gap empty rather than inventing a hole.',
         'Speak to the owner, in their own language, in the second person: "Nothing here says when matches are played."',

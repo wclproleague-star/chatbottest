@@ -1,3 +1,4 @@
+import type { RunningPlatform } from './platform';
 // Workflows: a routine a server runs, stored as data.
 //
 // A flow, not a list of actions. Steps read variables that earlier ones set,
@@ -119,7 +120,8 @@ export type Wait = {
   kind: 'event' | 'poll' | 'clock';
   /** For an event: what, where, from whom. */
   event?: 'message' | 'attachment' | 'reaction' | 'button';
-  channelId?: string;
+  /** Where it is waiting. Runs paused before this was renamed stored it as channelId. */
+  roomId?: string;
   from: string[];
   teams?: string[];
   /** The step's own name for the answer. */
@@ -201,23 +203,8 @@ export type RunResult = {
 };
 
 /** What a workflow may do in Discord. The same allowlist the answer loop uses. */
-export type WorkflowEffects = {
-  postMessage(channelId: string, text: string, attachments?: string[]): Promise<void>;
-  askButtons(input: {
-    channelId: string;
-    question: string;
-    options: string[];
-    whoMayAnswer: string[];
-  }): Promise<void>;
-  addReaction(channelId: string, messageId: string, emoji: string): Promise<void>;
-  pinMessage(channelId: string, messageId: string): Promise<void>;
-  /** The channel an owner named, resolved to an id, or null when it is gone. */
-  channelId(name: string): Promise<string | null>;
-  /** Read from a source, by kind of operation. */
-  fetch?(source: string, op: string, args: Record<string, string>): Promise<unknown>;
-  /** Read a picture. Scripted in evals, the model live. */
-  readImage?(url: string): Promise<unknown>;
-};
+/** What a running workflow needs, as a view of the one platform interface. */
+export type WorkflowEffects = RunningPlatform;
 
 export type RunInput = {
   guildId: string;
@@ -635,7 +622,7 @@ async function runStep(
         }
         const channel = await where(step.in, state, input);
         if (channel === null) return 'stopped';
-        if (!input.dryRun) await input.effects.postMessage(channel, line);
+        if (!input.dryRun) await input.effects.say({ roomId: channel, text: line });
       }
       state.entries.push({ step: 'pick', detail: line, wouldHave: input.dryRun });
       return 'next';
@@ -654,8 +641,8 @@ async function runStep(
       if (input.dryRun) {
         state.entries.push({ step: 'ask', detail, wouldHave: true });
       } else {
-        await input.effects.askButtons({
-          channelId: channel,
+        await input.effects.ask({
+          roomId: channel,
           question,
           options: step.options,
           whoMayAnswer: who,
@@ -678,7 +665,7 @@ async function runStep(
       state.wait = {
         kind: 'event',
         event: 'button',
-        channelId: channel,
+        roomId: channel,
         from: who,
         as: step.as,
         options: step.options,
@@ -716,7 +703,7 @@ async function runStep(
       state.wait = {
         kind: 'event',
         event: step.event,
-        channelId: channel,
+        roomId: channel,
         from: who,
         teams: step.teams,
         as: step.as,
@@ -817,18 +804,22 @@ async function carryOut(
         .split(/\s*,\s*/)
         .map((s) => s.trim())
         .filter(Boolean);
-      await input.effects.postMessage(
-        channel,
-        args.text ?? '',
-        attachments.length > 0 ? attachments : undefined,
-      );
+      await input.effects.say({
+        roomId: channel,
+        text: args.text ?? '',
+        attachments: attachments.length > 0 ? attachments : undefined,
+      });
       break;
     }
     case 'add_reaction':
-      await input.effects.addReaction(args.channel ?? '', args.message ?? '', args.emoji ?? '✅');
+      await input.effects.react({
+        roomId: args.channel ?? '',
+        messageId: args.message ?? '',
+        mark: args.emoji ?? '✅',
+      });
       break;
     case 'pin_message':
-      await input.effects.pinMessage(args.channel ?? '', args.message ?? '');
+      await input.effects.keepAtTop({ roomId: args.channel ?? '', messageId: args.message ?? '' });
       break;
     default:
       return stop(state, `${action} is not an action Kalvard knows`);
@@ -845,7 +836,7 @@ async function where(
 ): Promise<string | null> {
   if (!name) return '';
   const filled = fill(name, state.variables) ?? name;
-  const id = await input.effects.channelId(filled);
+  const id = await input.effects.roomId(filled);
   if (id) {
     // The first room a run speaks in is the room it lives in: whoever talks
     // there while it is alive is talking to it, whatever it waits on.
@@ -977,8 +968,8 @@ export async function recordRun(input: {
   workflowId?: string;
   mode: 'live' | 'dry_run';
   result: RunResult;
-  /** The channel a paused run is waiting in, so events can find it. */
-  channelId?: string | null;
+  /** The room a paused run is waiting in, so events can find it. */
+  roomId?: string | null;
 }): Promise<string | null> {
   const paused = Boolean(input.result.state);
   const status = input.result.stoppedBecause ? 'stopped' : paused ? 'running' : 'done';
@@ -996,7 +987,7 @@ export async function recordRun(input: {
         stoppedBecause: input.result.stoppedBecause ?? null,
       } as unknown as Json,
       state: (input.result.state ?? null) as unknown as Json,
-      channel_id: input.channelId ?? channelOf(input.result.state) ?? null,
+      channel_id: input.roomId ?? channelOf(input.result.state) ?? null,
     })
     .select('id')
     .single();
@@ -1035,7 +1026,7 @@ export async function saveRun(runId: string, state: RunState): Promise<void> {
  */
 function channelOf(state: RunState | undefined): string | null {
   if (!state) return null;
-  if (state.wait?.channelId) return state.wait.channelId;
+  if (state.wait?.roomId) return state.wait.roomId;
   for (const candidate of [state.variables.channel, state.variables._channel]) {
     if (typeof candidate === 'string' && /^\d{15,22}$/.test(candidate)) return candidate;
   }
@@ -1207,11 +1198,13 @@ function fromRow(row: {
  */
 export function runDryEffects(): WorkflowEffects {
   return {
-    async postMessage() {},
-    async askButtons() {},
-    async addReaction() {},
-    async pinMessage() {},
-    async channelId(name: string) {
+    async say() {
+      return {};
+    },
+    async ask() {},
+    async react() {},
+    async keepAtTop() {},
+    async roomId(name: string) {
       return name;
     },
   };

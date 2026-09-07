@@ -18,6 +18,7 @@ import type { Json } from './database.types';
 import type { AnswerResult, FlagCategory, HistoryTurn } from './answer';
 import { generateJson, generateWithTools } from './gemini';
 import { carryOn, isElliptical } from './follow-up';
+import type { Gave, ReadingPlatform } from './platform';
 import type { FunctionDeclaration, ToolTurn } from './gemini';
 import { Type } from './gemini';
 // Importing the fetchers is what registers them; a kind nothing registers
@@ -42,40 +43,19 @@ export const MAX_TOOL_CALLS = 5;
 export const CONVERSATION_TTL_MS = 30 * 60 * 1000;
 
 /** Why an assignment did not happen, when it did not. */
-export type AssignOutcome =
-  | { ok: true }
-  | { ok: false; reason: 'missing_permission' | 'role_too_high' | 'unknown'; detail?: string };
+/** What happened when a group was given. Defined once, in `platform.ts`. */
+export type AssignOutcome = Gave;
 
 export type RoleProof =
   | { kind: 'roster_document'; documentId: string }
   | { kind: 'channel_access'; channelId: string }
   | { kind: 'has_role'; roleId: string };
 
-/** What the bot can actually do in Discord. The loop asks; these carry it out. */
-export type Effects = {
-  /**
-   * Every role on the server, by id and name.
-   *
-   * Discord is the truth about what a server has — its roles, its channels,
-   * its members. Our database is the layer on top: which of these roles the
-   * owner lets Kalvard hand out, and what proves somebody may have one. Asking
-   * Discord only about the roles we already know about is how Kalvard came to
-   * tell a member that a role their own server has was "not something I do".
-   */
-  listRoles(): Promise<{ id: string; name: string }[]>;
-  /** Whether the member is in that channel; for `channel_access` proofs. */
-  memberInChannel(userId: string, channelId: string): Promise<boolean>;
-  /** Whether the member holds that role; for `has_role` proofs. */
-  memberHasRole(userId: string, roleId: string): Promise<boolean>;
-  /**
-   * Give the member the role. Only ever called after a proof passed. It says
-   * whether it worked: a bot whose permissions were narrowed, or that sits
-   * below the role in the hierarchy, must say so rather than fall silent.
-   */
-  assignRole(userId: string, roleId: string): Promise<AssignOutcome>;
-  /** A channel's name, for pointing at it by name. */
-  channelName(channelId: string): Promise<string | null>;
-};
+/**
+ * What the loop can do where it is running. One name for it, defined in
+ * `platform.ts` and shared with everything else that acts.
+ */
+export type Effects = ReadingPlatform;
 
 export type ConversationInput = {
   guildId: string;
@@ -320,7 +300,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
     if (!settings.selfServeRoleIds.includes(roleId)) {
       return { ok: false, reason: 'that role is not one the owner lets me give out' };
     }
-    const roleName = (await effects.listRoles()).find((r) => r.id === roleId)?.name ?? '';
+    const roleName = (await effects.groups()).find((r) => r.id === roleId)?.name ?? '';
     // Either they asked for this role themselves, or they agreed to it when
     // Kalvard proposed it. Agreement is judged on its own, because a member who
     // disputes a guess repeats the name too, and the model running the
@@ -354,7 +334,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
       assigned = roleId;
       return { ok: true, role: roleName, note: 'Tell them it is done, in one short line.' };
     }
-    const done = await effects.assignRole(userId, roleId);
+    const done = await effects.giveGroup(userId, roleId);
     if (!done.ok) {
       steps.push(`could not give them the role: ${done.reason}`);
       return { ok: false, reason: whyNot(done.reason, roleName) };
@@ -373,7 +353,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
   // name already given, and waking a moderator over a check that passed. The
   // two things that protect the member are unchanged and still run first:
   // their own consent, and the proof the owner configured for that role.
-  const allRoles = await effects.listRoles();
+  const allRoles = await effects.groups();
   const selfServe = allRoles.filter((r) => settings.selfServeRoleIds.includes(r.id));
   const wanted = await roleTheyAskedFor(input.message, turns, selfServe, allRoles);
 
@@ -458,7 +438,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
           wouldHave,
         };
       }
-      const done = await effects.assignRole(userId, wanted.id);
+      const done = await effects.giveGroup(userId, wanted.id);
       if (done.ok) {
         steps.push('gave them the role');
         await closeConversation(guildId, conversationId);
@@ -925,7 +905,7 @@ export async function converse(input: ConversationInput): Promise<ConversationRe
 
       case 'point_to_channel': {
         const channelId = String(call.args.channelId ?? '');
-        const name = await effects.channelName(channelId);
+        const name = await effects.roomName(channelId);
         turns.push({
           role: 'tool',
           name: call.name,
@@ -1031,11 +1011,11 @@ async function logCapabilityRequest(
 }
 
 /** What a member is told when Kalvard may give a role and cannot. */
-function whyNot(reason: 'missing_permission' | 'role_too_high' | 'unknown', role: string): string {
+function whyNot(reason: Exclude<Gave, { ok: true }>['reason'], role: string): string {
   switch (reason) {
     case 'missing_permission':
       return `I can't hand out ${role}: I don't have permission to manage roles here.`;
-    case 'role_too_high':
+    case 'group_too_high':
       return `I can't hand out ${role}: it sits above me in the role list, so Discord won't let me.`;
     default:
       return `I couldn't hand you ${role}, and I don't know why.`;
@@ -1276,13 +1256,13 @@ async function checkMembership(input: {
   }
   switch (proof.kind) {
     case 'has_role': {
-      const ok = await effects.memberHasRole(userId, proof.roleId);
+      const ok = await effects.personHasGroup(userId, proof.roleId);
       return ok
         ? { ok: true, reason: 'they hold the role that qualifies them' }
         : { ok: false, reason: 'they do not hold the role that qualifies them' };
     }
     case 'channel_access': {
-      const ok = await effects.memberInChannel(userId, proof.channelId);
+      const ok = await effects.personInRoom(userId, proof.channelId);
       return ok
         ? { ok: true, reason: 'they have access to the channel that qualifies them' }
         : { ok: false, reason: 'they cannot see the channel that qualifies them' };

@@ -36,19 +36,20 @@ function check(what: string, ok: boolean, detail = ''): void {
 /** Effects that refuse to do anything, which is the point of a dry run. */
 function refusing(calls: string[]): WorkflowEffects {
   return {
-    async postMessage() {
+    async say() {
       calls.push('postMessage');
+      return {};
     },
-    async askButtons() {
+    async ask() {
       calls.push('askButtons');
     },
-    async addReaction() {
+    async react() {
       calls.push('addReaction');
     },
-    async pinMessage() {
+    async keepAtTop() {
       calls.push('pinMessage');
     },
-    async channelId(name) {
+    async roomId(name: string) {
       return name === 'match-info' ? 'channel-match-info' : null;
     },
   };
@@ -153,7 +154,7 @@ const noChannel = await runWorkflow({
   context: context as unknown as Record<string, unknown>,
   effects: {
     ...refusing(calls),
-    async channelId() {
+    async roomId() {
       return null;
     },
   },
@@ -194,15 +195,16 @@ const DRAFT_SOURCE = {
   config: { baseUrl: 'fixture:draft-flow' },
 };
 const effects: WorkflowEffects = {
-  async postMessage(channel, text, attachments) {
-    posted.push({ channel, text, attachments });
+  async say({ roomId, text, attachments }) {
+    posted.push({ channel: roomId, text, attachments });
+    return {};
   },
-  async askButtons({ question, whoMayAnswer }) {
+  async ask({ question, whoMayAnswer }) {
     asked.push({ question, who: whoMayAnswer });
   },
-  async addReaction() {},
-  async pinMessage() {},
-  async channelId(name) {
+  async react() {},
+  async keepAtTop() {},
+  async roomId(name: string) {
     return name === 'results' ? 'channel-results' : name;
   },
   fetch: (source, op, args) => {
@@ -738,7 +740,7 @@ const noResults = await runWorkflow({
   },
   effects: {
     ...effects,
-    async channelId(name) {
+    async roomId(name: string) {
       return name === 'gone' ? null : name;
     },
   },

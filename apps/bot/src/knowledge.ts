@@ -16,7 +16,8 @@ export async function recordAnswer(input: {
   question: string;
   answer: string;
   answeredBy: string;
-  guildName?: string;
+  /** The space, so a statement can name it rather than say "here". */
+  spaceName?: string;
 }): Promise<Learned | null> {
   const db = serviceClient();
   const now = new Date().toISOString();
@@ -41,7 +42,7 @@ export async function recordAnswer(input: {
   const learned = await learnFrom({
     question: input.question,
     answer: input.answer,
-    guildName: input.guildName,
+    spaceName: input.spaceName,
   });
   const doc = await db
     .from('documents')

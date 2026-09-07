@@ -61,7 +61,7 @@ type Script = {
   /** The data sources this guild has for the run, as the owner would add them. */
   sources?: { id: string; name: string; answers: string; kind: string; config: Json }[];
   /** When set, Discord refuses the assignment for this reason. */
-  cannotAssign?: 'missing_permission' | 'role_too_high' | 'unknown';
+  cannotAssign?: 'missing_permission' | 'group_too_high' | 'unknown';
   roles: { id: string; name: string }[];
   selfServe: string[];
   membership: Record<string, boolean>;
@@ -73,27 +73,27 @@ type Trace = { calls: string[]; assigned: string[] };
 
 function fakeEffects(script: Script, trace: Trace): Effects {
   return {
-    async listRoles() {
+    async groups() {
       trace.calls.push('list_roles');
       return script.roles;
     },
-    async memberHasRole(_userId, roleId) {
+    async personHasGroup(_userId, roleId) {
       trace.calls.push('check_membership');
       // The proof asks about the qualifying role, named after the role itself.
       return script.membership[roleId.replace(/_qualifier$/, '')] ?? false;
     },
-    async memberInChannel() {
+    async personInRoom() {
       trace.calls.push('check_membership');
       return false;
     },
-    async assignRole(_userId, roleId) {
+    async giveGroup(_userId, roleId) {
       trace.calls.push('assign_role');
       // A script can make Discord refuse, to check what the member is told.
       if (script.cannotAssign) return { ok: false, reason: script.cannotAssign };
       trace.assigned.push(roleId);
       return { ok: true };
     },
-    async channelName() {
+    async roomName() {
       return null;
     },
   };

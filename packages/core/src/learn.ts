@@ -103,7 +103,7 @@ export async function learnFrom(input: {
   question: string;
   answer: string;
   /** The server, so a statement can name it rather than say "here". */
-  guildName?: string;
+  spaceName?: string;
 }): Promise<Learned> {
   const question = input.question.trim();
   const answer = input.answer.trim();
@@ -115,7 +115,7 @@ export async function learnFrom(input: {
     raw = await generateJson<{ title: string; facts: string[]; reply: string }>({
       system: [
         'A moderator has just answered a member question in a Discord server' +
-          (input.guildName ? ` (${input.guildName})` : '') +
+          (input.spaceName ? ` (${input.spaceName})` : '') +
           '. Turn that exchange into knowledge the assistant can answer from later.',
         'Write each thing the moderator established as its own statement, complete on its own: no "it", no "there", no "yes" — say what the thing is. Somebody reading the statement a year from now, with none of this conversation in front of them, must understand it.',
         'Keep every name, number, date, time and channel exactly as it was said. Never add a detail that is not in the exchange, however obvious it seems, and never soften or generalise one that is.',

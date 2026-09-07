@@ -203,7 +203,7 @@ export async function onTick(
       question: pending.question,
       answer,
       answeredBy: user.id,
-      guildName: guild.name,
+      spaceName: guild.name,
     }),
   );
 

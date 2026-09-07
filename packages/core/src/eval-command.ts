@@ -160,24 +160,26 @@ console.log(['', 'confirming, against effects that only record'].join(String.fro
   } else {
     const calls: string[] = [];
     const effects: CommandEffects = {
-      async createChannel({ name, category }) {
-        calls.push(`create ${name} in ${category}`);
+      async makeRoom({ name, section }) {
+        calls.push(`create ${name} in ${section}`);
         return { id: 'new-1', url: 'https://discord.com/channels/1/new-1' };
       },
-      async allowRoles({ channelId, roleIds }) {
-        calls.push(`allow ${roleIds.join('+')} in ${channelId}`);
+      async allowGroups({ roomId, groupIds }) {
+        calls.push(`allow ${groupIds.join('+')} in ${roomId}`);
       },
-      async archiveChannel() {
+      async closeRoom() {
         calls.push('archive');
       },
-      async setPrivate({ roleIds }) {
-        calls.push(`private for ${roleIds.join('+')}`);
+      async makePrivate({ groupIds }) {
+        calls.push(`private for ${groupIds.join('+')}`);
       },
-      async postMessage() {
+      async say() {
         return { url: '' };
       },
-      async pinMessage() {},
-      async assignRole() {},
+      async keepAtTop() {},
+      async giveGroup() {
+        return { ok: true } as const;
+      },
     };
     const done = await runPlan({
       guildId: '900000000000000001',
@@ -512,24 +514,26 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
       shape: SHAPE,
     });
     const effects: CommandEffects = {
-      async createChannel({ name, category }) {
-        calls.push(`createChannel ${name} in ${category ?? '-'}`);
+      async makeRoom({ name, section }) {
+        calls.push(`makeRoom ${name} in ${section ?? '-'}`);
         return { id: 'chan-1', url: 'https://discord/chan-1' };
       },
-      async allowRoles() {},
-      async archiveChannel() {},
-      async setPrivate() {},
-      async postMessage() {
+      async allowGroups() {},
+      async closeRoom() {},
+      async makePrivate() {},
+      async say() {
         return { url: 'x' };
       },
-      async pinMessage() {},
-      async assignRole() {},
-      async createCategory({ name }) {
-        calls.push(`createCategory ${name}`);
+      async keepAtTop() {},
+      async giveGroup() {
+        return { ok: true } as const;
+      },
+      async makeSection({ name }) {
+        calls.push(`makeSection ${name}`);
         return { id: 'cat-1' };
       },
-      async postButton({ channelId, buttons }) {
-        calls.push(`postButton in ${channelId}: ${buttons.map((b) => b.id).join('|')}`);
+      async buttons({ roomId, buttons }) {
+        calls.push(`buttons in ${roomId}: ${buttons.map((b) => b.id).join('|')}`);
         return { url: 'https://discord/msg' };
       },
     };
@@ -548,7 +552,7 @@ console.log(['', 'a moderator who is not asking for anything'].join(String.fromC
     check(
       'category, then channel in it, then buttons on the new channel',
       calls.join(' / ') ===
-        'createCategory Tickets / createChannel open-a-ticket in Tickets / postButton in chan-1: ticket:open:Question|ticket:open:Roles',
+        'makeSection Tickets / makeRoom open-a-ticket in Tickets / buttons in chan-1: ticket:open:Question|ticket:open:Roles',
       calls.join(' / '),
     );
     const { loadSupport } = await import('./support');

@@ -111,16 +111,17 @@ export function workflowEffects(guild: Guild, runId?: string): WorkflowEffects {
   const mention = (id: string): string => (guild.roles.cache.has(id) ? `<@&${id}>` : `<@${id}>`);
 
   return {
-    async postMessage(channelId, text, attachments) {
+    async say({ roomId: channelId, text, attachments }) {
       const channel = textChannel(channelId);
-      if (!channel) return;
-      await channel.send({
+      if (!channel) return {};
+      const posted = await channel.send({
         content: text.slice(0, 2000),
         files: (attachments ?? []).slice(0, 10),
       });
+      return { url: posted.url };
     },
 
-    async askButtons({ channelId, question, options, whoMayAnswer }) {
+    async ask({ roomId: channelId, question, options, whoMayAnswer }) {
       const channel = textChannel(channelId);
       if (!channel) return;
       // The run's id travels in the button, so a click after a restart still
@@ -142,21 +143,21 @@ export function workflowEffects(guild: Guild, runId?: string): WorkflowEffects {
       await channel.send({ content: content.trim(), components: [row] });
     },
 
-    async addReaction(channelId, messageId, emoji) {
+    async react({ roomId: channelId, messageId, mark: emoji }) {
       const message = await textChannel(channelId)
         ?.messages.fetch(messageId)
         .catch(() => null);
       await message?.react(emoji).catch(() => undefined);
     },
 
-    async pinMessage(channelId, messageId) {
+    async keepAtTop({ roomId: channelId, messageId }) {
       const message = await textChannel(channelId)
         ?.messages.fetch(messageId)
         .catch(() => null);
       await message?.pin().catch(() => undefined);
     },
 
-    async channelId(name) {
+    async roomId(name: string) {
       if (guild.channels.cache.has(name)) return name;
       const wanted = plainName(name);
       if (!wanted) return null;
@@ -399,7 +400,7 @@ async function sayIfStopped(guild: Guild, state: RunState): Promise<void> {
   if (!state.stoppedBecause) return;
   const channelId =
     (typeof state.variables.channel === 'string' && state.variables.channel) ||
-    state.wait?.channelId ||
+    state.wait?.roomId ||
     null;
   if (!channelId) return;
   const channel = guild.channels.cache.get(channelId);
@@ -479,7 +480,7 @@ export function startRunTicker(client: Client): NodeJS.Timeout {
  */
 export async function startSeries(input: {
   guild: Guild;
-  channelId: string;
+  roomId: string;
   teamA: { name: string; roleId: string };
   teamB: { name: string; roleId: string };
   modRoleId: string | null;
@@ -512,7 +513,7 @@ export async function startSeries(input: {
   const effects = workflowEffects(guild);
   let results = RESULTS_CHANNELS[0]!;
   for (const name of RESULTS_CHANNELS) {
-    if (await effects.channelId(name)) {
+    if (await effects.roomId(name)) {
       results = name;
       break;
     }
@@ -520,7 +521,7 @@ export async function startSeries(input: {
   const context = seriesContext({
     teamA: input.teamA,
     teamB: input.teamB,
-    channel: input.channelId,
+    channel: input.roomId,
     results,
     rules,
     mods: input.modRoleId ? `<@&${input.modRoleId}>` : 'the moderators',
@@ -531,7 +532,7 @@ export async function startSeries(input: {
   // and the run is written back to it once it has started.
   const { data: row } = await serviceClient()
     .from('workflow_runs')
-    .insert({ guild_id: guild.id, mode: 'live', status: 'running', channel_id: input.channelId })
+    .insert({ guild_id: guild.id, mode: 'live', status: 'running', channel_id: input.roomId })
     .select('id')
     .single();
   const runId = row?.id ?? '';
@@ -555,7 +556,7 @@ export async function startSeries(input: {
       stoppedBecause: result.stoppedBecause,
     });
   } else {
-    await recordRun({ guildId: guild.id, mode: 'live', result, channelId: input.channelId });
+    await recordRun({ guildId: guild.id, mode: 'live', result, roomId: input.roomId });
   }
   if (result.stoppedBecause) {
     await sayIfStopped(guild, {

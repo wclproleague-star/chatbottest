@@ -1,3 +1,4 @@
+import type { ShapingPlatform } from './platform';
 // Command mode: say what you want, read what it will do, then decide.
 //
 // An owner or moderator writes a sentence. Kalvard turns it into a plan of
@@ -76,29 +77,11 @@ export type Commander = { id: string; name: string; isStaff: boolean; isOwner: b
 export type ExecutedStep = { sentence: string; ok: boolean; detail: string; link?: string };
 
 /** What a command may do in Discord. The bot supplies these; the web does not. */
-export type CommandEffects = {
-  createChannel(input: {
-    name: string;
-    category?: string;
-    /** When set, @everyone cannot see it and only these roles can. */
-    privateForRoleIds?: string[];
-  }): Promise<{ id: string; url: string }>;
-  allowRoles(input: { channelId: string; roleIds: string[] }): Promise<void>;
-  archiveChannel(input: { channelId: string }): Promise<void>;
-  /** Shuts everyone out of a channel that already exists, except these roles. */
-  setPrivate(input: { channelId: string; roleIds: string[] }): Promise<void>;
-  postMessage(input: { channelId: string; text: string }): Promise<{ url: string }>;
-  pinMessage(input: { channelId: string; messageId: string }): Promise<void>;
-  assignRole(input: { userId: string; roleId: string }): Promise<void>;
-  /** A category, for the ticket system. */
-  createCategory?(input: { name: string }): Promise<{ id: string }>;
-  /** A message with buttons, each with an id the bot answers to. */
-  postButton?(input: {
-    channelId: string;
-    text: string;
-    buttons: { id: string; label: string }[];
-  }): Promise<{ url: string }>;
-};
+/**
+ * What carrying out a plan needs. A view of the one platform interface, so a
+ * plan and a workflow speak about a room in the same words.
+ */
+export type CommandEffects = ShapingPlatform;
 
 /** More than this and the plan is read out item by item before anything runs. */
 export const ITEMISE_ABOVE = 3;
@@ -484,10 +467,10 @@ async function carryOut(
               .map((r) => find(input.shape.roles, r.trim())?.id)
               .filter((id): id is string => Boolean(id))
           : undefined;
-      const created = await input.effects.createChannel({
+      const created = await input.effects.makeRoom({
         name: clean(step.args.name ?? ''),
-        category: step.args.category,
-        privateForRoleIds: roleIds,
+        section: step.args.category,
+        privateForGroupIds: roleIds,
       });
       made.set(clean(step.args.name ?? ''), created.id);
       const who = roleIds ? `, visible only to ${step.args.roles}` : ', visible to the category';
@@ -498,7 +481,10 @@ async function carryOut(
         .split(',')
         .map((r) => find(input.shape.roles, r.trim())?.id)
         .filter((id): id is string => Boolean(id));
-      await input.effects.allowRoles({ channelId: channelId(step.args.channel ?? ''), roleIds });
+      await input.effects.allowGroups({
+        roomId: channelId(step.args.channel ?? ''),
+        groupIds: roleIds,
+      });
       return { detail: `${step.args.roles} can see ${hash(step.args.channel ?? '')}` };
     }
     case 'set_private': {
@@ -506,17 +492,20 @@ async function carryOut(
         .split(',')
         .map((r) => find(input.shape.roles, r.trim())?.id)
         .filter((id): id is string => Boolean(id));
-      await input.effects.setPrivate({ channelId: channelId(step.args.channel ?? ''), roleIds });
+      await input.effects.makePrivate({
+        roomId: channelId(step.args.channel ?? ''),
+        groupIds: roleIds,
+      });
       return {
         detail: `${hash(step.args.channel ?? '')} is now visible only to ${step.args.roles}`,
       };
     }
     case 'archive_channel':
-      await input.effects.archiveChannel({ channelId: channelId(step.args.channel ?? '') });
+      await input.effects.closeRoom({ roomId: channelId(step.args.channel ?? '') });
       return { detail: `Archived ${hash(step.args.channel ?? '')}, nothing was deleted` };
     case 'post_message': {
-      const posted = await input.effects.postMessage({
-        channelId: channelId(step.args.channel ?? ''),
+      const posted = await input.effects.say({
+        roomId: channelId(step.args.channel ?? ''),
         text: step.args.text ?? '',
       });
       return { detail: `Posted in ${hash(step.args.channel ?? '')}`, link: posted.url };
@@ -524,20 +513,19 @@ async function carryOut(
     case 'pin_message':
       throw new Error('Pinning needs the message, so it is not something a command can do yet.');
     case 'create_category': {
-      if (!input.effects.createCategory)
-        throw new Error('Categories can only be made from Discord.');
-      const created = await input.effects.createCategory({ name: step.args.name ?? '' });
+      if (!input.effects.makeSection) throw new Error('Categories can only be made from Discord.');
+      const created = await input.effects.makeSection({ name: step.args.name ?? '' });
       made.set(`category:${clean(step.args.name ?? '')}`, created.id);
       return { detail: `Created the category "${step.args.name ?? ''}"` };
     }
     case 'post_button': {
-      if (!input.effects.postButton) throw new Error('Buttons can only be posted from Discord.');
+      if (!input.effects.buttons) throw new Error('Buttons can only be posted from Discord.');
       const labels = (step.args.buttons ?? '')
         .split(',')
         .map((b) => b.trim())
         .filter(Boolean);
-      const posted = await input.effects.postButton({
-        channelId: channelId(step.args.channel ?? ''),
+      const posted = await input.effects.buttons({
+        roomId: channelId(step.args.channel ?? ''),
         text: step.args.text ?? '',
         buttons: labels.map((label) => ({
           id: `${step.args.kind ?? 'button'}:open:${label}`,
@@ -595,7 +583,7 @@ async function carryOut(
       const role = find(input.shape.roles, (step.args.roles ?? '').split(',')[0] ?? '');
       if (!role) throw new Error('That role is gone.');
       const member = step.args.member ?? '';
-      await input.effects.assignRole({ userId: member, roleId: role.id });
+      await input.effects.giveGroup(member, role.id);
 
       // A moderator who hands somebody a role has just vouched for them, and
       // that is an answer like any other: it is written down as knowledge, so

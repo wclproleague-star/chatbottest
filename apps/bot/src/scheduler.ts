@@ -181,7 +181,7 @@ async function prepareMatches(guild: Guild, now: Date): Promise<void> {
 
     const started = await startSeries({
       guild,
-      channelId: channel.id,
+      roomId: channel.id,
       teamA: { name: a.name, roleId: roleA.id },
       teamB: { name: b.name, roleId: roleB.id },
       modRoleId: settings?.mod_role_id ?? null,
@@ -197,7 +197,7 @@ async function prepareMatches(guild: Guild, now: Date): Promise<void> {
     await logEvent(guild.id, 'action', {
       action: { type: 'match_prepared' },
       match: match.id,
-      channelId: channel.id,
+      roomId: channel.id,
       ok: started.ok,
       because: started.ok ? null : started.because,
     });

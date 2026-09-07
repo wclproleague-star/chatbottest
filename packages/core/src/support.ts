@@ -30,13 +30,13 @@ export async function loadSupport(
 export async function saveSupport(
   guildId: string,
   setup: SupportSetup,
-  channelId: string | null,
+  roomId: string | null,
 ): Promise<void> {
   const { error } = await serviceClient()
     .from('guild_settings')
     .update({
       support_mode: setup.mode,
-      support_channel_id: channelId,
+      support_channel_id: roomId,
       support_setup: setup as unknown as Json,
     })
     .eq('guild_id', guildId);

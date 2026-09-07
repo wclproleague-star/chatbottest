@@ -64,7 +64,7 @@ function readOnlyEffects(guildId: string): Effects {
     };
   };
   return {
-    async listRoles() {
+    async groups() {
       const [{ roles }, { data: settings }] = await Promise.all([
         meta(),
         serviceClient()
@@ -79,16 +79,16 @@ function readOnlyEffects(guildId: string): Effects {
     // Whether a member holds a role or can see a channel is only knowable in
     // Discord; the loop is told that and reports it as a check that would run
     // there, so nothing here has to pretend to know.
-    async memberHasRole() {
+    async personHasGroup() {
       return false;
     },
-    async memberInChannel() {
+    async personInRoom() {
       return false;
     },
-    async assignRole() {
-      return { ok: false, reason: 'unknown', detail: 'a rehearsal never assigns' };
+    async giveGroup() {
+      return { ok: false, reason: 'unknown', detail: 'a rehearsal never assigns' } as const;
     },
-    async channelName(channelId) {
+    async roomName(channelId: string) {
       const { channels } = await meta();
       return channels.find((c) => c.id === channelId)?.name ?? null;
     },

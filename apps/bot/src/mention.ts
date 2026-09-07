@@ -152,28 +152,34 @@ export async function handleMention(message: Message, settings: GuildSettings): 
   }
 }
 
-/** What the loop can do in Discord, and nothing more. */
+/**
+ * Discord, as the platform the loop talks to.
+ *
+ * Everything above this line is written in the product's own words — a space,
+ * a room, a group, a person. This is the only place that knows Discord calls
+ * them a guild, a channel, a role and a member.
+ */
 function discordEffects(message: Message, settings: GuildSettings): Effects {
   const guild = message.guild!;
   return {
-    async listRoles() {
+    async groups() {
       // Every role the server has. Which of them Kalvard may hand out is our
       // database's business, and the loop reads it from the settings.
       return guild.roles.cache
         .filter((r) => !r.managed && r.id !== guild.id)
         .map((r) => ({ id: r.id, name: r.name }));
     },
-    async memberHasRole(userId, roleId) {
+    async personHasGroup(userId: string, roleId: string) {
       const member = await guild.members.fetch(userId).catch(() => null);
       return member?.roles.cache.has(roleId) ?? false;
     },
-    async memberInChannel(userId, channelId) {
+    async personInRoom(userId: string, channelId: string) {
       const member = await guild.members.fetch(userId).catch(() => null);
       const channel = guild.channels.cache.get(channelId);
       if (!member || !channel) return false;
       return channel.permissionsFor(member)?.has(PermissionFlagsBits.ViewChannel) ?? false;
     },
-    async assignRole(userId, roleId) {
+    async giveGroup(userId: string, roleId: string) {
       const member = await guild.members.fetch(userId).catch(() => null);
       const role = guild.roles.cache.get(roleId);
       const me = guild.members.me;
@@ -184,7 +190,7 @@ function discordEffects(message: Message, settings: GuildSettings): Effects {
       }
       if (role.position >= me.roles.highest.position) {
         await reportPermissionOnce(guild, `a place above the ${role.name} role`, settings);
-        return { ok: false, reason: 'role_too_high' };
+        return { ok: false, reason: 'group_too_high' };
       }
       try {
         await member.roles.add(role);
@@ -197,7 +203,7 @@ function discordEffects(message: Message, settings: GuildSettings): Effects {
       await logEvent(guild.id, 'action', { action: { type: 'assign_role', roleId }, userId });
       return { ok: true };
     },
-    async channelName(channelId) {
+    async roomName(channelId: string) {
       const channel = guild.channels.cache.get(channelId);
       return channel && 'name' in channel ? channel.name : null;
     },
@@ -422,7 +428,7 @@ async function reportQuietly(
     note,
     question: message.content,
     askerName: message.author.displayName,
-    channelId: message.channelId,
+    roomId: message.channelId,
   });
   if (!settings.modChannelId) return;
   const channel = message.guild?.channels.cache.get(settings.modChannelId);
@@ -512,7 +518,7 @@ async function startSeriesIfAsked(
   const [a, b] = roles as [(typeof roles)[number], (typeof roles)[number]];
   const started = await startSeries({
     guild,
-    channelId: message.channelId,
+    roomId: message.channelId,
     teamA: { name: a.name, roleId: a.id },
     teamB: { name: b.name, roleId: b.id },
     modRoleId: settings.modRoleId,

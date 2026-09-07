@@ -301,7 +301,7 @@ export function commandEffects(guild: Guild): CommandEffects {
   };
 
   return {
-    async createChannel({ name, category, privateForRoleIds }) {
+    async makeRoom({ name, section: category, privateForGroupIds: privateForRoleIds }) {
       const parent = category
         ? guild.channels.cache.find(
             (c) =>
@@ -342,7 +342,7 @@ export function commandEffects(guild: Guild): CommandEffects {
       return { id: created.id, url: created.url };
     },
 
-    async allowRoles({ channelId, roleIds }) {
+    async allowGroups({ roomId: channelId, groupIds: roleIds }) {
       const channel = text(channelId);
       if (!channel) throw new Error('That channel is gone.');
       // Named roles get in; everyone else keeps whatever they had.
@@ -355,7 +355,7 @@ export function commandEffects(guild: Guild): CommandEffects {
       }
     },
 
-    async setPrivate({ channelId, roleIds }) {
+    async makePrivate({ roomId: channelId, groupIds: roleIds }) {
       const channel = text(channelId);
       if (!channel) throw new Error('That channel is gone.');
       await channel.permissionOverwrites.edit(guild.roles.everyone, { ViewChannel: false });
@@ -375,33 +375,33 @@ export function commandEffects(guild: Guild): CommandEffects {
       }
     },
 
-    async archiveChannel({ channelId }) {
+    async closeRoom({ roomId: channelId }) {
       const channel = text(channelId);
       if (!channel) throw new Error('That channel is gone.');
       // Archived, not deleted: it stays, and nobody can write in it.
       await channel.permissionOverwrites.edit(guild.roles.everyone, { SendMessages: false });
     },
 
-    async postMessage({ channelId, text: body }) {
+    async say({ roomId: channelId, text: body }) {
       const channel = text(channelId);
       if (!channel) throw new Error('That channel is gone.');
       const posted = await channel.send(body.slice(0, 2000));
       return { url: posted.url };
     },
 
-    async pinMessage({ channelId, messageId }) {
+    async keepAtTop({ roomId: channelId, messageId }) {
       const message = await text(channelId)
         ?.messages.fetch(messageId)
         .catch(() => null);
       await message?.pin();
     },
 
-    async createCategory({ name }) {
+    async makeSection({ name }: { name: string }) {
       const created = await guild.channels.create({ name, type: ChannelType.GuildCategory });
       return { id: created.id };
     },
 
-    async postButton({ channelId, text: content, buttons }) {
+    async buttons({ roomId: channelId, text: content, buttons }) {
       const channel = text(channelId);
       if (!channel) throw new Error('That channel is gone.');
       // The panel a member sees, not a line of text with a button under it.
@@ -411,7 +411,7 @@ export function commandEffects(guild: Guild): CommandEffects {
       return { url: posted.url };
     },
 
-    async assignRole({ userId, roleId }) {
+    async giveGroup(userId: string, roleId: string) {
       const member = await guild.members.fetch(userId).catch(() => null);
       const role = guild.roles.cache.get(roleId);
       const me = guild.members.me;
@@ -430,6 +430,7 @@ export function commandEffects(guild: Guild): CommandEffects {
         );
       }
       await member.roles.add(role);
+      return { ok: true } as const;
     },
   };
 }
