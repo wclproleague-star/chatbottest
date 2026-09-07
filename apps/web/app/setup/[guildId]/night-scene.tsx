@@ -141,7 +141,11 @@ export function Glass({
   const inner = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState<number | null>(null);
   const [shown, setShown] = useState(true);
-  const first = useRef(true);
+  // The step this panel is showing. Comparing it, rather than counting the
+  // first run, is what makes the blanking idempotent: an effect that runs
+  // twice on mount would otherwise hide the panel it had just shown, which
+  // read as the whole thing flickering the moment it appeared.
+  const showing = useRef(fadeKey);
 
   // The panel is exactly as tall as its content, between the two bounds. The
   // padding lives on the measured box, so the height is the whole of it.
@@ -165,10 +169,8 @@ export function Glass({
   // A new step: its contents are laid out at once so the height can move to
   // them, and they show themselves only when the move is over.
   useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
+    if (showing.current === fadeKey) return;
+    showing.current = fadeKey;
     setShown(false);
     const timer = window.setTimeout(() => setShown(true), GROW_MS);
     return () => window.clearTimeout(timer);
@@ -185,6 +187,9 @@ export function Glass({
       style={{
         ...(dropping ? GLASS_DROP : GLASS),
         height: height ?? undefined,
+        // Nothing to animate from until it has been measured once: a panel
+        // that eases out of "auto" on its first paint jumps instead.
+        ...(height === null ? { visibility: 'hidden' as const } : null),
         // The caller's placement wins over the class, and it only ever sends
         // one on a screen with sides: on a phone the panel is the bottom of
         // the screen. Deciding that here, from this component's own state,
