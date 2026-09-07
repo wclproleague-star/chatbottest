@@ -24,13 +24,33 @@ export default async function Page({
       completed={false}
       inviteUrl="https://discord.com/oauth2/authorize?client_id=0"
       channels={[
-        { id: 'c1', name: 'general' },
-        { id: 'c2', name: 'help' },
-        { id: 'c3', name: 'staff' },
+        'annonces',
+        'general',
+        'chat-fr',
+        'résultats',
+        'roles',
+        'support',
+        'tierlist',
+        'scrim',
+        'tutorials',
+        'streamers-lounge',
+        'match-history',
+        'top-20',
+        'welcome',
+        'info-staff',
+        'schedule-wcl',
+        'about-us',
+        'tourney-result',
+      ].map((name, i) => ({ id: `c${i}`, name }))}
+      categories={[
+        { id: 'k1', name: 'WCL | Staff' },
+        { id: 'k2', name: 'WCL | League' },
+        { id: 'k3', name: 'WCL | Community' },
       ]}
       roles={[
         { id: 'r1', name: 'Moderator' },
         { id: 'r2', name: 'Captain' },
+        { id: 'r3', name: 'Fast Forward' },
       ]}
       preview
       startAt={startAt}

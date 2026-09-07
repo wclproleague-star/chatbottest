@@ -292,10 +292,10 @@ export function Setup({
 
               {step === 'finish' && (
                 <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-                  <h1 className="text-star text-[26px] leading-snug">Where it may answer</h1>
+                  <h1 className="text-star text-[26px] leading-snug">Where members get help</h1>
                   <p className="text-body text-star/70 mt-2 max-w-[52ch]">
-                    It is in {guildName}. Say where it may answer, who it wakes, and where it
-                    reports quietly.
+                    It is in {guildName}. Two things left: where members reach it, and who it wakes
+                    when it is not sure.
                   </p>
                   <Finish
                     guildId={guildId}
@@ -1060,59 +1060,6 @@ function Form({
   );
 }
 
-/**
- * The channels, without the wall. A server has forty of them and a list of
- * forty tick boxes is not a question anybody answers: this one is filtered as
- * you type, scrolls inside its own box, and says how many are ticked.
- */
-function ChannelPicker({ channels }: { channels: Named[] }) {
-  const [filter, setFilter] = useState('');
-  const [picked, setPicked] = useState<string[]>([]);
-  const shown = channels.filter((c) => c.name.toLowerCase().includes(filter.trim().toLowerCase()));
-  return (
-    <div className="space-y-2">
-      <input
-        value={filter}
-        onChange={(event) => setFilter(event.target.value)}
-        placeholder="Find a channel"
-        aria-label="Find a channel"
-        className="border-star/25 text-star placeholder:text-star/40 focus:border-amber h-11 w-full rounded-lg border bg-transparent px-3 text-[15px] outline-none transition-colors"
-      />
-      <div className="border-star/15 max-h-[220px] overflow-y-auto rounded-lg border">
-        {shown.length === 0 && (
-          <p className="text-ui-sm text-star/55 px-3 py-3">Nothing by that name.</p>
-        )}
-        {shown.map((channel) => (
-          <label
-            key={channel.id}
-            className="text-ui text-star hover:bg-star/5 flex cursor-pointer items-center gap-2.5 px-3 py-2 transition-colors"
-          >
-            <input
-              type="checkbox"
-              name="answer_in"
-              value={channel.id}
-              checked={picked.includes(channel.id)}
-              onChange={(event) =>
-                setPicked((all) =>
-                  event.target.checked
-                    ? [...all, channel.id]
-                    : all.filter((id) => id !== channel.id),
-                )
-              }
-            />
-            #{channel.name}
-          </label>
-        ))}
-      </div>
-      <p className="text-ui-sm text-star/55">
-        {picked.length === 0
-          ? 'None ticked: it answers wherever it is mentioned.'
-          : `${picked.length} channel${picked.length === 1 ? '' : 's'} ticked.`}
-      </p>
-    </div>
-  );
-}
-
 function BringIt({
   guildId,
   inviteUrl,
@@ -1181,6 +1128,14 @@ function BringIt({
   );
 }
 
+/**
+ * The last of setup, as questions rather than a form.
+ *
+ * Where members get help, then whichever channel that answer needs — one they
+ * already have, or one Kalvard makes — and then who it wakes and where it
+ * reports the things it never answers in public. One decision on screen at a
+ * time, like everything before it.
+ */
 function Finish({
   guildId,
   channels,
@@ -1196,8 +1151,9 @@ function Finish({
   preview?: boolean;
   onDone: () => void;
 }) {
+  const [phase, setPhase] = useState<'help' | 'report'>('help');
   const [state, action, pending] = useActionState(finishSetup, null);
-  const [saved, setSaved] = useState(false);
+  const settled = useCallback(() => setPhase('report'), []);
 
   useEffect(() => {
     if (state?.ok) onDone();
@@ -1214,57 +1170,19 @@ function Finish({
   const select =
     'border-star/25 text-star h-11 w-full rounded-lg border bg-transparent px-3 text-ui focus:border-amber outline-none';
 
-  return (
-    <>
-      <form action={preview ? () => setSaved(true) : action} className="mt-8 space-y-6">
-        <input type="hidden" name="guild_id" value={guildId} />
-        <Field
-          label="Where may it answer?"
-          help="Leave all unticked and it answers wherever it is mentioned."
-        >
-          <ChannelPicker channels={channels} />
-        </Field>
-        <Field label="Who does it wake when it is not sure?">
-          <select name="mod_role" defaultValue="" className={select}>
-            <option value="">Choose a role</option>
-            {roles.map((role) => (
-              <option key={role.id} value={role.id}>
-                {role.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field
-          label="Where should it report quietly?"
-          help="Harassment, slurs and scams are never answered in public. They go here instead."
-        >
-          <select name="mod_channel" defaultValue="" className={select}>
-            <option value="">Nowhere, just record it</option>
-            {channels.map((channel) => (
-              <option key={channel.id} value={channel.id}>
-                #{channel.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        {state?.error && <p className="text-ui text-star">{state.error}</p>}
-        {preview && saved && <p className="text-ui text-star/60">Saved, in the walk-through.</p>}
-        <button type="submit" className={SCENE_BUTTON} disabled={pending}>
-          {pending ? 'Saving' : 'Save changes'}
-        </button>
-      </form>
-      <div className="mt-12">
-        <h2 className="text-star text-[22px] leading-snug">Where members get help</h2>
-        <p className="text-body text-star/70 mt-2">
-          One of three. Kalvard asks what it needs, one thing at a time, shows the plan, and creates
-          nothing until you say yes. You can change it later in Settings.
+  if (phase === 'help') {
+    return (
+      <div className="mt-8">
+        <p className="text-body text-star/70 max-w-[52ch]">
+          Kalvard asks what it needs, one thing at a time, shows you the plan, and creates nothing
+          until you say yes.
         </p>
         <div className="mt-6">
           <SupportChoice
             guildId={guildId}
             current={null}
             currentChannel={null}
-            onDone={preview ? onDone : undefined}
+            onDone={settled}
             simulate={
               preview
                 ? {
@@ -1284,7 +1202,43 @@ function Finish({
             }
           />
         </div>
+        <button className={cx(SCENE_LINK, 'mt-8 block')} onClick={settled}>
+          Skip this
+        </button>
       </div>
-    </>
+    );
+  }
+
+  return (
+    <form action={preview ? onDone : action} className="mt-8 space-y-6">
+      <input type="hidden" name="guild_id" value={guildId} />
+      <Field label="Who does it wake when it is not sure?">
+        <select name="mod_role" defaultValue="" className={select}>
+          <option value="">Choose a role</option>
+          {roles.map((role) => (
+            <option key={role.id} value={role.id}>
+              {role.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field
+        label="Where should it report quietly?"
+        help="Harassment, slurs and scams are never answered in public. They go here instead."
+      >
+        <select name="mod_channel" defaultValue="" className={select}>
+          <option value="">Nowhere, just record it</option>
+          {channels.map((channel) => (
+            <option key={channel.id} value={channel.id}>
+              #{channel.name}
+            </option>
+          ))}
+        </select>
+      </Field>
+      {state?.error && <p className="text-ui text-star">{state.error}</p>}
+      <button type="submit" className={SCENE_BUTTON} disabled={pending}>
+        {pending ? 'Saving' : 'Save and try it'}
+      </button>
+    </form>
   );
 }

@@ -5,7 +5,7 @@
 // Nothing is created until that yes, and it is the bot that creates it.
 
 import { Button, Field, Input, Select, Option } from '@kalvard/ui';
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useState } from 'react';
 import { supportConfirm, supportStep } from '@/app/g/[guildId]/settings/support-actions';
 import type { SupportState } from '@/app/g/[guildId]/settings/support-actions';
 import { nextSupportQuestion, supportPlan } from '@kalvard/core/support-plan';
@@ -101,9 +101,15 @@ export function SupportChoice({
       }
     : confirm;
 
+  // Telling the caller during render would set its state in the middle of
+  // ours; it is told after the paint instead.
+  const done = showing?.kind === 'sent';
+  useEffect(() => {
+    if (done) onDone?.();
+  }, [done, onDone]);
+
   if (showing?.kind === 'sent') {
-    if (onDone) onDone();
-    return <p className="text-body text-ink">{showing.note}</p>;
+    return <p className="text-body text-star">{showing.note}</p>;
   }
 
   return (
