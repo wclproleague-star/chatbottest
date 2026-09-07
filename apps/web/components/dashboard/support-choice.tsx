@@ -4,8 +4,8 @@
 // default already filled in, then the plan as sentences, then one yes.
 // Nothing is created until that yes, and it is the bot that creates it.
 
-import { Button, Field, Input, Select, Option } from '@kalvard/ui';
-import { useActionState, useEffect, useState } from 'react';
+import { Button, Field, Select, Option, cx } from '@kalvard/ui';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import { supportConfirm, supportStep } from '@/app/g/[guildId]/settings/support-actions';
 import type { SupportState } from '@/app/g/[guildId]/settings/support-actions';
 import { nextSupportQuestion, supportPlan } from '@kalvard/core/support-plan';
@@ -28,6 +28,119 @@ const OPTIONS: { value: SupportMode; label: string; what: string }[] = [
     what: 'Pick one of your channels. Nothing is created.',
   },
 ];
+
+/**
+ * A field you can type in, with what this server actually has under it.
+ *
+ * The browser's own list for an input is a white box in the middle of a night
+ * page, and it shows the value under the label as if they were two different
+ * answers. This is the same thing in the page's materials: type anything, or
+ * take one of theirs.
+ */
+function Combobox({
+  name,
+  initial,
+  options,
+}: {
+  name: string;
+  initial: string;
+  options: { value: string; label: string }[];
+}) {
+  const [value, setValue] = useState(initial);
+  const [open, setOpen] = useState(false);
+  const [at, setAt] = useState(0);
+  // Until they type, the field holds a proposal rather than a search: filtering
+  // by it would hide every other answer behind a value they did not write.
+  const [typing, setTyping] = useState(false);
+  const wrap = useRef<HTMLDivElement>(null);
+
+  /** The panel clips what overflows it, so the field makes room for its list. */
+  function makeRoom() {
+    window.setTimeout(
+      () => wrap.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }),
+      0,
+    );
+  }
+  const typed = value.trim().toLowerCase();
+  const matches = !typing
+    ? options
+    : options.filter(
+        (o) => o.label.toLowerCase().includes(typed) || o.value.toLowerCase().includes(typed),
+      );
+  const shown = open && matches.length > 0;
+
+  function take(option: { value: string; label: string }) {
+    setValue(option.value);
+    setTyping(false);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={wrap} className="relative scroll-mt-4">
+      <input
+        name={name}
+        value={value}
+        autoComplete="off"
+        onChange={(event) => {
+          setValue(event.target.value);
+          setTyping(true);
+          setOpen(true);
+          setAt(0);
+        }}
+        onFocus={() => {
+          setOpen(true);
+          makeRoom();
+        }}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onKeyDown={(event) => {
+          if (!shown) return;
+          if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            setAt((n) => Math.min(n + 1, matches.length - 1));
+          } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            setAt((n) => Math.max(n - 1, 0));
+          } else if (event.key === 'Enter' && matches[at]) {
+            event.preventDefault();
+            take(matches[at]);
+          } else if (event.key === 'Escape') {
+            setOpen(false);
+          }
+        }}
+        className="border-star/25 text-star placeholder:text-star/40 focus:border-amber h-11 w-full rounded-lg border bg-transparent px-3 text-[15px] outline-none transition-colors"
+      />
+      {shown && (
+        <ul
+          className="border-star/20 absolute inset-x-0 top-[calc(100%+6px)] z-20 max-h-[184px] overflow-y-auto rounded-lg border py-1"
+          style={{
+            backgroundColor: 'rgba(10, 14, 20, 0.96)',
+            backdropFilter: 'blur(8px)',
+            boxShadow: '0 16px 40px rgba(0, 0, 0, 0.5)',
+          }}
+        >
+          {matches.map((option, i) => (
+            <li key={option.value}>
+              <button
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  take(option);
+                }}
+                onMouseEnter={() => setAt(i)}
+                className={cx(
+                  'text-ui block w-full px-3 py-2 text-left transition-colors',
+                  i === at ? 'bg-star/10 text-star' : 'text-star/75',
+                )}
+              >
+                {option.label}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 export function SupportChoice({
   guildId,
@@ -168,20 +281,12 @@ export function SupportChoice({
                 ))}
               </Select>
             ) : (
-              <Input
+              <Combobox
+                key={showing.question.key}
                 name="answer"
-                defaultValue={showing.question.suggested}
-                list={`options-${showing.question.key}`}
+                initial={showing.question.suggested}
+                options={showing.question.options ?? []}
               />
-            )}
-            {showing.question.options && showing.question.freeText && (
-              <datalist id={`options-${showing.question.key}`}>
-                {showing.question.options.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </datalist>
             )}
           </Field>
           <div className="flex gap-3">
