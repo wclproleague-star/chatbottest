@@ -16,6 +16,11 @@ import './fetchers/http-json';
 import { parseSources, runnable } from './sources';
 import type { DataSource } from './sources';
 import { ANSWER_THIS_MESSAGE, REGISTER, cannotDo, lookupRule } from './voice';
+import { todayIn } from './dates';
+import { whenLines, calendarLines } from './when';
+import { sourceLine } from './describe';
+import { clarifiable } from './resolve';
+import { withStaleness } from './stale';
 import { MODS } from './tokens';
 
 type SettingsRow = Database['public']['Tables']['guild_settings']['Row'];
@@ -348,8 +353,9 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
   }
 
   // More than one thing could have been meant: one short question, no
-  // moderators. Asking is not escalating.
-  if (resolution.outcome === 'ambiguous') {
+  // moderators. Asking is not escalating — but it is not what somebody
+  // reporting another member gets back, so the guard decides, not the outcome.
+  if (clarifiable(resolution)) {
     const asked =
       resolution.question ??
       `Which one do you mean: ${resolution.candidates.slice(0, 4).join(', ')}?`;
@@ -391,6 +397,18 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
       context,
       conflict,
       Boolean(input.canAct),
+      // The dates in what was found, read against today rather than left as
+      // words for the model to do arithmetic on.
+      whenLines(matches, todayIn(new Date(), settings.timezone).iso),
+      // What each of those pieces was cut out of. A rule from the official
+      // rulebook and the same sentence in a draft are not the same fact.
+      await sourcesOf(guildId, matches),
+      // A day named against today is a date Kalvard can work out. It used to
+      // ask a moderator which Sunday somebody meant, holding a calendar.
+      calendarLines(
+        [question, ...history.slice(-4).map((h) => h.text)].join(' '),
+        todayIn(new Date(), settings.timezone).iso,
+      ),
     ),
     messages: [
       ...history,
@@ -460,7 +478,10 @@ async function grade(input: AnswerInput): Promise<AnswerResult> {
       resolution,
       answered: true,
       kind: 'conversation',
-      answer: withoutMods,
+      // Anything outside the server moves; the caveat that says so is added
+      // here rather than hoped for, because the reply that forgets it is the
+      // one somebody acts on.
+      answer: resolution.aboutServer ? withoutMods : withStaleness(withoutMods, question),
       claims: [],
       confidence: 1,
       usedChunkIds: [],
@@ -629,6 +650,29 @@ function weakestGrounding(claims: Claim[]): Grounding {
     if (claims.some((c) => c.grounding === g)) return g;
   }
   return 'self';
+}
+
+/**
+ * What each retrieved chunk was cut out of, by document id.
+ *
+ * One read for the whole answer, and a document with neither a title nor a
+ * note simply is not in the map: the chunk then reads exactly as it did
+ * before any of this existed.
+ */
+async function sourcesOf(guildId: string, matches: Match[]): Promise<Map<string, string>> {
+  const ids = [...new Set(matches.map((m) => m.document_id))].filter(Boolean);
+  if (ids.length === 0) return new Map();
+  const { data } = await serviceClient()
+    .from('documents')
+    .select('id, title, summary')
+    .eq('guild_id', guildId)
+    .in('id', ids);
+  const out = new Map<string, string>();
+  for (const row of data ?? []) {
+    const line = sourceLine(row.title, row.summary);
+    if (line) out.set(row.id, line);
+  }
+  return out;
 }
 
 /** The chunks this guild has for a query, most alike first. */
@@ -947,6 +991,12 @@ function systemPrompt(
   context: ResolutionContext,
   conflict: Conflict | null,
   canAct: boolean,
+  /** Every date in what was retrieved, and where it falls against today. */
+  when: string[],
+  /** What each document is, by document id, so a chunk says what it came from. */
+  sources: Map<string, string>,
+  /** The days named in the message, and the date each one falls on. */
+  calendar: string[],
 ): string {
   const clock = s.timezone ? clockLine(s.timezone) : null;
   const lines: string[] = [
@@ -971,6 +1021,13 @@ function systemPrompt(
     'The one rule: converse naturally, and never state a fact about this server (dates, times, rules, names, prices, results, roles, who does what) that is not grounded in the knowledge below.',
     '',
     `Now: ${context.now}${context.timezone ? ` (${context.timezone})` : ''}. When the knowledge holds several of the thing they asked about, take the one their time window points at, ordered by date and time from now: "next" means the first still ahead, "last" the most recent behind.`,
+    when.length > 0
+      ? [
+          'The dates in what you found, already worked out against today:',
+          ...when.map((line) => `- ${line}`),
+          'Use these rather than reading the dates yourself. Never put a day that has passed to somebody as though it were coming: when the thing they asked about is behind us, say so plainly in a few words and, in the same breath, name the next one of its kind that has not happened, from the knowledge below. If nothing of its kind is still ahead, say that instead of offering nothing.',
+        ].join(String.fromCharCode(10))
+      : '',
     resolution.aboutServer
       ? ''
       : 'What they are asking about does not belong to this server, so this is conversation: answer it yourself, from what you know, and leave the moderators out of it.',
@@ -1038,8 +1095,21 @@ function systemPrompt(
     conflict
       ? `The knowledge holds two different versions of one thing: "${conflict.first}" and "${conflict.second}". If your answer rests on either of them, do not pick one, do not average them, and do not ask the member which document they mean, which they cannot know: give both, say they disagree, and ask the moderators to settle it with ${MODS}. If your answer has nothing to do with them, ignore this entirely and answer normally.`
       : '',
-    matches.length > 0 ? 'Knowledge:' : 'Knowledge: none was found for this message.',
-    ...matches.map((m) => `[id: ${m.id}]\n${m.content}`),
+    ...(calendar.length > 0
+      ? [
+          'The calendar, worked out for you:',
+          ...calendar.map((line) => `- ${line}`),
+          'These are facts you hold, like the time: give the date plainly when somebody asks which day is meant, never hand a question about which date a day falls on to the moderators, and never put the calendar in claims — it rests on no knowledge and needs no chunk. What happens on that day is a different question, and that does come from the knowledge.',
+          '',
+        ]
+      : []),
+    matches.length > 0
+      ? 'Knowledge. Each piece opens with a bracket saying which document it was cut out of and what that document is. That line is there so you read the piece the way its document intends; it is never itself a fact, and nothing in it may be answered from or cited.'
+      : 'Knowledge: none was found for this message.',
+    ...matches.map((m) => {
+      const from = sources.get(m.document_id);
+      return `[id: ${m.id}${from ? ` | ${from}` : ''}]\n${m.content}`;
+    }),
   );
   return lines.join('\n');
 }

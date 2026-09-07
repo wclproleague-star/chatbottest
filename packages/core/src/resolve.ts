@@ -57,6 +57,27 @@ export type Resolution = {
   addressedToSomeoneElse: boolean;
 };
 
+/**
+ * Whether a member may be asked which one they meant.
+ *
+ * A clarification is a cheap, friendly thing to send back, and it is the wrong
+ * thing to send to somebody reporting another member: "which match do you
+ * mean?" answering "he cheats and he is harassing me in DMs" reads as being
+ * fobbed off, and it delays the one thing that message needs, which is a
+ * person. So a message that needs a human is never clarified, however many
+ * things in the knowledge its words could match. The rest of the funnel is
+ * unchanged: it goes to the model, which decides what kind of message it is,
+ * and a report is handed to the moderators quietly.
+ */
+export function clarifiable(resolution: Resolution): boolean {
+  if (resolution.outcome !== 'ambiguous') return false;
+  if (resolution.needsAPerson) return false;
+  // Two things it is never ambiguous about, kept here so every caller gets
+  // them: what Kalvard itself holds, and the world outside the server.
+  if (resolution.aboutHoldings) return false;
+  return true;
+}
+
 /** Everything around the member that could say what they mean. */
 export type ResolutionContext = {
   /** Who is asking: their name, their nickname here, what they hold, whether they are staff. */
@@ -96,7 +117,7 @@ Read their message, the conversation before it, and the context around them, and
 - asksNothing: true when the message asks for nothing at all: an acknowledgement ("ok", "d'accord", "👍"), thanks, or a remark with no request in it.
 - asksIfExists: true when they are asking whether something exists or is happening at all ("is there a match on Saturday", "do we play this weekend", "is there a rule about subs"), rather than for the details of something they already know exists.
 - asksForAnAction: true only when they are asking you to carry something out: give a role, create a channel, ban someone. Asking you to tell, confirm, check, explain or look up a fact is never this, however it is phrased: "confirme", "vérifie", "tu peux me dire" are all questions.
-- needsAPerson: true when what they want can only be decided by a human: a ban, a kick, a mute, a dispute between members, an appeal.
+- needsAPerson: true when what they want can only be decided by a human: a ban, a kick, a mute, a dispute between members, an appeal, or one member reporting another for cheating or harassment.
 - addressedToSomeoneElse: true when the message is aimed at another member and only mentions you in passing, so nothing is being asked of you.
 - aboutHoldings: true when they are asking what you yourself know or have ("what do you know about X", "is that the only match you know about", "do you have anything on Y"), rather than about one instance of a thing.
 

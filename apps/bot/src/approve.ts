@@ -194,17 +194,25 @@ export async function onTick(
     }
   }
 
-  await recordAnswer({
+  const learned = await recordAnswer({
     guildId: guild.id,
     questionId: pending.id,
     question: pending.question,
     answer,
     answeredBy: user.id,
+    guildName: guild.name,
   });
 
+  // What the member gets is the answer, not the moderator's message played
+  // back at them. A moderator writes to another moderator — "the exact date is
+  // sunday 13/09" — and reading that out verbatim under the member's name is
+  // how a bot sounds like a parrot. The understood version says the same thing
+  // as a sentence; when nothing could be understood, the words stand as they
+  // were, because a clumsy true answer beats none.
   const asker = pending.asker_discord_id ? `<@${pending.asker_discord_id}> ` : '';
+  const toldToMember = learned?.understood ? learned.facts.join(' ') : answer;
   if (message.channel.isSendable()) {
-    await message.channel.send(`${asker}${answer}\n\nGot it. Next time I'll know.`);
+    await message.channel.send(`${asker}${toldToMember}\n\nGot it. Next time I'll know.`);
   }
   await logEvent(guild.id, 'approved', {
     questionId: pending.id,

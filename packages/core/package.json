@@ -19,6 +19,7 @@
     "eval:chat": "tsx src/eval-chat.ts",
     "seed:hardening": "tsx src/seed-hardening.ts",
     "eval:units": "tsx src/eval-units.ts",
+    "notes": "tsx src/notes.ts",
     "purge": "tsx src/purge.ts",
     "eval:db": "tsx src/eval-db.ts",
     "eval:workflow": "tsx src/eval-workflow.ts",

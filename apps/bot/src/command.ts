@@ -14,6 +14,7 @@ import {
   MessageFlags,
   PermissionFlagsBits,
 } from 'discord.js';
+import { panelMessage } from './panel';
 import type { ButtonInteraction, Client, Guild, Message, TextChannel } from 'discord.js';
 import {
   ITEMISE_ABOVE,
@@ -403,15 +404,10 @@ export function commandEffects(guild: Guild): CommandEffects {
     async postButton({ channelId, text: content, buttons }) {
       const channel = text(channelId);
       if (!channel) throw new Error('That channel is gone.');
-      const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
-        ...buttons.slice(0, 5).map((b, i) =>
-          new ButtonBuilder()
-            .setCustomId(b.id.slice(0, 100))
-            .setLabel(b.label.slice(0, 80))
-            .setStyle(i === 0 ? ButtonStyle.Primary : ButtonStyle.Secondary),
-        ),
+      // The panel a member sees, not a line of text with a button under it.
+      const posted = await channel.send(
+        panelMessage({ guildName: guild.name, text: content, buttons }),
       );
-      const posted = await channel.send({ content: content.slice(0, 2000), components: [row] });
       return { url: posted.url };
     },
 

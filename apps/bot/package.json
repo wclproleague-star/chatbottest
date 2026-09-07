@@ -7,7 +7,9 @@
     "dev": "tsx watch src/index.ts",
     "start": "tsx src/index.ts",
     "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "repost:panel": "tsx src/repost-panel.ts",
+    "set:banner": "tsx src/set-banner.ts"
   },
   "dependencies": {
     "@kalvard/core": "workspace:*",

@@ -1,7 +1,8 @@
 // Turning a moderator's answer into knowledge, and finding the question that
 // was already asked.
 
-import { embed, ingest } from '@kalvard/core';
+import { embed, ingest, learnFrom } from '@kalvard/core';
+import type { Learned } from '@kalvard/core';
 import { serviceClient } from '@kalvard/core/supabase';
 
 /** Two questions this close in meaning are the same question. */
@@ -18,7 +19,8 @@ export async function recordAnswer(input: {
   question: string;
   answer: string;
   answeredBy: string;
-}): Promise<void> {
+  guildName?: string;
+}): Promise<Learned | null> {
   const db = serviceClient();
   const now = new Date().toISOString();
 
@@ -36,15 +38,21 @@ export async function recordAnswer(input: {
     .select('id')
     .maybeSingle();
   // Another moderator got there first; their answer stands.
-  if (!updated.data) return;
+  if (!updated.data) return null;
 
+  // What the moderator meant, not the sentence they typed.
+  const learned = await learnFrom({
+    question: input.question,
+    answer: input.answer,
+    guildName: input.guildName,
+  });
   const doc = await db
     .from('documents')
     .insert({
       guild_id: input.guildId,
-      title: input.question.slice(0, 120),
+      title: learned.title,
       source_type: 'mod_answer',
-      raw_text: `Q: ${input.question}\nA: ${input.answer}`,
+      raw_text: learned.text,
       status: 'processing',
       created_by: null,
     })
@@ -52,13 +60,14 @@ export async function recordAnswer(input: {
     .single();
   if (doc.error || !doc.data) {
     console.error(`kalvard: could not file the mod answer: ${doc.error?.message}`);
-    return;
+    return learned;
   }
   try {
     await ingest({ guildId: input.guildId, documentId: doc.data.id });
   } catch (err) {
     console.error(`kalvard: could not read the mod answer: ${String(err)}`);
   }
+  return learned;
 }
 
 /**

@@ -14,7 +14,7 @@ import {
   outageReply,
 } from '@kalvard/core';
 import type { Action, AnswerResult, Effects, HistoryTurn } from '@kalvard/core';
-import { MODS } from '@kalvard/core/tokens';
+import { MODS, oneMention } from '@kalvard/core/tokens';
 import { serviceClient } from '@kalvard/core/supabase';
 import type { Message, TextChannel } from 'discord.js';
 import { ChannelType, PermissionFlagsBits } from 'discord.js';
@@ -390,7 +390,7 @@ async function reportQuietly(
 /** The mod role mention, or a plain word when the role is not set or must not be pinged. */
 export function withMention(text: string, settings: GuildSettings, mayPing: boolean): string {
   const mention = mayPing && settings.modRoleId ? `<@&${settings.modRoleId}>` : 'the moderators';
-  return text.split(MODS).join(mention);
+  return oneMention(text, mention);
 }
 
 /**

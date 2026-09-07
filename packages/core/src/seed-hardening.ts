@@ -21,7 +21,27 @@ const { ingest } = await import('./ingest');
 
 export const HARDENING_GUILD_ID = '900000000000000002';
 
+/** A day this many days from today, written as a date. */
+function dayAway(days: number): string {
+  const at = new Date(Date.now() + days * 86_400_000);
+  return at.toISOString().slice(0, 10);
+}
+
 const DOCUMENTS = [
+  {
+    id: '00000000-0000-4000-8000-00000000c004',
+    title: 'Season roadmap',
+    // A year of a league is half behind it on any given day: the cases about
+    // a date that has passed need one that actually has, so it is written
+    // from today each time the guild is seeded.
+    text: [
+      '# Season roadmap',
+      '',
+      `The Spring Split final was played on ${dayAway(-60)}.`,
+      `The Summer Qualifiers open on ${dayAway(20)}.`,
+      `The Autumn Split starts on ${dayAway(45)}.`,
+    ].join(String.fromCharCode(10)),
+  },
   {
     id: '00000000-0000-4000-8000-00000000c001',
     title: 'Check-in policy',

@@ -5,6 +5,8 @@ import type { Limits } from './limits';
 import { findPersonal, personalSummary } from './personal';
 import type { Database } from './database.types';
 import { extractText } from './extract';
+import { prepare } from './outline';
+import { describeDocument } from './describe';
 import { embed } from './gemini';
 import { DOCUMENTS_BUCKET, serviceClient } from './supabase';
 
@@ -57,7 +59,10 @@ export async function ingest({ guildId, documentId }: IngestInput): Promise<Inge
 
   try {
     const text = await loadText(doc);
-    const chunks = chunkText(text);
+    // A rulebook out of a PDF has sections and no way to say so. They are
+    // found and marked before chunking, so every piece of knowledge carries
+    // the document and the section it came from. The words are untouched.
+    const chunks = chunkText(prepare(doc.title, text).text);
     if (chunks.length === 0) throw new Error('The document has no text to index.');
 
     // Two caps, both settings with defaults, both stated in what they mean to
@@ -107,9 +112,21 @@ export async function ingest({ guildId, documentId }: IngestInput): Promise<Inge
       if (inserted.error) throw new Error(`Could not insert chunks: ${inserted.error.message}`);
     }
 
+    // What this document is, so a paragraph out of it is read the way the
+    // document intends. The owner's own note wins; otherwise it is worked out
+    // here, once, and a document without one is no worse off than before.
+    const summary = doc.summary?.trim()
+      ? doc.summary
+      : await describeDocument({
+          title: doc.title,
+          text,
+          sourceType: doc.source_type,
+        }).catch(() => '');
+
     const done = await db
       .from('documents')
       .update({
+        summary: summary || null,
         status: 'ready',
         chunk_count: rows.length,
         error_message: null,

@@ -7,7 +7,7 @@
 // and the answer becomes knowledge so nobody has to type it again. Dismissing
 // does the first two and none of the third.
 
-import { ingest, serviceClient } from '@kalvard/core';
+import { ingest, learnFrom, serviceClient } from '@kalvard/core';
 import { revalidatePath } from 'next/cache';
 import { displayName, requireMember } from '@/lib/guild';
 
@@ -45,13 +45,14 @@ export async function answerQuestion(_prev: InboxState, form: FormData): Promise
   if (!claimed) return fail('Somebody answered that one already.');
 
   // Knowledge, so the next member who asks gets it from Kalvard.
+  const learned = await learnFrom({ question: claimed.question, answer });
   const { data: doc } = await db
     .from('documents')
     .insert({
       guild_id: guildId,
-      title: claimed.question.slice(0, 120),
+      title: learned.title,
       source_type: 'mod_answer',
-      raw_text: `Q: ${claimed.question}\nA: ${answer}`,
+      raw_text: learned.text,
       status: 'processing',
       created_by: user.id,
     })

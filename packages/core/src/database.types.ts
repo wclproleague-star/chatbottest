@@ -110,6 +110,8 @@ type DocumentRow = {
   chunk_count: number;
   /** Whether the owner still has to decide about personal details found in it. */
   review_status: 'ok' | 'needs_review' | 'approved';
+  /** One or two sentences saying what the document is, shown with its chunks. */
+  summary: string | null;
   created_by: string | null;
   created_at: string;
 };
@@ -222,6 +224,7 @@ export type Database = {
           | 'error_message'
           | 'chunk_count'
           | 'review_status'
+          | 'summary'
           | 'created_by'
           | 'created_at'
         >;

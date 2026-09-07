@@ -21,6 +21,14 @@ import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends'
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { answersHere } from './answers-here';
 import { answersTheQuestion } from './conversation';
+import { fallback, keepsOnlyWhatWasSaid, numbersIn } from './learn';
+import { markHeadings, prepare } from './outline';
+import { sourceLine, usable } from './describe';
+import { clarifiable } from './resolve';
+import { withStaleness } from './stale';
+import { relativeDays, calendarLines } from './when';
+import { oneMention } from './tokens';
+import { chunkText } from './chunk';
 import { aboutARole, asksForRole, namedRoles, nearest, whichRole } from './roles';
 import { appendVouch, onRoster, vouchDocument } from './vouch';
 import { findRepeat, offer } from './repeats';
@@ -28,6 +36,7 @@ import { channelNameFor, dueToPrepare, teamRole } from './matches';
 import { defaultBrief, memoryOf } from './keeper';
 import { nextSupportQuestion, supportPlan } from './support';
 import { believable, confirmLine, readableDay, todayIn } from './dates';
+import { datesIn, spell, whenLines } from './when';
 import type { SupportAnswers } from './support';
 import { TEMPLATES } from './workflows/templates';
 import type { RiftMatch } from './fetchers/rift-legends';
@@ -1045,6 +1054,59 @@ console.log(
   );
 }
 
+console.log(['', 'the dates in the knowledge, read against today'].join(String.fromCharCode(10)));
+{
+  const today = '2026-09-07';
+  const found = datesIn('The Spring Split final was played on 2026-04-12.', today);
+  check('a written date is found', found[0]?.iso === '2026-04-12', JSON.stringify(found));
+  check('and it is behind us', found[0]?.away === -148, String(found[0]?.away));
+
+  const worded = datesIn('The Autumn Split starts on 14 September 2026.', today);
+  check('a date in words is found', worded[0]?.iso === '2026-09-14', JSON.stringify(worded));
+
+  // A league writing "Tue 8 Sep" in September means this September.
+  const bare = datesIn('Fast Forward vs Baguette, Tue 8 Sep, 19:00 CET.', today);
+  check(
+    'a date with no year is the nearest one',
+    bare[0]?.iso === '2026-09-08',
+    JSON.stringify(bare),
+  );
+  check(
+    'and it reads as a person writes it',
+    spell('2026-09-08') === 'Tuesday 8 September 2026',
+    spell('2026-09-08'),
+  );
+  check('a day that does not exist is not a date', datesIn('31 February 2026', today).length === 0);
+  check(
+    'and a number is not one',
+    datesIn('the prize pool is 1000 euros', today).length === 0,
+    JSON.stringify(datesIn('the prize pool is 1000 euros', today)),
+  );
+
+  const lines = whenLines(
+    [
+      { content: 'The Spring Split final was played on 2026-04-12.' },
+      { content: 'The Autumn Split starts on 2026-09-14.' },
+    ],
+    today,
+  );
+  check(
+    'what has passed is said to have passed',
+    lines.some((l) => l.includes('has passed')),
+    lines.join(' | '),
+  );
+  check(
+    'and what is ahead is said in days',
+    lines.some((l) => l.includes('in 7 days')),
+    lines.join(' | '),
+  );
+  check(
+    'oldest first, so the next one is last',
+    lines.length === 2 && lines[0]!.includes('April'),
+    lines.join(' | '),
+  );
+}
+
 console.log(['', 'a day a moderator named, kept as a date'].join(String.fromCharCode(10)));
 {
   check(
@@ -1235,6 +1297,234 @@ console.log(['', 'an open conversation is not a leash'].join(String.fromCharCode
 
   // With nothing open, everything is a fresh start and nothing to continue.
   check('nothing open continues nothing', !answersTheQuestion('yes please', []));
+}
+
+console.log(['', 'a moderator answer is understood, not copied'].join(String.fromCharCode(10)));
+{
+  const source = [
+    'can my duo miss check-in?',
+    'One sub is allowed if you declare it before check-in, which closes at 17:00.',
+  ].join(String.fromCharCode(10));
+  check(
+    'a statement that stands on its own is kept',
+    keepsOnlyWhatWasSaid(
+      ['One substitute is allowed if it is declared before check-in.', 'Check-in closes at 17:00.'],
+      source,
+    ),
+  );
+  // The failure that matters: a figure nobody said.
+  check(
+    'a number that was never said is refused',
+    !keepsOnlyWhatWasSaid(['Check-in closes at 18:00.'], source),
+  );
+  check('and so is nothing at all', !keepsOnlyWhatWasSaid([], source));
+  check('and so is the model thinking out loud', !keepsOnlyWhatWasSaid(['x'.repeat(500)], source));
+  check(
+    'the digits are read as they are written',
+    numbersIn('17:00 and 2 subs').join(',') === '17,00,2',
+  );
+  // Nothing is ever lost to make it prettier.
+  const kept = fallback('when is the final?', 'Sunday, in #announcements.');
+  check('the words themselves are the fallback', kept.text.includes('Sunday, in #announcements.'));
+  check('and it says it did not understand', !kept.understood);
+}
+
+console.log(['', 'a rulebook out of a PDF keeps its sections'].join(String.fromCharCode(10)));
+{
+  // What unpdf actually hands back: no hashes anywhere, the structure only in
+  // the numbering and the line breaks.
+  const rulebook = [
+    'WCL PRO LEAGUE RULEBOOK',
+    '',
+    '4. Match procedure',
+    '',
+    'Both captains must check in one hour before the scheduled time.',
+    '',
+    '4.2 Substitutes',
+    '',
+    'A substitute is allowed if it is declared before check-in closes.',
+    'A team playing an undeclared substitute forfeits the game.',
+    '',
+    '5. Broadcasting',
+    '',
+    'Players may stream their own games with a delay of at least three minutes.',
+  ].join(String.fromCharCode(10));
+
+  const marked = markHeadings(rulebook);
+  check(
+    'the numbered sections are found',
+    marked.headings.includes('4.2 Substitutes'),
+    marked.headings.join(', '),
+  );
+  check(
+    'and the title is',
+    marked.headings.includes('WCL PRO LEAGUE RULEBOOK'),
+    marked.headings.join(', '),
+  );
+  check(
+    'a clause sits deeper than its section',
+    marked.text.includes('## 4. Match procedure') && marked.text.includes('### 4.2 Substitutes'),
+  );
+  check(
+    'every word of the rule is kept',
+    marked.text.includes('A team playing an undeclared substitute forfeits the game.'),
+  );
+
+  // The defect this exists for: the forfeit rule retrieved on its own.
+  const chunks = chunkText(prepare('Rulebook 2026', rulebook).text);
+  const forfeit = chunks.find((c) => c.content.includes('forfeits the game'));
+  check(
+    'the chunk names the document it came from',
+    forfeit?.content.includes('Rulebook 2026') ?? false,
+    forfeit?.content,
+  );
+  check(
+    'and the section it is a rule of',
+    forfeit?.content.includes('4.2 Substitutes') ?? false,
+    forfeit?.content,
+  );
+
+  // Prose is not a heading, however short the lines are.
+  const letter = [
+    'Hi everyone, a few things before Sunday.',
+    'Check-in opens at five.',
+    'Bring your own peripherals.',
+  ].join(String.fromCharCode(10));
+  check(
+    'a paragraph is left alone',
+    markHeadings(letter).headings.length === 0,
+    markHeadings(letter).headings.join(', '),
+  );
+  // A list of short lines would be read as all headings; nothing is marked.
+  const roster = ['Alpha', '', 'Bravo', '', 'Charlie', '', 'Delta'].join(String.fromCharCode(10));
+  check(
+    'and so is a list',
+    markHeadings(roster).headings.length === 0,
+    markHeadings(roster).headings.join(', '),
+  );
+  // Something already written in markdown is not marked twice.
+  const typed = ['# Rules', '', 'Check-in closes at 17:00.'].join(String.fromCharCode(10));
+  check('markdown is left as it was', markHeadings(typed).text === typed);
+}
+
+console.log(['', 'a chunk says what it was cut out of'].join(String.fromCharCode(10)));
+{
+  check(
+    'the document and the note travel together',
+    sourceLine('Rulebook 2026', 'The official competition rules for the 2026 season.') ===
+      'from "Rulebook 2026": The official competition rules for the 2026 season.',
+  );
+  check(
+    'a document with only a title still says so',
+    sourceLine('Rulebook 2026', null) === 'from "Rulebook 2026"',
+  );
+  // Nothing to say is said as nothing: the chunk reads as it always did.
+  check('and one with neither says nothing', sourceLine(null, '  ') === '');
+  check('a note is one or two sentences', usable('The official rules for the 2026 season.'));
+  check('an empty one is not a note', !usable(''));
+  check('and neither is the document itself', !usable('x'.repeat(400)));
+}
+
+console.log(
+  ['', 'a member reporting another member is not asked which one they mean'].join(
+    String.fromCharCode(10),
+  ),
+);
+{
+  const base = {
+    subject: 'match',
+    entity: null,
+    timeWindow: null,
+    basis: null,
+    candidates: ['Fast Forward vs Baguette', 'Fast Forward vs Chromanova'],
+    outcome: 'ambiguous' as const,
+    question: 'Which match do you mean?',
+    aboutHoldings: false,
+    aboutServer: true,
+    asksNothing: false,
+    asksIfExists: false,
+    asksForAnAction: false,
+    needsAPerson: false,
+    addressedToSomeoneElse: false,
+  };
+  check('an ordinary ambiguity is still asked about', clarifiable(base));
+  // Live: "PPG triche depuis le début et il me harcèle en DM" came back as
+  // "which one do you mean?" because two matches fitted the words.
+  check('a report waiting on a person is not', !clarifiable({ ...base, needsAPerson: true }));
+  check(
+    'and neither is a question about what Kalvard holds',
+    !clarifiable({ ...base, aboutHoldings: true }),
+  );
+  check('nothing ambiguous is nothing to clarify', !clarifiable({ ...base, outcome: 'unique' }));
+}
+
+console.log(
+  ['', 'what moves is never given as though it stood still'].join(String.fromCharCode(10)),
+);
+{
+  // Live: "what's the current Wild Rift patch?" came back as a bare number.
+  const bare = withStaleness('The current patch is 6.2.', "what's the current Wild Rift patch?");
+  check('a patch answer says it may have moved', /check it is still current/.test(bare), bare);
+  // Said already, in the model's own words: nothing is added.
+  const said = 'The current patch is 6.2, though that may have changed since.';
+  check('and it is not said twice', withStaleness(said, 'patch?') === said);
+  // French answers get a French caveat.
+  const fr = withStaleness('Le patch actuel est le 6.2.', 'cest quoi le patch actuel ?');
+  check('in the language it was answered in', fr.includes('toujours à jour'), fr);
+  // Nothing that moves: the reply is left exactly as it was written.
+  const joke = 'Ha. No, I am a bot, but I take the compliment.';
+  check('an ordinary reply is untouched', withStaleness(joke, 'are you human?') === joke);
+}
+
+console.log(['', 'a day named against today is a date it holds'].join(String.fromCharCode(10)));
+{
+  const monday = '2026-09-07';
+  // Live: "this sunday what date ??" was handed to the moderators, twice,
+  // by a bot that knew what day it was.
+  const sunday = relativeDays('this sunday what date ??', monday);
+  check(
+    'this Sunday is the Sunday coming',
+    sunday[0]?.iso === '2026-09-13',
+    JSON.stringify(sunday),
+  );
+  check(
+    'next Sunday is the one after',
+    relativeDays('and next sunday?', monday)[0]?.iso === '2026-09-20',
+  );
+  check(
+    'ce dimanche, in the other language',
+    relativeDays('tu peux me dire la date de ce dimanche', monday)[0]?.iso === '2026-09-13',
+  );
+  check(
+    'dimanche prochain is the week after',
+    relativeDays('c est quand dimanche prochain ?', monday)[0]?.iso === '2026-09-20',
+  );
+  check('demain is tomorrow', relativeDays('on joue demain ?', monday)[0]?.iso === '2026-09-08');
+  check('a message naming no day names none', relativeDays('what can u do', monday).length === 0);
+  const lines = calendarLines('this sunday what date ??', monday);
+  check(
+    'the model is told today first',
+    lines[0] === 'Today is Monday 7 September 2026.',
+    lines[0],
+  );
+  check(
+    'and what the day means',
+    lines[1]?.includes('Sunday 13 September 2026') ?? false,
+    lines[1],
+  );
+  check('nothing to work out is nothing to say', calendarLines('gg', monday).length === 0);
+}
+
+console.log(['', 'one question wakes the moderators once'].join(String.fromCharCode(10)));
+{
+  // Live: "@CEO, can one of you take this? @CEO" — the same people, twice, for
+  // one question, because the token was replaced everywhere it appeared.
+  const twice = 'I have nothing on that. {mods}, can one of you take this? {mods}';
+  const once = oneMention(twice, '<@&99>');
+  check('the tag becomes a mention', once.includes('<@&99>'), once);
+  check('and only one of them', once.split('<@&99>').length === 2, once);
+  check('nothing left of the second', !once.includes('{mods}'), once);
+  check('a reply with no tag is untouched', oneMention('All good.', '<@&99>') === 'All good.');
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);
