@@ -40,6 +40,7 @@ import {
 import type { RunEvent, RunState, WorkflowEffects } from '@kalvard/core';
 import { serviceClient } from '@kalvard/core/supabase';
 import { logEvent } from './guild';
+import { whileThinking } from './typing';
 import { claim } from './once';
 
 /** Words a text about the match format contains; a text with none is not the rules. */
@@ -286,18 +287,22 @@ async function keepChannel(
     lastSaid?: { text: string; at: string } | null;
   };
   const wait = run.state.wait;
-  const decision = await keep({
-    botName: settingsRow?.bot_name || 'Kalvard',
-    brief,
-    rules,
-    memory: memoryOf(run.state.variables),
-    waiting: wait ? describeWait(wait.what, wait.deadline, settingsRow?.timezone ?? null) : null,
-    knowledge,
-    recent,
-    message: { who: message.author.displayName, text: message.content, isStaff, mentionsBot },
-    lastSaid: keeperState.lastSaid ?? null,
-    language: settingsRow?.language ?? undefined,
-  });
+  // The keeper reads every message in a live channel and answers some of
+  // them; when it is about to answer, the channel sees it thinking.
+  const decision = await whileThinking(message.channel, () =>
+    keep({
+      botName: settingsRow?.bot_name || 'Kalvard',
+      brief,
+      rules,
+      memory: memoryOf(run.state.variables),
+      waiting: wait ? describeWait(wait.what, wait.deadline, settingsRow?.timezone ?? null) : null,
+      knowledge,
+      recent,
+      message: { who: message.author.displayName, text: message.content, isStaff, mentionsBot },
+      lastSaid: keeperState.lastSaid ?? null,
+      language: settingsRow?.language ?? undefined,
+    }),
+  );
 
   if (decision.decision === 'ignore') return false;
 

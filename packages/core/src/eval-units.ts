@@ -21,7 +21,7 @@ import { describeMatch, riftMatches, riftRoster } from './fetchers/rift-legends'
 import { isPrivateHost, safeUrl } from './fetchers/http';
 import { answersHere } from './answers-here';
 import { answersTheQuestion } from './conversation';
-import { fallback, keepsOnlyWhatWasSaid, numbersIn } from './learn';
+import { fallback, keepsOnlyWhatWasSaid, numbersIn, sentences, forTheMember } from './learn';
 import { markHeadings, prepare } from './outline';
 import { sourceLine, usable } from './describe';
 import { clarifiable } from './resolve';
@@ -1594,6 +1594,55 @@ console.log(['', 'it never says the same thing twice'].join(String.fromCharCode(
   );
   check('something else is said', !saidAlready(line, ['I have nothing on the prize pool.']));
   check('nothing said yet is nothing to repeat', !saidAlready(line, []));
+}
+
+console.log(
+  ['', 'what the member is told reads like a person wrote it'].join(String.fromCharCode(10)),
+);
+{
+  // Live: two knowledge statements joined with a space came out as
+  // "Wild Champions League has two tournaments in december Wild Champions
+  // League does not know the dates for the december tournaments yet".
+  const facts = [
+    'Wild Champions League has two tournaments in december',
+    'Wild Champions League does not know the dates for the december tournaments yet',
+  ];
+  check(
+    'two statements are two sentences, not one run-on',
+    sentences(facts) ===
+      'Wild Champions League has two tournaments in december. Wild Champions League does not know the dates for the december tournaments yet.',
+    sentences(facts),
+  );
+  check(
+    'a full stop already there is not doubled',
+    sentences(['Check-in closes at 17:00.']) === 'Check-in closes at 17:00.',
+  );
+
+  // The written line is preferred, because it says it once.
+  const learned = {
+    title: 'December tournaments',
+    facts,
+    reply: 'We have two tournaments in December, but the dates are not set yet.',
+    text: '',
+    understood: true,
+  };
+  check(
+    'the line written for the member wins',
+    forTheMember(learned, 'yes, we have two tournaments in december') === learned.reply,
+  );
+  check(
+    'without one, the facts are read out properly',
+    forTheMember({ ...learned, reply: '' }, 'x').endsWith('yet.'),
+  );
+  // Nothing understood: the moderator's own words, exactly as written.
+  check(
+    'and nothing understood keeps the words as they were',
+    forTheMember(fallback('when?', 'sunday 13/09'), 'sunday 13/09') === 'sunday 13/09',
+  );
+  check(
+    'no answer at all is nothing to say',
+    forTheMember(null, 'sunday 13/09') === 'sunday 13/09',
+  );
 }
 
 console.log(failed === 0 ? '\nall unit checks passed.' : `\n${failed} unit check(s) failed.`);

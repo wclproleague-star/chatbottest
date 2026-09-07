@@ -23,6 +23,7 @@ import { logEvent, mayPingMods } from './guild';
 import { handleCommand } from './command';
 import { startSeries } from './workflow';
 import { findPending } from './knowledge';
+import { thinkingAbout } from './typing';
 import { saidAlready } from '@kalvard/core';
 
 /** Discord's own limit on a message. */
@@ -87,30 +88,35 @@ export async function handleMention(message: Message, settings: GuildSettings): 
   const channel = message.channel;
   let result;
   try {
-    result = await converse({
-      guildId: guild.id,
-      // One conversation per member per channel, so a follow-up continues it.
-      conversationId,
-      userId: message.author.id,
-      askerName: message.author.displayName,
-      message: question,
-      channelId: message.channelId,
-      history,
-      asker: {
-        nickname: message.member?.nickname ?? undefined,
-        roles:
-          message.member?.roles.cache.map((r) => r.name).filter((n) => n !== '@everyone') ?? [],
-        isStaff: settings.modRoleId
-          ? (message.member?.roles.cache.has(settings.modRoleId) ?? false)
-          : false,
-      },
-      channel: {
-        name: 'name' in channel && typeof channel.name === 'string' ? channel.name : undefined,
-        category: 'parent' in channel && channel.parent ? channel.parent.name : undefined,
-        topic: 'topic' in channel && typeof channel.topic === 'string' ? channel.topic : undefined,
-      },
-      effects: discordEffects(message, settings),
-    });
+    // The dots, for exactly as long as it is working. Silence in a channel is
+    // what a bot that has crashed looks like.
+    result = await thinkingAbout(message, () =>
+      converse({
+        guildId: guild.id,
+        // One conversation per member per channel, so a follow-up continues it.
+        conversationId,
+        userId: message.author.id,
+        askerName: message.author.displayName,
+        message: question,
+        channelId: message.channelId,
+        history,
+        asker: {
+          nickname: message.member?.nickname ?? undefined,
+          roles:
+            message.member?.roles.cache.map((r) => r.name).filter((n) => n !== '@everyone') ?? [],
+          isStaff: settings.modRoleId
+            ? (message.member?.roles.cache.has(settings.modRoleId) ?? false)
+            : false,
+        },
+        channel: {
+          name: 'name' in channel && typeof channel.name === 'string' ? channel.name : undefined,
+          category: 'parent' in channel && channel.parent ? channel.parent.name : undefined,
+          topic:
+            'topic' in channel && typeof channel.topic === 'string' ? channel.topic : undefined,
+        },
+        effects: discordEffects(message, settings),
+      }),
+    );
   } catch (err) {
     // The model or the database, not the member. They are told in one line,
     // no moderator is woken for an outage, and the class is recorded so an

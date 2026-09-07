@@ -192,7 +192,7 @@ export { gapIn } from './onboard';
 export { resolveDates, confirmLine, believable, readableDay, todayIn } from './dates';
 export type { Resolution, ResolvedDate } from './dates';
 export { datesIn, whenLines, spell } from './when';
-export { learnFrom, keepsOnlyWhatWasSaid, numbersIn } from './learn';
+export { learnFrom, keepsOnlyWhatWasSaid, numbersIn, sentences, forTheMember } from './learn';
 export { markHeadings, headingLevel, prepare } from './outline';
 export { describeDocument, sourceLine, usable } from './describe';
 export { withStaleness } from './stale';

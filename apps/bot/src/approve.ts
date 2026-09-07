@@ -16,7 +16,8 @@ import type {
 import type { GuildSettings } from './guild';
 import { logEvent } from './guild';
 import { recordAnswer, settleQuestion } from './knowledge';
-import { confirmLine, resolveDates } from '@kalvard/core';
+import { confirmLine, forTheMember, resolveDates } from '@kalvard/core';
+import { thinkingAbout } from './typing';
 import { commandEffects, shapeOf, whoIsIn } from './command';
 import { namedRoles, planCommand, recordCommand, runPlan } from '@kalvard/core';
 
@@ -194,14 +195,17 @@ export async function onTick(
     }
   }
 
-  const learned = await recordAnswer({
-    guildId: guild.id,
-    questionId: pending.id,
-    question: pending.question,
-    answer,
-    answeredBy: user.id,
-    guildName: guild.name,
-  });
+  // The dots while it works out what the moderator actually established.
+  const learned = await thinkingAbout(message, () =>
+    recordAnswer({
+      guildId: guild.id,
+      questionId: pending.id,
+      question: pending.question,
+      answer,
+      answeredBy: user.id,
+      guildName: guild.name,
+    }),
+  );
 
   // What the member gets is the answer, not the moderator's message played
   // back at them. A moderator writes to another moderator — "the exact date is
@@ -210,7 +214,7 @@ export async function onTick(
   // as a sentence; when nothing could be understood, the words stand as they
   // were, because a clumsy true answer beats none.
   const asker = pending.asker_discord_id ? `<@${pending.asker_discord_id}> ` : '';
-  const toldToMember = learned?.understood ? learned.facts.join(' ') : answer;
+  const toldToMember = forTheMember(learned, answer);
   if (message.channel.isSendable()) {
     await message.channel.send(`${asker}${toldToMember}\n\nGot it. Next time I'll know.`);
   }

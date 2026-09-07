@@ -25,6 +25,17 @@ export type Learned = {
   facts: string[];
   /** What is stored and read into chunks. */
   text: string;
+  /**
+   * The one line to give the member who asked.
+   *
+   * Not the same thing as the facts. A fact is written to be read alone in a
+   * database a year from now, so it repeats its own subject — "Wild Champions
+   * League has two tournaments in December", "Wild Champions League does not
+   * know the dates yet" — and two of those read out to a person land as one
+   * run-on sentence naming the league twice. Empty when nothing usable came
+   * back, and then the facts stand.
+   */
+  reply: string;
   /** False when the words themselves were kept because nothing else was safe. */
   understood: boolean;
 };
@@ -69,6 +80,7 @@ export function fallback(question: string, answer: string): Learned {
     title: question.trim().slice(0, 120) || 'What a moderator answered',
     facts: [answer.trim()],
     text: `Q: ${question.trim()}\nA: ${answer.trim()}`,
+    reply: '',
     understood: false,
   };
 }
@@ -98,9 +110,9 @@ export async function learnFrom(input: {
   if (!answer) return fallback(question, answer);
   const source = `${question}\n${answer}`;
 
-  let raw: { title?: string; facts?: string[] };
+  let raw: { title?: string; facts?: string[]; reply?: string };
   try {
-    raw = await generateJson<{ title: string; facts: string[] }>({
+    raw = await generateJson<{ title: string; facts: string[]; reply: string }>({
       system: [
         'A moderator has just answered a member question in a Discord server' +
           (input.guildName ? ` (${input.guildName})` : '') +
@@ -110,6 +122,7 @@ export async function learnFrom(input: {
         'Drop the greetings, the thanks, the pings and anything about the conversation itself. If the moderator said something that is not a fact about the server — an instruction to the bot, an aside — leave it out.',
         "Write in the language the moderator wrote in: a French server's knowledge is French, and a fact translated on the way in comes back out translated.",
         'title is a short phrase naming the subject, the way a page in a rulebook is titled. facts is the statements, at most six, usually one or two.',
+        'reply is the single line the assistant says back to the member who asked: the same facts, said once, the way one person answers another. Not a list, no greeting, no sign-off, and it never names the server twice.',
       ].join(' '),
       messages: [{ role: 'user', text: `Question: ${question}\nModerator: ${answer}` }],
       schema: {
@@ -117,9 +130,10 @@ export async function learnFrom(input: {
         properties: {
           title: { type: Type.STRING },
           facts: { type: Type.ARRAY, items: { type: Type.STRING } },
+          reply: { type: Type.STRING },
         },
-        required: ['title', 'facts'],
-        propertyOrdering: ['title', 'facts'],
+        required: ['title', 'facts', 'reply'],
+        propertyOrdering: ['title', 'facts', 'reply'],
       },
       temperature: 0,
       maxOutputTokens: 600,
@@ -131,5 +145,30 @@ export async function learnFrom(input: {
   const facts = (raw.facts ?? []).map((fact) => String(fact).trim()).filter(Boolean);
   if (!keepsOnlyWhatWasSaid(facts, source)) return fallback(question, answer);
   const title = (raw.title ?? '').trim().slice(0, 120) || question.slice(0, 120);
-  return { title, facts, text: compose(title, facts, question), understood: true };
+  // The member's line goes through the same gate as the knowledge: a figure
+  // nobody said is not said to them either.
+  const said = (raw.reply ?? '').trim();
+  const reply = said && keepsOnlyWhatWasSaid([said], source) ? said : '';
+  return { title, facts, reply, text: compose(title, facts, question), understood: true };
+}
+
+/**
+ * The facts as something a person can read out loud.
+ *
+ * Each one is a sentence in its own right, so they are given their full stops
+ * and joined. It is the fallback for the member's line: better a slightly
+ * stiff pair of sentences than two statements run together.
+ */
+export function sentences(facts: string[]): string {
+  return facts
+    .map((fact) => fact.trim())
+    .filter(Boolean)
+    .map((fact) => (/[.!?]$/.test(fact) ? fact : `${fact}.`))
+    .join(' ');
+}
+
+/** What the member is told: the written line, the facts, or the words as said. */
+export function forTheMember(learned: Learned | null, answer: string): string {
+  if (!learned || !learned.understood) return answer;
+  return learned.reply || sentences(learned.facts) || answer;
 }
