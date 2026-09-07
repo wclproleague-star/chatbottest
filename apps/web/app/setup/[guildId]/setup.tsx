@@ -30,6 +30,7 @@ import {
   SCENE_LINK,
   SetupScene,
   TO_GREEN_MS,
+  useWideScreen,
 } from './night-scene';
 import { useReady } from '@/components/hero/ready';
 import { TYPE_MS } from '@/components/hero/script';
@@ -167,6 +168,10 @@ export function Setup({
 
   const decided = AREAS.filter((area) => filled(config, area.key));
   const onPanel = step !== 'entry' && step !== 'live';
+  const anchors = useSceneAnchors();
+  const wideScreen = useWideScreen();
+  const panelWide = step === 'try' || step === 'finish';
+  const panelLeft = wideScreen ? panelLeftFrom(anchors, panelWide ? 680 : 620) : null;
 
   return (
     <main data-theme="dark" data-surface="night" className="bg-night text-star">
@@ -197,7 +202,8 @@ export function Setup({
           {onPanel && (
             <Glass
               fadeKey={step}
-              wide={step === 'try' || step === 'finish'}
+              wide={panelWide}
+              left={panelLeft}
               dropping={dropping}
               onDragOver={(event) => {
                 event.preventDefault();
@@ -299,7 +305,9 @@ export function Setup({
             </Glass>
           )}
 
-          {onPanel && decided.length > 0 && <Card config={config} areas={decided} />}
+          {onPanel && decided.length > 0 && (
+            <Card config={config} areas={decided} anchors={anchors} />
+          )}
 
           {step === 'live' && (
             <Centred>
@@ -326,24 +334,40 @@ function Centred({ children }: { children: ReactNode }) {
 }
 
 /**
- * What has been decided, on glass directly under the beacon and centred on
- * it, so the object and its description read as one thing. Laid out from the
- * numbers the scene stands the beacon with. Only fields that exist: an empty
- * one is not a row in grey, it is not there.
+ * What has been decided, on glass under the beacon and centred on it, so the
+ * object and its description read as one thing. It never falls off the
+ * bottom: where the foot is too low for it, it rises to sit just above the
+ * edge instead. Only fields that exist: an empty one is not a row in grey, it
+ * is not there.
  */
 function Card({
   config,
   areas,
+  anchors,
 }: {
   config: DraftConfig;
   areas: { key: keyof DraftConfig; label: string }[];
+  anchors: { x: number; foot: number; height: number } | null;
 }) {
-  const at = useBeaconFoot();
-  if (!at) return null;
+  const box = useRef<HTMLElement>(null);
+  const [tall, setTall] = useState(0);
+  useEffect(() => {
+    if (!box.current) return;
+    const measure = () => setTall(box.current?.offsetHeight ?? 0);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(box.current);
+    return () => observer.disconnect();
+  }, [areas.length]);
+  if (!anchors) return null;
+  // Under the foot when there is room for it, and never nearer the bottom
+  // than a comfortable margin: a card half off the screen belongs to nothing.
+  const top = Math.min(anchors.foot + 16, anchors.height - tall - 40);
   return (
     <aside
+      ref={box}
       className="text-star absolute hidden w-[320px] rounded-2xl p-6 lg:block"
-      style={{ ...GLASS, left: at.x - 160, top: at.y + 20 }}
+      style={{ ...GLASS, left: anchors.x - 160, top }}
       aria-label="Decided so far"
     >
       <dl className="space-y-4">
@@ -360,15 +384,28 @@ function Card({
   );
 }
 
-/** Where the beacon's base is on screen, from the scene's own layout. */
-function useBeaconFoot(): { x: number; y: number } | null {
-  const [at, setAt] = useState<{ x: number; y: number } | null>(null);
+/**
+ * Where the beacon actually stands on screen, from the numbers the scene lays
+ * it out with: the middle of it, its left edge, and its foot. Both boxes are
+ * placed from these, so neither drifts to a corner as the window changes.
+ */
+function useSceneAnchors(): { x: number; leftEdge: number; foot: number; height: number } | null {
+  const [at, setAt] = useState<{
+    x: number;
+    leftEdge: number;
+    foot: number;
+    height: number;
+  } | null>(null);
   useEffect(() => {
     const measure = () => {
       const frame = coverRect(window.innerWidth, window.innerHeight);
+      const x = frame.left + meta.focusX * frame.width;
+      const width = PHOTO.beaconWidth * frame.width;
       setAt({
-        x: frame.left + meta.focusX * frame.width,
-        y: frame.top + PHOTO.beaconBase * frame.height,
+        x,
+        leftEdge: x - width / 2,
+        foot: frame.top + PHOTO.beaconBase * frame.height,
+        height: window.innerHeight,
       });
     };
     measure();
@@ -376,6 +413,19 @@ function useBeaconFoot(): { x: number; y: number } | null {
     return () => window.removeEventListener('resize', measure);
   }, []);
   return at;
+}
+
+/**
+ * The panel's left edge. It stands against the beacon rather than against the
+ * window: the middle of the scene is where the eye is, and a panel pushed
+ * into the far corner leaves the whole centre empty.
+ */
+const PANEL_GAP = 56;
+const PANEL_EDGE = 40;
+
+function panelLeftFrom(anchors: { leftEdge: number } | null, width: number): number | null {
+  if (!anchors) return null;
+  return Math.max(PANEL_EDGE, anchors.leftEdge - PANEL_GAP - width);
 }
 
 function filled(config: DraftConfig, key: keyof DraftConfig): boolean {

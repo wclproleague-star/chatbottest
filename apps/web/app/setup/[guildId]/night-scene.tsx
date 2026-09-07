@@ -112,6 +112,7 @@ export function Glass({
   children,
   className,
   wide = false,
+  left,
   fadeKey,
   dropping = false,
   onDragOver,
@@ -122,6 +123,13 @@ export function Glass({
   className?: string;
   /** Wider panels for the forms that need the room. */
   wide?: boolean;
+  /**
+   * Where its left edge goes, in px, on a screen wide enough to have sides.
+   * The caller works it out from where the beacon actually stands, so the
+   * panel sits in the middle of the room the object leaves it rather than
+   * against the window.
+   */
+  left?: number | null;
   /** Changes when the step does: the body fades rather than snapping. */
   fadeKey?: string;
   /** Something is being dragged over it. */
@@ -134,6 +142,7 @@ export function Glass({
   const [height, setHeight] = useState<number | null>(null);
   const [shown, setShown] = useState(true);
   const first = useRef(true);
+  const wideScreen = useWideScreen();
 
   // The panel is exactly as tall as its content, between the two bounds. The
   // padding lives on the measured box, so the height is the whole of it.
@@ -177,6 +186,11 @@ export function Glass({
       style={{
         ...(dropping ? GLASS_DROP : GLASS),
         height: height ?? undefined,
+        // The caller's placement wins over the class, and only where there is
+        // room for sides: on a phone the panel is the bottom of the screen.
+        ...(wideScreen && left !== null && left !== undefined
+          ? { left, width: wide ? 680 : 620, maxWidth: 'none' }
+          : null),
         transition: `height ${GROW_MS}ms var(--ease-standard)`,
       }}
       onDragOver={onDragOver}
@@ -195,6 +209,19 @@ export function Glass({
       </div>
     </div>
   );
+}
+
+/** Whether the screen has sides to place things in, or is a phone. */
+export function useWideScreen(): boolean {
+  const [wide, setWide] = useState(false);
+  useEffect(() => {
+    const query = window.matchMedia('(min-width: 768px)');
+    const read = () => setWide(query.matches);
+    read();
+    query.addEventListener('change', read);
+    return () => query.removeEventListener('change', read);
+  }, []);
+  return wide;
 }
 
 /** How long the line takes to type itself out, ms per character. */
