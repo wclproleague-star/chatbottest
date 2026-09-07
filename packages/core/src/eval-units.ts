@@ -27,6 +27,7 @@ import { findRepeat, offer } from './repeats';
 import { channelNameFor, dueToPrepare, teamRole } from './matches';
 import { defaultBrief, memoryOf } from './keeper';
 import { nextSupportQuestion, supportPlan } from './support';
+import { believable, confirmLine, readableDay, todayIn } from './dates';
 import type { SupportAnswers } from './support';
 import { TEMPLATES } from './workflows/templates';
 import type { RiftMatch } from './fetchers/rift-legends';
@@ -1041,6 +1042,46 @@ console.log(
         created: [{ id: 'gone', name: 'open-a-ticket', kind: 'channel' }],
       },
     }).steps.length === 1,
+  );
+}
+
+console.log(['', 'a day a moderator named, kept as a date'].join(String.fromCharCode(10)));
+{
+  check(
+    'a date reads as a person writes it',
+    readableDay('2026-09-13') === 'Sunday 13 September',
+    readableDay('2026-09-13'),
+  );
+  check('a day that does not exist is not a date', readableDay('2026-02-30') === '');
+  check('nor is something that is not one', readableDay('sunday') === '');
+  check(
+    'today is read where the guild lives',
+    todayIn(new Date('2026-09-13T23:30:00Z'), 'Europe/Paris').iso === '2026-09-14',
+    todayIn(new Date('2026-09-13T23:30:00Z'), 'Europe/Paris').iso,
+  );
+
+  const said = 'the next tournament is this sunday';
+  check(
+    'this sunday, resolved to a sunday, is believed',
+    believable({ phrase: 'this sunday', iso: '2026-09-13' }, said, '2026-09-10'),
+  );
+  check(
+    'the same phrase landing on a tuesday is not',
+    !believable({ phrase: 'this sunday', iso: '2026-09-15' }, said, '2026-09-10'),
+  );
+  check(
+    'a date a decade out is not',
+    !believable({ phrase: 'this sunday', iso: '2036-09-14' }, said, '2026-09-10'),
+  );
+  check(
+    'and neither is a phrase that is not in the sentence',
+    !believable({ phrase: 'next friday', iso: '2026-09-11' }, said, '2026-09-10'),
+  );
+  check(
+    'the line puts it back in their words',
+    confirmLine([
+      { phrase: 'this sunday', iso: '2026-09-13', readable: 'Sunday 13 September' },
+    ]).includes('this sunday is Sunday 13 September'),
   );
 }
 

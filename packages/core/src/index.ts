@@ -189,3 +189,5 @@ export type { SupportMode, SupportAnswers, SupportQuestion, SupportSetup } from 
 export { SUPPORT_ACTIONS } from './command';
 export type { SupportAction } from './command';
 export { gapIn } from './onboard';
+export { resolveDates, confirmLine, believable, readableDay, todayIn } from './dates';
+export type { Resolution, ResolvedDate } from './dates';

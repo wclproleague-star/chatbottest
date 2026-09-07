@@ -16,6 +16,7 @@ import type {
 import type { GuildSettings } from './guild';
 import { logEvent } from './guild';
 import { recordAnswer, settleQuestion } from './knowledge';
+import { confirmLine, resolveDates } from '@kalvard/core';
 import { commandEffects, shapeOf, whoIsIn } from './command';
 import { namedRoles, planCommand, recordCommand, runPlan } from '@kalvard/core';
 
@@ -71,7 +72,26 @@ export async function onModReply(message: Message, settings: GuildSettings): Pro
   if (pending.asker_discord_id === message.author.id) return false;
   await message.react(TICK);
   await message.react(UNSURE);
+
+  // "This Sunday" is only true for a week. The days in their answer are put
+  // back to them as dates before any of it is written down, so a tick keeps a
+  // fact that is still a fact next month.
+  const zone = await timezoneOf(message.guild.id);
+  const dates = await resolveDates(message.content, new Date(), zone).catch(() => null);
+  if (dates && dates.changes.length > 0) {
+    await message.reply(confirmLine(dates.changes)).catch(() => undefined);
+  }
   return true;
+}
+
+/** Where the guild lives, for reading a day the way they meant it. */
+async function timezoneOf(guildId: string): Promise<string | null> {
+  const { data } = await serviceClient()
+    .from('guild_settings')
+    .select('timezone')
+    .eq('guild_id', guildId)
+    .maybeSingle();
+  return data?.timezone ?? null;
 }
 
 /**
@@ -100,8 +120,15 @@ export async function onTick(
   if (pending.asker_discord_id === user.id) return;
 
   const fromBot = message.author?.id === message.client.user?.id;
-  const answer = (fromBot ? pending.bot_draft : message.content)?.trim();
-  if (!answer) return;
+  const said = (fromBot ? pending.bot_draft : message.content)?.trim();
+  if (!said) return;
+  // The same reading as when it was offered, so what is kept is the dates
+  // rather than the words that only meant them this week.
+  const zone = await timezoneOf(guild.id);
+  const resolved = fromBot
+    ? { rewritten: said, changes: [] }
+    : await resolveDates(said, new Date(), zone).catch(() => ({ rewritten: said, changes: [] }));
+  const answer = resolved.rewritten;
 
   // A moderator's reply is not always an answer to write down. "give him the
   // role, he's on the roster" is an instruction, and the tick is the
