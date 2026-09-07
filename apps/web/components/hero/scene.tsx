@@ -24,8 +24,41 @@ import type { Light } from './script';
 
 /** The nebula against a horizon reads thinner than alone; 0.12 here, 0.09 elsewhere. */
 const CONTRAST = 0.12;
-/** Dawn: the hero fades out over the first third of the band. */
+/** Dawn: the hero's own type fades over the first third of the band. */
 const HERO_FADE_END = 1 / 3;
+
+/**
+ * Dawn is a grade, not a dissolve.
+ *
+ * The headland, the sea and the horizon stay exactly where they are for the
+ * whole page. What changes is the sky and the light on the land: the stars go
+ * out, the sky lifts from night through a cold dawn blue to the pale the page
+ * itself is made of, and the grass and rock lighten as if the sun were behind
+ * the camera. Crossfading to a flat background would say the opposite — that
+ * the place was a backdrop we swapped out — when the point is that it is the
+ * same place, hours later, and it did not need the dark to work.
+ */
+const NIGHT = [7, 10, 16];
+const DAWN_BLUE = [36, 64, 95];
+const PAPER = [237, 239, 241];
+
+function mix(a: number[], b: number[], k: number): string {
+  const at = (i: number) => Math.round(a[i]! + (b[i]! - a[i]!) * k);
+  return `rgb(${at(0)}, ${at(1)}, ${at(2)})`;
+}
+
+/** The sky's own curve: night to a cold blue by halfway, then to paper. */
+function skyAt(dawn: number, high: boolean): string {
+  const k = Math.min(1, Math.max(0, dawn));
+  if (k <= 0.5) return mix(NIGHT, DAWN_BLUE, (k / 0.5) * (high ? 0.85 : 1));
+  return mix(DAWN_BLUE, PAPER, ((k - 0.5) / 0.5) * (high ? 1 : 0.92));
+}
+
+/** The land's own curve: an exposure lift, and the colour of night draining out. */
+function landAt(dawn: number): string {
+  const k = Math.min(1, Math.max(0, dawn));
+  return `brightness(${1 + 0.75 * k}) contrast(${1 - 0.2 * k}) saturate(${1 - 0.25 * k})`;
+}
 
 type Rect = { left: number; top: number; width: number; height: number };
 
@@ -93,7 +126,9 @@ export function Scene({
     return () => observer.disconnect();
   }, []);
 
+  // The hero's own type leaves early in the band; the photograph does not.
   const fade = 1 - Math.min(1, dawn / HERO_FADE_END);
+  const graded = landAt(dawn);
 
   const horizon = rect ? rect.top + meta.horizon * rect.height : null;
   // The grass at the footing is part of the photograph, so it takes the same
@@ -117,8 +152,25 @@ export function Scene({
             top: rect.top,
             width: rect.width,
             height: rect.height,
-            opacity: fade,
-            ...treatment,
+            filter: treatment ? `${treatment.filter} ${graded}` : graded,
+          }}
+        />
+      )}
+
+      {/* The sky, graded on its own curve and stopping at the horizon, so the
+          land keeps its own. The page's paper is what the sky arrives at, so
+          the sections below continue the surface the sky became. */}
+      {rect && dawn > 0 && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute"
+          style={{
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: (horizon ?? rect.top) - rect.top + 1,
+            background: `linear-gradient(180deg, ${skyAt(dawn, true)} 0%, ${skyAt(dawn, false)} 100%)`,
+            opacity: Math.min(1, dawn * 1.15),
           }}
         />
       )}
@@ -152,8 +204,7 @@ export function Scene({
             top: rect.top + meta.grass.y * rect.height,
             width: meta.grass.w * rect.width,
             height: meta.grass.h * rect.height,
-            opacity: fade,
-            ...treatment,
+            filter: treatment ? `${treatment.filter} ${graded}` : graded,
           }}
         />
       )}

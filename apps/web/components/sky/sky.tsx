@@ -441,6 +441,12 @@ function mount(
   resize();
   start();
   window.addEventListener('resize', resize);
+  // The window is not the only thing that resizes the canvas: on the marketing
+  // page the whole scene travels from full-bleed into a column beside the
+  // text, and a canvas that only listens to the window keeps drawing at the
+  // size it had when it started, stretched.
+  const box = new ResizeObserver(resize);
+  box.observe(canvas);
   document.addEventListener('visibilitychange', onVisibility);
   if (!reduced && options.parallax) {
     window.addEventListener('pointermove', onPointer, { passive: true });
@@ -457,6 +463,7 @@ function mount(
     dispose() {
       stop();
       window.removeEventListener('resize', resize);
+      box.disconnect();
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pointermove', onPointer);
       window.removeEventListener('deviceorientation', onOrientation);

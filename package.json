@@ -24,6 +24,7 @@
     "@types/node": "^22.10.5",
     "eslint": "^9.17.0",
     "fontkit": "^2.0.4",
+    "playwright": "^1.63.0",
     "prettier": "^3.4.2",
     "sharp": "^0.35.4",
     "supabase": "2.116.0",
