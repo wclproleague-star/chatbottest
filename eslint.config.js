@@ -23,7 +23,16 @@ export default tseslint.config(
   {
     files: ['scripts/**/*.mjs'],
     languageOptions: {
-      globals: { Buffer: 'readonly', console: 'readonly', process: 'readonly', URL: 'readonly' },
+      globals: {
+        Buffer: 'readonly',
+        console: 'readonly',
+        process: 'readonly',
+        URL: 'readonly',
+        // A script that drives a browser writes browser code inside
+        // page.evaluate, which runs there rather than here.
+        document: 'readonly',
+        window: 'readonly',
+      },
     },
   },
   {
