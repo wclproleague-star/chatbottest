@@ -35,7 +35,7 @@ const PAGES: ([string, string] | { group: string; pages: [string, string][] })[]
 export function Sidebar({
   guildId,
   guildName,
-  light = 'amber',
+  light = 'watching',
   standing = 'Your vard is lit',
 }: {
   guildId: string;

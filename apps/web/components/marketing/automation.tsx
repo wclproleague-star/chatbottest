@@ -63,7 +63,7 @@ export function Automation() {
 
       <div className="mt-10 flex items-start gap-8">
         <Beacon
-          light={working ? 'working' : shown === 0 ? 'amber' : 'green'}
+          light={working ? 'working' : shown === 0 ? 'watching' : 'answered'}
           className="h-[220px] w-[80px] shrink-0"
           label={working ? 'Kalvard is working' : 'Kalvard'}
         />

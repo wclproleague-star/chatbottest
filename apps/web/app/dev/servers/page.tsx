@@ -12,7 +12,7 @@ export default function Page() {
           name: 'Wild Champions League',
           icon: null,
           claimed: true,
-          light: 'green',
+          light: 'answered',
           line: '34 answers this week, 2 waiting on you',
         },
         {
@@ -20,7 +20,7 @@ export default function Page() {
           name: 'Rift Legends EU',
           icon: null,
           claimed: true,
-          light: 'amber',
+          light: 'watching',
           line: '11 answers this week, nothing waiting on you',
         },
         {
@@ -36,7 +36,7 @@ export default function Page() {
           name: 'Sunday Scrims',
           icon: null,
           claimed: false,
-          light: 'off',
+          light: 'asleep',
           line: 'Not set up yet',
         },
       ]}

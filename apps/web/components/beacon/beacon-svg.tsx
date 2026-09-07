@@ -39,8 +39,8 @@ export type BeaconSvgProps = {
 };
 
 export function BeaconSvg({ light, progress = 1, className, label }: BeaconSvgProps) {
-  const colour = light === 'green' ? GREEN : AMBER;
-  const lit = light !== 'off';
+  const colour = light === 'answered' ? GREEN : AMBER;
+  const lit = light !== 'asleep';
   const base = (W - W * TAPER) / 2;
   const body = `M ${base} 0 L ${W - base} 0 L ${W} ${H} L 0 ${H} Z`;
   const height = (SLIT_BOTTOM - SLIT_TOP) / SEGMENTS;

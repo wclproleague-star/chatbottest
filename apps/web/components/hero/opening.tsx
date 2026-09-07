@@ -140,7 +140,7 @@ export function Opening() {
     return () => cancelAnimationFrame(raf);
   }, [ready, arrived]);
 
-  const light = t >= 0 ? lightAt(t) : 'amber';
+  const light = t >= 0 ? lightAt(t) : 'watching';
   const bandVh = 60;
 
   return (

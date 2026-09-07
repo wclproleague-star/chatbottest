@@ -268,7 +268,7 @@ Layout superseded by moment 2 (the cinematic still and the pinned thread screen)
 - The thread panel is smoked glass, not white: night #070A10 at 72% opacity, backdrop blur 24px, one 1px inner highlight on the top edge only in star white at 14%, no other border, no glow, no noise, no refraction, radius 16px, shadow 0 32px 80px rgba(0,0,0,0.45). Stars stay faintly visible through it; if blur kills them, 64%. Remove the white variant.
 - Panel text: star white messages, sender names star white at 55%, cursor star white. State rules unchanged.
 - Headline breaks in exactly three lines from 1024px up: "The server assistant / that asks before / it answers." Never a single word on a line. Below 1024, two or four lines are acceptable, never five.
-- Body line under the headline, final copy: "It answers from what your server already knows, and asks a moderator when it doesn't."
+- Body line under the headline, final copy: "It answers your members, runs your week, and asks a human when it doesn't know. Trained on your playbook, live in ten minutes." Under the buttons, one small line: "Available on Discord. Slack next."
 - The beacon photo, when it arrives: height matches the panel's, sitting on the same baseline as the panel's bottom edge. Keep its own shadow; add a soft contact shadow so it stands on the same invisible floor as the panel. Light-state crossfade is masked to the slit only; the body never flickers.
 - Until the photo exists the silhouette stays, using the same scale and baseline rules so nothing moves at swap.
 - Sky loads behind a solid night fill. No white flash, no flash of unstyled text: fonts preloaded, font-display optional. Before Three.js is ready the hero shows night fill and headline; stars fade in over 600ms; the thread does not start until the sky is up.
@@ -318,6 +318,372 @@ Layout superseded by moment 2 (the cinematic still and the pinned thread screen)
 
 #### Process rule
 Before showing any screen, check it against this addendum line by line. If a line is impossible in a given case, say which and why, propose one alternative, and continue with it. Never present a screen that violates a line here and wait for me to notice.
+
+### Marketing page
+
+One page. The beacon never leaves. It stands on the right through the whole
+scroll, and its light is the narrator: the content changes on the left, the
+object reacts on the right. Nothing else on the page moves except the five
+moments listed at the end.
+
+
+---
+
+### The rule that makes it work
+
+The beacon is **pinned for the entire page**, right side, vertically centred,
+from the hero to the footer. It is rendered once, in one canvas, and never
+unmounts. Only three things about it ever change:
+
+1. **Its light** — off, amber, green, or pulsing amber.
+2. **Its size** — large in the hero, settling to a constant working size for the
+   body of the page, large again at the end.
+3. **Its environment** — the night scene behind it thins as the page moves into
+   daylight, then returns at the close.
+
+The left column scrolls normally. The right column is a sticky viewport-height
+column holding the beacon. On mobile the beacon is docked small at the top and
+still changes state; it never scrolls away.
+
+---
+
+### The scroll, section by section
+
+#### 0. Hero — the object at rest
+**Beacon:** full scene, cliff photo, starfield, large, slit **amber, steady**.
+**Left:** the giant KALVARD wordmark behind it, the typed line
+(*Kalvard answers / organizes / schedules / assigns / asks*), the body line,
+buttons, and the small "Available on Discord. Slack next."
+**Feel:** a still night. Nothing has happened yet.
+
+#### 1. The thread — the promise, proven, then paid off
+**Trigger:** first scroll. The scene holds and darkens by 20%; the beacon shrinks
+to its working size and moves to its permanent right-hand position over 600ms.
+
+**Part one, the gap.** The glass panel plays the conversation once: kestrel asks
+when the bracket is posted and gets a grounded answer; kestrel then asks whether
+a duo can miss check-in; **the slit dips to 40% and holds** while Kalvard says it
+doesn't have that and tags the mods; the mod replies with the real rule; and on
+"Got it. Next time I'll know." **the slit crossfades amber → green** for the first
+time in the page's history.
+
+**Part two, the payoff.** After a 1.2s hold, the panel **clears** — the messages
+fade out top to bottom over 400ms, leaving the empty panel — and a small line
+appears above it: *Two days later.* Then a new member, **Berry**, asks the same
+question in different words ("hey, my duo can't make check-in, is that ok?"), and
+Kalvard answers it immediately from what the mod taught it, no ping, no waiting.
+**The slit goes straight to green** as the answer lands.
+
+This second exchange is the point of the whole page: the first time it cost a
+moderator, the second time it cost nobody. Do not skip it, and do not merge it
+into the first conversation — the reset is what makes it land.
+
+**Copy above the panel:** *It answers from what your server knows. When it doesn't
+know, it asks. Then it knows.*
+**Feel:** the first time the light means something, and the first time the product
+proves itself.
+
+#### 2. Dawn — night becomes day
+**Trigger:** scroll-linked over 60vh.
+**Beacon:** unchanged in size and position, light returns to **amber**.
+
+**The scene does not dissolve. It becomes morning.** The headland, the sea and the
+horizon stay exactly where they are, in frame, for the whole page. What changes is
+the sky and the light on the land: the stars fade out, the sky lifts from
+`#070A10` through a cold dawn blue to a pale overcast white, the grass and rock
+lighten as if the sun were behind the camera, and the beacon's contact shadow
+lengthens and softens the way a real shadow does at first light.
+
+Implement it as a colour and exposure grade over the same photograph, not as a
+crossfade to a flat background: the sky region is graded on its own curve, the
+land on another, and a slight lift in overall exposure ties them together. The
+page's paper colour is what the sky arrives at, so the sections below sit on the
+same surface the sky became.
+
+**Left:** nothing. This band is empty on purpose.
+**Feel:** the same place, hours later. It didn't need the dark to work.
+
+#### 3. What it does — four cards, one object
+**Beacon:** working size, and it **reacts to whichever card the visitor is on** —
+the one hovered, or the one clicked into focus, and only falling back to the
+auto-rotating card when the visitor hasn't touched anything. The light follows
+the person's attention, not the timer:
+- **Answers** → slit steady amber
+- **Asks** → slit dips to 40% and holds, a slow amber breath
+- **Learns** → slit crossfades amber → green as the ✅ lands in the card
+- **Acts** → slit **pulses** slowly amber while the card's summary writes itself,
+  then settles green when the last line lands
+**Left:** the auto-rotating card carousel (5s, pause on hover, click to bring a
+card forward), each card a real mini-thread from a real server. Hover or selection
+always wins over the rotation for driving the light, and the transition between
+states takes 300ms so moving across the cards feels like sweeping a dial.
+**Heading:** *Four things it does every day.*
+**Feel:** you are watching a machine work, not reading a feature list.
+
+#### 4. It runs the week — the automation proof
+**Beacon:** **pulses amber**, slowly, for the whole section.
+**Left:** *It does the week, not just the answers.* Under it, the run summary
+writes itself line by line as the section enters: `Match day, this Thursday` /
+`12 channels created` / `24 roles verified` / `2 teams waiting on you` /
+`Nothing was deleted, and anything it could not map is waiting on a person.`
+When the last line lands, **the slit settles green**.
+**Feel:** the only section where the object is visibly busy.
+
+#### 5. Set up by talking — one screenshot, one line
+Cut the scripted preview conversation. Replaying the onboarding on the marketing
+page is a second demo of a thing the visitor hasn't asked for yet, it duplicates
+the hero thread's mechanic, and it makes the page long in the middle.
+
+**Beacon:** steady amber, no motion. It has already earned its states by here.
+**Left:** the heading, two lines of copy, and one still image: the real onboarding
+screen, the beacon on the night scene with the glass panel beside it, three
+questions answered.
+**Heading:** *Set up by talking. Or not.*
+**Copy:** *Tell it what your server is for, in your words. It asks about the rest,
+one question at a time, and you're done in about ten minutes. There's a form if
+you'd rather.*
+**Feel:** short. This section exists to remove the fear of setup, not to perform it.
+
+#### 6. Where it fits — the quiet comparison
+**Beacon:** steady amber, no motion.
+**Left:** three plain columns, no brand names: *Classic bots* (moderate, level,
+never understand) / *AI FAQ bots* (answer from your docs, go quiet when they
+don't know, never act) / *Kalvard* (answers, asks, learns, acts). Under it, one
+honest line: *Kalvard doesn't moderate. Keep your moderation bot; they don't
+overlap.*
+**Feel:** the paragraph that answers the visitor who is already comparing.
+
+#### 7. Pricing
+**Beacon:** steady amber.
+**Left:** the tier rows as a menu: name, one sentence, price. Under the panel:
+*Per server, per month. Cancel anytime. Custom connectors and workflows are
+quoted on any plan.*
+
+#### 8. The close — back to the headland
+**Trigger:** entering the footer.
+**Beacon:** the environment **returns**: the night scene fades back in behind it
+over 600ms, the beacon grows, and the slit is **green**.
+**Left:** the tagline *Got it. Next time I'll know.*, the story line
+(*Named after the vard, the stone beacons that kept watch on Norway's coast.*),
+the footer links, one primary button.
+**Feel:** the night it started in, with the light on.
+
+---
+
+### The light, as one table
+
+| Section | Slit | Motion |
+|---|---|---|
+| Hero | amber | still |
+| Thread, part one | amber → green | dips to 40% on "asking", crossfades on "got it" |
+| Thread, part two | green | panel clears, Berry's answer lands green immediately |
+| Dawn | amber | still |
+| Answers | amber | still |
+| Asks | amber at 40% | slow breath |
+| Learns | amber → green | crossfade with the ✅ |
+| Acts | amber | pulse 1.4s |
+| Runs the week | amber → green | pulse, then settle |
+| Set up | amber | still |
+| Where it fits | amber | still |
+| Pricing | amber | still |
+| Close | green | still, scene returns |
+
+Green is only ever the result of something being answered or finished. It is
+never decorative.
+
+---
+
+### Motion budget for the whole page
+
+These, and nothing else:
+
+1. The hero thread playing once, including the clear and Berry's payoff.
+2. The dawn grade, scroll-linked: sky and land lighten, the scene stays.
+3. The card carousel rotating, and its light following hover or selection.
+4. The run summary writing itself once.
+5. The scene returning at the close.
+
+No section fades or slides in on scroll. No hover lift on cards. No parallax
+except the hero starfield. No counters counting up. If it isn't in that list of
+five, it is still.
+
+---
+
+### Technical
+
+- One `<canvas>` for the beacon, mounted at page load, never unmounted. Section
+  state is driven by an IntersectionObserver that sets one value: the current
+  scene name. The beacon component reads that value and animates to it.
+- The environment (photo, starfield, nebula) is a layer inside the same canvas.
+  The photo never fades out: its sky and land are graded separately along the
+  dawn scroll progress, and the sky's end colour is exactly the page's paper
+  value so the sections below continue the same surface. The starfield's opacity
+  is what actually goes to zero.
+- The right column is `position: sticky; top: 0; height: 100vh` inside a normal
+  page flow, so the beacon is genuinely pinned rather than fixed, and the footer
+  can reclaim it.
+- Everything reveals only when the page is ready: photo decoded, fonts loaded,
+  first frame rendered. One coordinated 500ms fade, then nothing pops in.
+- Reduced motion: the beacon shows the end state for each section, the thread and
+  the run summary render complete, dawn becomes a 300ms cut, the carousel does not
+  auto-rotate but remains clickable.
+- Mobile (375): the beacon docks at the top, 120px tall, still reacting to
+  sections; the left column becomes the full width below it; the hero keeps its
+  own composition from the existing mobile spec.
+- Performance: cap the starfield at 5000 points on mobile, throttle the canvas to
+  30fps while a section transition is animating, and fall back to a rendered still
+  if the first frames measure under 40fps.
+
+---
+
+### What this page never does
+
+No named competitors above the fold. No logo wall. No testimonials until they are
+real. No "trusted by" with invented numbers. No gradient buttons. No icons standing
+in for ideas. No section that exists only to fill the scroll.
+
+### The light: the beacon’s full vocabulary
+
+Two colours, and everything else is rhythm, brightness and spill. Append this to
+`CLAUDE.md` under Design, after the marketing page spec. It replaces any earlier,
+looser description of the beacon's states.
+
+Colours, and there are only these:
+
+- **Amber `#D9A21B`** — awake, watching, working, uncertain.
+- **Green `#23A55A`** — answered, verified, finished. Never decorative.
+- **Dark** — not set up, or asleep.
+- **Cold white `#C8D4E0`** — reserved. Errors and outages only, and only on the
+  status page and the dashboard's failure banner. Never on the marketing page,
+  never in Discord.
+
+No other colour is ever used in the slit, under any circumstance.
+
+---
+
+### The eleven states
+
+Each state is a combination of colour, intensity, rhythm and spill. Intensity is
+a percentage of the slit's full emissive value. Spill is how far the light
+reaches onto the ground beneath the beacon, expressed as a multiple of the
+resting spill.
+
+| State | Colour | Intensity | Rhythm | Spill |
+|---|---|---|---|---|
+| **Asleep** | dark | 0% | none | none |
+| **Waiting to be set up** | amber | 15% | breath, 1.6s, shallow | 0.4x |
+| **Watching** (default) | amber | 100% | none | 1x |
+| **Thinking** | amber | 70 → 100% | breath, 0.7s, shallow | 1x |
+| **Working** | amber | 100% | pulse, 1.4s, deep | 1x → 1.6x with the pulse |
+| **Uncertain** | amber | 40% | none | 0.5x |
+| **Asking a human** | amber | 40 → 55% | breath, 2.2s, very slow | 0.5x |
+| **Learning** | amber → green | 100% | see below | 1x |
+| **Answered** | green | 100% | none | 1x |
+| **Failed** | dark | 0% for 400ms, then back | one dip | none, then 1x |
+| **Error or outage** | cold white | 60% | breath, 3s | 0.6x |
+
+#### The distinction between breath and pulse
+
+They are different animations and must feel different.
+
+**Breath** is intensity only. The slit brightens and dims; the spill barely
+changes. It reads as attention: something is happening inside. Shallow means the
+range is small (70 to 100%), so it never draws the eye.
+
+**Pulse** is intensity *and* spill together. The light swells and the ground
+brightens with it. It reads as effort: something is happening outside. Deep, and
+you notice it from across the room.
+
+So: thinking breathes, working pulses. The difference tells the user whether the
+agent is deciding or doing, without a word of interface.
+
+---
+
+### The learning transition, in detail
+
+This is the only moment on any surface where both colours exist at once, and it
+should feel physical rather than like a crossfade.
+
+1. Amber at 100%, steady.
+2. Green enters from the **bottom of the slit** and rises to fill it over 240ms,
+   so for about 120ms the recess holds amber above and green below, with the two
+   meeting in a warm seam. The recess walls pick up both.
+3. A single overshoot: green reaches 115% intensity at the top of the rise, then
+   settles to 100% over 160ms.
+4. The spill follows the same curve, so the ground warms and then cools slightly.
+
+Total 400ms. It happens exactly when a moderator's answer is approved, when the
+hero thread reaches "Got it. Next time I'll know.", and when a workflow run
+completes.
+
+---
+
+### Uncertainty is dimness, not colour
+
+When Kalvard doesn't know, the light does not change hue. It **drops to 40%** and
+the spill halves, so the beacon visibly recedes into the dark. When it then asks a
+human, the dimmed light picks up a very slow breath, 2.2s, as if signalling
+across the water rather than lighting the ground in front of it.
+
+That reference is deliberate: the old varder signalled headland to headland. A
+call for help looks different from work.
+
+---
+
+### Failure has no colour either
+
+When a tool call fails or a check does not pass, the slit **goes dark for 400ms**
+and comes back to its previous state. One dip, no repetition, nothing red. Red
+would make an ordinary failed verification look like an alarm, and most failures
+here are mundane: someone isn't on a roster.
+
+---
+
+### Spill on the ground
+
+The spill is not decoration, it carries the intensity information at small sizes
+where the slit itself is only a few pixels. Rules:
+
+- It is always the same colour as the slit, at 12% of its intensity.
+- It is elliptical, shaped by the terrain luminance in the hero and the marketing
+  page, and a plain soft ellipse in the dashboard.
+- It never has a hard edge, and never extends further than 2.5 times the beacon's
+  width.
+- Under 64px, where the SVG version is used, the spill becomes a simple two-stop
+  radial and the rhythms are preserved by animating its opacity along with the
+  slit's.
+
+---
+
+### What never happens
+
+- No colour outside the four listed. No violet, no blue glow, no rainbow, no
+  gradient along the slit.
+- No colour that means a category rather than a state. The light says what
+  Kalvard is doing, never what kind of thing it is doing.
+- No animation that loops forever in a resting state. Watching is still. If the
+  light is moving, something is actually happening.
+- No flashing faster than 1 Hz, ever, on any surface.
+- The green never appears without something having been resolved. If a screen
+  shows green and nothing was answered, that is a bug.
+
+---
+
+### Where each state appears
+
+| Surface | States used |
+|---|---|
+| Hero | watching, uncertain, asking, learning, answered |
+| Marketing sections | watching, thinking, working, learning, answered, waiting to be set up |
+| Onboarding | asleep → fifths of amber → watching |
+| Dashboard sidebar | asleep, watching, working, answered |
+| Test chat | watching, thinking, answered, failed |
+| Commands page | watching, thinking, working, answered, failed |
+| Servers list | asleep, watching, working, answered |
+| Status page | watching, error |
+
+Implement the states as a single named enum in the shared beacon component, so
+every surface animates identically and a new surface cannot invent its own.
 
 ## 7. Build order
 

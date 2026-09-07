@@ -96,7 +96,8 @@ export function TestChat({
     setSuggestions(outcome.questions);
   }
 
-  const light: Light = pending || suggesting ? 'working' : turns.length > 0 ? 'green' : 'amber';
+  const light: Light =
+    pending || suggesting ? 'working' : turns.length > 0 ? 'answered' : 'watching';
   const recent = turns
     .filter((t): t is Extract<Turn, { role: 'user' }> => t.role === 'user')
     .slice(-5)

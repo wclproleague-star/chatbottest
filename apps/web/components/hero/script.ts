@@ -80,5 +80,5 @@ export type Light = SkyLight;
  * the result of an answer. The off state exists and is not used on the page.
  */
 export function lightAt(t: number): Light {
-  return t >= RESOLVE_AT ? 'green' : 'amber';
+  return t >= RESOLVE_AT ? 'answered' : 'watching';
 }

@@ -116,18 +116,18 @@ export function Setup({
 
   // The light is the state of the whole thing.
   const light = !ready
-    ? 'loading'
+    ? 'waiting'
     : green
-      ? 'green'
+      ? 'answered'
       : step === 'live'
-        ? 'going'
+        ? 'working'
         : busy
           ? 'working'
           : (step === 'chat' || step === 'form') && done === 0
-            ? 'off'
+            ? 'asleep'
             : step === 'entry'
-              ? 'off'
-              : 'amber';
+              ? 'asleep'
+              : 'watching';
   const progress = !ready
     ? 1
     : (previewProgress ??

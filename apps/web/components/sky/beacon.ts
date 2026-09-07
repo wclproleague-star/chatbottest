@@ -28,12 +28,112 @@ import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLigh
 import ground from '../../../../assets/beacon/ground.png';
 
 /**
- * What the light is doing. `amber` is the vard watching, `green` is the
- * result of an answer, `off` is unconfigured, `working` is amber with a slow
- * pulse for the seconds while something is carried out, and `loading` is the
- * faint breath a page shows while it is getting ready to be looked at.
+ * What the light is doing: the whole vocabulary, in one table.
+ *
+ * Two colours and a dark, and everything else is rhythm, brightness and how
+ * far the light reaches onto the ground. The table is the only place any of it
+ * is decided, so every surface animates identically and a new screen cannot
+ * invent a state of its own.
+ *
+ * `intensity` is a share of the slit's full emissive value. `spill` is how far
+ * it reaches on the ground, as a multiple of the resting spill. `rhythm` is
+ * the difference between deciding and doing:
+ *
+ * - **breath** moves the intensity only, and the ground barely changes. It
+ *   reads as attention: something is happening inside.
+ * - **pulse** moves the intensity and the spill together, so the ground
+ *   brightens with the slit. It reads as effort: something is happening
+ *   outside, and you notice it across a room.
+ *
+ * So thinking breathes and working pulses, and that alone tells somebody
+ * whether Kalvard is deciding or doing, with no interface at all.
  */
-export type Light = 'amber' | 'green' | 'off' | 'working' | 'loading' | 'going';
+export type Light =
+  | 'asleep'
+  | 'waiting'
+  | 'watching'
+  | 'thinking'
+  | 'working'
+  | 'uncertain'
+  | 'asking'
+  | 'learning'
+  | 'answered'
+  | 'failed'
+  | 'error';
+
+/** Amber is awake, watching, working, uncertain. */
+const AMBER = '#d9a21b';
+/** Green is answered, verified, finished. Never decorative. */
+const GREEN = '#23a55a';
+/** Cold white is reserved for an outage, and never appears on the marketing page. */
+const COLD = '#c8d4e0';
+
+export type LightState = {
+  hue: 'amber' | 'green' | 'cold' | 'dark';
+  /** Where the intensity rests, 0 to 1, and where a breath reaches. */
+  intensity: number;
+  to?: number;
+  rhythm?: { kind: 'breath' | 'pulse'; ms: number; depth: number };
+  /** Multiple of the resting spill. */
+  spill: number;
+};
+
+/** The eleven states. Nothing else may be shown in the slit, ever. */
+export const LIGHT: Record<Light, LightState> = {
+  asleep: { hue: 'dark', intensity: 0, spill: 0 },
+  waiting: {
+    hue: 'amber',
+    intensity: 0.15,
+    rhythm: { kind: 'breath', ms: 1600, depth: 0.5 },
+    spill: 0.4,
+  },
+  watching: { hue: 'amber', intensity: 1, spill: 1 },
+  thinking: {
+    hue: 'amber',
+    intensity: 0.7,
+    to: 1,
+    rhythm: { kind: 'breath', ms: 700, depth: 0.3 },
+    spill: 1,
+  },
+  working: {
+    hue: 'amber',
+    intensity: 1,
+    rhythm: { kind: 'pulse', ms: 1400, depth: 0.22 },
+    spill: 1,
+  },
+  uncertain: { hue: 'amber', intensity: 0.4, spill: 0.5 },
+  asking: {
+    hue: 'amber',
+    intensity: 0.4,
+    to: 0.55,
+    rhythm: { kind: 'breath', ms: 2200, depth: 0.27 },
+    spill: 0.5,
+  },
+  learning: { hue: 'green', intensity: 1, spill: 1 },
+  answered: { hue: 'green', intensity: 1, spill: 1 },
+  failed: { hue: 'dark', intensity: 0, spill: 0 },
+  error: {
+    hue: 'cold',
+    intensity: 0.6,
+    rhythm: { kind: 'breath', ms: 3000, depth: 0.35 },
+    spill: 0.6,
+  },
+};
+
+/** Which states move at all. A resting light is still: if it moves, something is happening. */
+export const MOVES: Light[] = (Object.keys(LIGHT) as Light[]).filter((l) => LIGHT[l].rhythm);
+
+/**
+ * Green rises from the bottom of the slit to fill it, so for a moment the
+ * recess holds amber above and green below, meeting in a warm seam. Then one
+ * overshoot, and it settles. Four hundred milliseconds, and the only time both
+ * colours are on screen at once.
+ */
+export const LEARN_RISE_MS = 240;
+export const LEARN_SETTLE_MS = 160;
+export const LEARN_OVERSHOOT = 1.15;
+/** A failure is one dip to dark and back. Nothing red: most failures are mundane. */
+export const FAIL_DIP_MS = 400;
 
 /** Where the beacon stands: the photograph's rect over the canvas, and the beacon's centre across it. */
 export type BeaconPlacement = {
@@ -96,17 +196,6 @@ const MSAA_SAMPLES = 4;
 const LIGHT_MS = 240;
 /** The slit is lit in fifths, so setup can light one per thing decided. */
 const SEGMENTS = 5;
-/**
- * The pulses. Working is one slow breath, shallow enough to read as alive.
- * Loading is slower and deeper against a much fainter light: the object is
- * there, and it is not ready yet.
- */
-const PULSE: Partial<Record<Light, { ms: number; depth: number }>> = {
-  working: { ms: 1400, depth: 0.22 },
-  loading: { ms: 1600, depth: 0.55 },
-  // Going live: a fast, deep flicker, for the seconds it takes.
-  going: { ms: 420, depth: 0.45 },
-};
 
 /**
  * The strip shows its state colour exactly: its linear value is the inverse of
@@ -120,10 +209,6 @@ const BLOOM_STRENGTH = 1.0;
 /** Grain amplitude in sRGB, matched by eye to the still's grain. */
 const GRAIN = 0.05;
 
-const AMBER = '#d9a21b';
-const GREEN = '#23a55a';
-/** The seconds it is arriving in a server: not a state it rests in. */
-const VIOLET = '#7b5cff';
 const ALBEDO = '#0b0d10';
 
 /** sRGB hex to a linear colour, whatever ColorManagement is set to. */
@@ -328,45 +413,40 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
   scene.add(fill);
 
   // The light state, eased over LIGHT_MS.
-  const colors: Record<Light, THREE.Color> = {
-    amber: linear(AMBER),
-    working: linear(AMBER),
-    loading: linear(AMBER),
-    going: linear(VIOLET),
-    green: linear(GREEN),
-    off: new THREE.Color(0, 0, 0),
-  };
+  // The colours the table names, resolved once. A state has one hue; what
+  // separates the states is how bright it is, how it moves, and how far it
+  // reaches on the ground.
+  const HUE = {
+    amber: { light: linear(AMBER), shown: throughAces(AMBER) },
+    green: { light: linear(GREEN), shown: throughAces(GREEN) },
+    cold: { light: linear(COLD), shown: throughAces(COLD) },
+    dark: { light: new THREE.Color(0, 0, 0), shown: new THREE.Color(0, 0, 0) },
+  } as const;
+  const colors = Object.fromEntries(
+    (Object.keys(LIGHT) as Light[]).map((l) => [l, HUE[LIGHT[l].hue].light]),
+  ) as Record<Light, THREE.Color>;
   // What the strip must hold so it displays the hex exactly.
-  const shown: Record<Light, THREE.Color> = {
-    amber: throughAces(AMBER),
-    working: throughAces(AMBER),
-    loading: throughAces(AMBER),
-    going: throughAces(VIOLET),
-    green: throughAces(GREEN),
-    off: new THREE.Color(0, 0, 0),
-  };
-  const fromShown = shown.amber.clone();
-  const currentShown = shown.amber.clone();
-  // Loading is a fifteenth of the light: present, and plainly not ready.
-  const amount: Record<Light, number> = {
-    amber: 1,
-    working: 1,
-    loading: 0.15,
-    going: 1,
-    green: 1,
-    off: 0,
-  };
+  const shown = Object.fromEntries(
+    (Object.keys(LIGHT) as Light[]).map((l) => [l, HUE[LIGHT[l].hue].shown]),
+  ) as Record<Light, THREE.Color>;
+  const amount = Object.fromEntries(
+    (Object.keys(LIGHT) as Light[]).map((l) => [l, LIGHT[l].intensity]),
+  ) as Record<Light, number>;
+  const fromShown = shown.watching.clone();
+  const currentShown = shown.watching.clone();
   /** How much of the slit is lit, eased like the colour. */
   let progressNow = 1;
   let fromProgress = 1;
   let currentProgress = 1;
-  let lightNow: Light = 'amber';
-  const fromColor = colors.amber.clone();
+  let lightNow: Light = 'watching';
+  const fromColor = colors.watching.clone();
   let fromAmount = 1;
-  const current = colors.amber.clone();
+  const current = colors.watching.clone();
   let currentAmount = 1;
   let changedAt = -1;
   let changeMs = LIGHT_MS;
+  /** While this is in the future the slit is dark: one dip, then back. */
+  let dipUntil = -1;
   /**
    * The first state a caller asks for is not a change of state: it is what
    * this beacon is. It lands at once, so an instance that is green from the
@@ -380,6 +460,12 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     const settle = first;
     first = false;
     if (next === lightNow && nextProgress === progressNow) return;
+    // Failing is a moment, not a state to rest in: the slit goes dark for
+    // FAIL_DIP_MS and the light it had comes back underneath.
+    if (next === 'failed') {
+      dipUntil = now + FAIL_DIP_MS;
+      return;
+    }
     lightNow = next;
     progressNow = nextProgress;
     fromColor.copy(settle ? colors[next] : current);
@@ -390,6 +476,15 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     changeMs = ms;
   }
 
+  /** Whether the learning rise is still running, so the clock is not cleared under it. */
+  function learningNow(now: number): boolean {
+    return (
+      lightNow === 'learning' &&
+      changedAt >= 0 &&
+      now - changedAt <= LEARN_RISE_MS + LEARN_SETTLE_MS
+    );
+  }
+
   /** Advance the colour change and push it into the strip, the light and the spill. */
   function tick(now: number) {
     const k = changedAt < 0 ? 1 : Math.min(1, (now - changedAt) / changeMs);
@@ -397,29 +492,65 @@ export function createBeacon(renderer: THREE.WebGLRenderer) {
     currentShown.lerpColors(fromShown, shown[lightNow], k);
     currentAmount = fromAmount + (amount[lightNow] - fromAmount) * k;
     currentProgress = fromProgress + (progressNow - fromProgress) * k;
-    if (k >= 1) changedAt = -1;
+    if (k >= 1 && !learningNow(now)) changedAt = -1;
+    if (
+      lightNow === 'learning' &&
+      changedAt >= 0 &&
+      now - changedAt > LEARN_RISE_MS + LEARN_SETTLE_MS
+    ) {
+      lightNow = 'answered';
+      changedAt = -1;
+    }
 
-    // Working breathes; everything else is steady. Reduced motion is handled
-    // by the caller, which stops ticking and leaves the end state showing.
-    const breath = PULSE[lightNow];
-    const pulse =
-      breath && Number.isFinite(now)
-        ? 1 - breath.depth * (0.5 - 0.5 * Math.cos((now / breath.ms) * Math.PI * 2))
-        : 1;
-    const shownNow = currentAmount * pulse;
+    // Breath moves the light; pulse moves the light and the ground with it.
+    // Reduced motion is handled by the caller, which stops ticking and leaves
+    // the end state showing.
+    const state = LIGHT[lightNow];
+    const rhythm = state.rhythm;
+    const swing =
+      rhythm && Number.isFinite(now) ? 0.5 - 0.5 * Math.cos((now / rhythm.ms) * Math.PI * 2) : 0;
+    // A state with a `to` breathes between two brightnesses rather than dimming
+    // from its own: thinking runs 70 to 100, asking 40 to 55.
+    const reach = state.to ?? state.intensity * (1 - (rhythm?.depth ?? 0));
+    const moved = rhythm ? state.intensity + (reach - state.intensity) * swing : currentAmount;
+    const shownNow = rhythm ? (moved / (state.intensity || 1)) * currentAmount : currentAmount;
+    // Only a pulse reaches the ground; a breath leaves it where it was.
+    const groundSwing = rhythm?.kind === 'pulse' ? 1 + 0.6 * swing : 1;
 
+    // A failure is one dip to dark and back to whatever it was, so an ordinary
+    // check that did not pass never looks like an alarm.
+    const dipping = dipUntil > now;
+    const litScale = dipping ? 0 : 1;
     // The slit fills from the bottom, a fifth at a time; a segment part way
     // through the fifth being lit fades rather than snapping on.
+    //
+    // Learning is the one moment both colours exist at once, and it is
+    // physical rather than a crossfade: green enters at the bottom of the slit
+    // and rises to fill it, so for about half of it the recess holds amber
+    // above and green below, meeting in a warm seam. Then one overshoot, and
+    // it settles.
+    const learning = lightNow === 'learning' && changedAt >= 0;
+    const rise = learning ? Math.min(1, (now - changedAt) / LEARN_RISE_MS) : 1;
+    const past = learning ? Math.max(0, now - changedAt - LEARN_RISE_MS) : 0;
+    const overshoot = learning
+      ? rise < 1
+        ? 1 + (LEARN_OVERSHOOT - 1) * rise
+        : LEARN_OVERSHOOT + (1 - LEARN_OVERSHOOT) * Math.min(1, past / LEARN_SETTLE_MS)
+      : 1;
     for (let i = 0; i < SEGMENTS; i++) {
       const lit = Math.min(1, Math.max(0, currentProgress * SEGMENTS - i));
-      stripMaterials[i]!.color.copy(currentShown).multiplyScalar(shownNow * lit);
+      // Below the rising seam it is green; above it, the amber it still is.
+      const green = learning ? Math.min(1, Math.max(0, rise * SEGMENTS - i)) : 1;
+      const colour = learning ? HUE.amber.shown.clone().lerp(HUE.green.shown, green) : currentShown;
+      stripMaterials[i]!.color.copy(colour).multiplyScalar(shownNow * lit * litScale * overshoot);
     }
-    const litNow = shownNow * currentProgress;
+    const litNow = shownNow * currentProgress * litScale;
+    const ground = litNow * state.spill * groundSwing * overshoot;
     slitLight.color.copy(current);
     slitLight.intensity = 24 * litNow;
     spillLight.color.copy(current);
-    spillLight.intensity = 0.072 * litNow;
-    spillMaterial.color.copy(current).multiplyScalar(0.066 * litNow);
+    spillLight.intensity = 0.072 * ground;
+    spillMaterial.color.copy(current).multiplyScalar(0.066 * ground);
   }
 
   /** Lay the camera's frustum over the photograph's rect and stand the beacon at x. */

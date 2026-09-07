@@ -15,6 +15,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import * as THREE from 'three';
 import { PHOTO, createBeacon } from '../sky/beacon';
+import { MOVES } from '../sky/beacon';
 import type { Light } from '../sky/beacon';
 import { cx } from '@kalvard/ui';
 import { BeaconSvg } from './beacon-svg';
@@ -182,7 +183,9 @@ export function Beacon({
       // A working beacon breathes; a steady one still runs for the length of a
       // change, so amber to green is a crossfade rather than a jump.
       const changing = Date.now() - state.current.changedAt < CHANGE_MS;
-      frame = state.current.light === 'working' || changing ? requestAnimationFrame(loop) : 0;
+      // A light that moves keeps drawing; a still one draws once. The table
+      // says which move, so no surface has to remember.
+      frame = MOVES.includes(state.current.light) || changing ? requestAnimationFrame(loop) : 0;
     }
 
     draw(performance.now());
@@ -196,7 +199,7 @@ export function Beacon({
       // once the change has played, without a listener on every render.
       if (still) return;
       const changing = Date.now() - state.current.changedAt < CHANGE_MS;
-      if (!frame && (state.current.light === 'working' || changing)) {
+      if (!frame && (MOVES.includes(state.current.light) || changing)) {
         frame = requestAnimationFrame(loop);
       }
     }, 120);

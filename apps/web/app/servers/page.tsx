@@ -56,7 +56,7 @@ export default async function Page({
       name: g.guild_name ?? g.guild_id,
       icon: guildIconUrl(g.guild_id, g.guild_icon, 64),
       claimed: claimed.has(g.guild_id),
-      light: s?.light ?? 'off',
+      light: s?.light ?? 'asleep',
       line: s?.line ?? 'Not set up yet',
     };
   });
@@ -107,7 +107,7 @@ async function stateOf(guildIds: string[]): Promise<Map<string, State>> {
     const ready = g.setup_completed && g.bot_installed;
     if (!ready) {
       out.set(g.guild_id, {
-        light: 'off',
+        light: 'asleep',
         line: g.bot_installed ? 'Set up, not finished' : 'Not set up yet',
       });
       continue;
@@ -116,7 +116,7 @@ async function stateOf(guildIds: string[]): Promise<Map<string, State>> {
     const wait = pending.get(g.guild_id) ?? 0;
     const recent = Date.now() - (lastAnswer.get(g.guild_id) ?? 0) < HOUR;
     out.set(g.guild_id, {
-      light: busy.has(g.guild_id) ? 'working' : recent ? 'green' : 'amber',
+      light: busy.has(g.guild_id) ? 'working' : recent ? 'answered' : 'watching',
       line: sentence(answered, wait, busy.has(g.guild_id)),
     });
   }

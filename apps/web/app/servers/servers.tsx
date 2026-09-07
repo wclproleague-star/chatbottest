@@ -68,7 +68,7 @@ export function Servers({
 
 /** How many are actually keeping watch, said before anything else. */
 function lit(servers: ServerCard[]): string {
-  const watching = servers.filter((s) => s.light !== 'off').length;
+  const watching = servers.filter((s) => s.light !== 'asleep').length;
   if (servers.length === 0) return 'Nothing to keep watch over yet.';
   if (watching === 0) return 'No vards lit yet. Set one up and it starts watching.';
   return `${watching} ${watching === 1 ? 'vard' : 'vards'} watching.`;
@@ -123,12 +123,17 @@ function Card({ server }: { server: ServerCard }) {
 }
 
 const LABEL: Record<Light, string> = {
-  off: 'Not set up',
-  amber: 'Watching',
+  asleep: 'Not set up',
+  waiting: 'Not set up yet',
+  watching: 'Watching',
+  thinking: 'Thinking',
   working: 'Working now',
-  loading: 'Getting ready',
-  going: 'Going live',
-  green: 'Answered recently',
+  uncertain: 'Not sure',
+  asking: 'Asking a human',
+  learning: 'Learning',
+  answered: 'Answered recently',
+  failed: 'That did not work',
+  error: 'Something is down',
 };
 
 /** The rest of Discord, behind one line. */

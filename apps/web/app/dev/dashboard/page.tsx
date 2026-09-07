@@ -36,7 +36,7 @@ export default async function Page({
       <Sidebar
         guildId="900000000000000001"
         guildName="Wild Champions League"
-        light="amber"
+        light="watching"
         standing="Your vard is lit, and 2 waiting on you"
       />
       <main className="min-w-0 flex-1 px-6 pb-24 pt-10 lg:px-12">
@@ -75,7 +75,7 @@ function OverviewPreview() {
           word: 'Decent',
           line: 'It answers the common questions and asks about the rest.',
         },
-        light: 'amber',
+        light: 'watching',
         bot: {
           name: 'Kalvard',
           tone: 'Sunday 18:00 CET, in #announcements. Check-in closes an hour before.',

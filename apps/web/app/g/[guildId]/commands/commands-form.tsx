@@ -44,7 +44,11 @@ export function Commands({ guildId, examples }: { guildId: string; examples: str
   // while it works something out, green once it has done it.
   const reading = state?.kind === 'plan' && said < state.sentences.length;
   const light =
-    planning || deciding || reading ? 'working' : decided?.kind === 'sent' ? 'green' : 'amber';
+    planning || deciding || reading
+      ? 'working'
+      : decided?.kind === 'sent'
+        ? 'answered'
+        : 'watching';
 
   return (
     <div>

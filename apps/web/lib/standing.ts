@@ -32,12 +32,12 @@ export async function standing(guildId: string): Promise<{ light: Light; line: s
   ]);
 
   if (!guild?.bot_installed || !guild.setup_completed) {
-    return { light: 'off', line: 'Your vard is dark: setup is not finished.' };
+    return { light: 'asleep', line: 'Your vard is dark: setup is not finished.' };
   }
   const recent = last?.created_at ? Date.now() - new Date(last.created_at).getTime() < HOUR : false;
-  if (recent) return { light: 'green', line: 'Your vard answered somebody in the last hour.' };
+  if (recent) return { light: 'answered', line: 'Your vard answered somebody in the last hour.' };
   if ((waiting ?? 0) > 0) {
-    return { light: 'amber', line: `Your vard is lit, and ${waiting} waiting on you.` };
+    return { light: 'watching', line: `Your vard is lit, and ${waiting} waiting on you.` };
   }
-  return { light: 'amber', line: 'Your vard is lit. Nothing is waiting on you.' };
+  return { light: 'watching', line: 'Your vard is lit. Nothing is waiting on you.' };
 }

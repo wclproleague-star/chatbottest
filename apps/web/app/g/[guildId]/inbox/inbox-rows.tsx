@@ -14,6 +14,7 @@
 // line that grows, because most answers are one sentence.
 
 import { Button, ExpandingRow, GrowingInput, Panel, RowBlock, cx } from '@kalvard/ui';
+import type { Light } from '../../../../components/sky/beacon';
 import { Beacon } from '@/components/beacon/beacon';
 import { useActionState, useState } from 'react';
 import { answerQuestion, dismissQuestion } from './actions';
@@ -110,7 +111,7 @@ export function Inbox({
               meta={`${row.asker} · answered by ${row.answeredBy} · ${row.answeredAt}`}
               preview={row.answer}
               state="answered"
-              mark={<Mark light="green" />}
+              mark={<Mark light="answered" />}
               open={openId === row.id}
               onToggle={() => setOpenId((id) => (id === row.id ? null : row.id))}
               aside={<InDiscord link={row.link} />}
@@ -159,7 +160,7 @@ function WaitingRow({
       meta={`${row.asker} · ${row.channel} · ${row.askedAt}`}
       preview={row.draft ? `Kalvard said: ${row.draft}` : undefined}
       state="waiting"
-      mark={<Mark light="amber" />}
+      mark={<Mark light="watching" />}
       open={open}
       onToggle={onToggle}
       aside={<InDiscord link={row.link} />}
@@ -219,12 +220,12 @@ function WaitingRow({
  * component draws itself in vector, so it is sharp at a size where the object
  * would only be edges.
  */
-function Mark({ light }: { light: 'amber' | 'green' }) {
+function Mark({ light }: { light: Light }) {
   return (
     <Beacon
       light={light}
       className="h-7 w-[19px]"
-      label={light === 'amber' ? 'Waiting on you' : 'Answered'}
+      label={light === 'watching' ? 'Waiting on you' : 'Answered'}
     />
   );
 }

@@ -92,7 +92,7 @@ export default async function Page({ params }: { params: Promise<{ guildId: stri
               }
             : null,
         knowledge,
-        light: waitingCount > 0 ? 'amber' : answeredCount > 0 ? 'green' : 'off',
+        light: waitingCount > 0 ? 'watching' : answeredCount > 0 ? 'answered' : 'asleep',
         bot: {
           name: settings.data?.bot_name ?? 'Kalvard',
           tone: settings.data?.tone_sample ?? settings.data?.persona_prompt ?? '',

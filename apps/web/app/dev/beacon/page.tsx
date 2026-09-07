@@ -3,12 +3,13 @@
 import { Surface } from '@kalvard/ui';
 import { useEffect, useRef, useState } from 'react';
 import { Beacon } from '@/components/beacon/beacon';
+import { LIGHT } from '@/components/sky/beacon';
 import type { Light } from '@/components/sky/beacon';
 
 // The beacon on its own, in every state it has, so each can be looked at.
 
 export default function Page() {
-  const [light, setLight] = useState<Light>('off');
+  const [light, setLight] = useState<Light>('asleep');
   const [progress, setProgress] = useState(1);
   // The state can also come from the address, so a screenshot taken by a
   // headless browser can be in any of them without a click.
@@ -39,7 +40,7 @@ export default function Page() {
   return (
     <Surface surface="night" className="min-h-screen p-10">
       <div className="flex flex-wrap gap-3">
-        {(['off', 'amber', 'working', 'green'] as Light[]).map((state) => (
+        {(Object.keys(LIGHT) as Light[]).map((state) => (
           <button
             key={state}
             onClick={() => setLight(state)}
