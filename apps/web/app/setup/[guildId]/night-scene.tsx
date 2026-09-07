@@ -142,7 +142,6 @@ export function Glass({
   const [height, setHeight] = useState<number | null>(null);
   const [shown, setShown] = useState(true);
   const first = useRef(true);
-  const wideScreen = useWideScreen();
 
   // The panel is exactly as tall as its content, between the two bounds. The
   // padding lives on the measured box, so the height is the whole of it.
@@ -186,9 +185,12 @@ export function Glass({
       style={{
         ...(dropping ? GLASS_DROP : GLASS),
         height: height ?? undefined,
-        // The caller's placement wins over the class, and only where there is
-        // room for sides: on a phone the panel is the bottom of the screen.
-        ...(wideScreen && left !== null && left !== undefined
+        // The caller's placement wins over the class, and it only ever sends
+        // one on a screen with sides: on a phone the panel is the bottom of
+        // the screen. Deciding that here, from this component's own state,
+        // is what made the panel paint once at the window's edge before
+        // jumping into place.
+        ...(left !== null && left !== undefined
           ? { left, width: wide ? 680 : 620, maxWidth: 'none' }
           : null),
         transition: `height ${GROW_MS}ms var(--ease-standard)`,

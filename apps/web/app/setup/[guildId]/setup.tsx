@@ -334,12 +334,17 @@ function Centred({ children }: { children: ReactNode }) {
 }
 
 /**
- * What has been decided, on glass under the beacon and centred on it, so the
- * object and its description read as one thing. It never falls off the
- * bottom: where the foot is too low for it, it rises to sit just above the
- * edge instead. Only fields that exist: an empty one is not a row in grey, it
- * is not there.
+ * What has been decided, on glass beside the beacon: to the right of it, level
+ * with the lit part of the slit, so the object and its description read as one
+ * unit. Where the window is too narrow to hold a card there it goes back under
+ * the foot rather than off the edge. Only fields that exist: an empty one is
+ * not a row in grey, it is not there.
  */
+const CARD_W = 280;
+const CARD_GAP = 36;
+/** How close to the window's edge the card may come. */
+const CARD_EDGE = 24;
+
 function Card({
   config,
   areas,
@@ -347,7 +352,7 @@ function Card({
 }: {
   config: DraftConfig;
   areas: { key: keyof DraftConfig; label: string }[];
-  anchors: { x: number; foot: number; height: number } | null;
+  anchors: Anchors | null;
 }) {
   const box = useRef<HTMLElement>(null);
   const [tall, setTall] = useState(0);
@@ -360,14 +365,20 @@ function Card({
     return () => observer.disconnect();
   }, [areas.length]);
   if (!anchors) return null;
-  // Under the foot when there is room for it, and never nearer the bottom
-  // than a comfortable margin: a card half off the screen belongs to nothing.
-  const top = Math.min(anchors.foot + 16, anchors.height - tall - 40);
+
+  const beside = anchors.rightEdge + CARD_GAP;
+  const fits = beside + CARD_W + CARD_EDGE <= anchors.width;
+  const left = fits ? beside : Math.min(anchors.x - CARD_W / 2, anchors.width - CARD_W - CARD_EDGE);
+  const middle = (anchors.top + anchors.foot) / 2;
+  const top = fits
+    ? Math.max(40, Math.min(middle - tall / 2, anchors.height - tall - 40))
+    : Math.min(anchors.foot + 16, anchors.height - tall - 40);
+
   return (
     <aside
       ref={box}
-      className="text-star absolute hidden w-[320px] rounded-2xl p-6 lg:block"
-      style={{ ...GLASS, left: anchors.x - 160, top }}
+      className="text-star absolute hidden rounded-2xl p-6 lg:block"
+      style={{ ...GLASS, left, top, width: CARD_W }}
       aria-label="Decided so far"
     >
       <dl className="space-y-4">
@@ -389,13 +400,18 @@ function Card({
  * it out with: the middle of it, its left edge, and its foot. Both boxes are
  * placed from these, so neither drifts to a corner as the window changes.
  */
-function useSceneAnchors(): { x: number; leftEdge: number; foot: number; height: number } | null {
-  const [at, setAt] = useState<{
-    x: number;
-    leftEdge: number;
-    foot: number;
-    height: number;
-  } | null>(null);
+type Anchors = {
+  x: number;
+  leftEdge: number;
+  rightEdge: number;
+  top: number;
+  foot: number;
+  width: number;
+  height: number;
+};
+
+function useSceneAnchors(): Anchors | null {
+  const [at, setAt] = useState<Anchors | null>(null);
   useEffect(() => {
     const measure = () => {
       const frame = coverRect(window.innerWidth, window.innerHeight);
@@ -404,7 +420,10 @@ function useSceneAnchors(): { x: number; leftEdge: number; foot: number; height:
       setAt({
         x,
         leftEdge: x - width / 2,
+        rightEdge: x + width / 2,
+        top: frame.top + PHOTO.beaconTop * frame.height,
         foot: frame.top + PHOTO.beaconBase * frame.height,
+        width: window.innerWidth,
         height: window.innerHeight,
       });
     };
